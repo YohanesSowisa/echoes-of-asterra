@@ -324,6 +324,9 @@ class RangerFaye(NPC):
         qm = self.game.quest_manager
         quest = qm.quests["forest_patrol"]
 
+        def accept():
+            qm.accept_quest("forest_patrol")
+
         def empower_knights():
             if hasattr(self.game, "factions"):
                 self.game.factions.modify_reputation("knights", 20)
