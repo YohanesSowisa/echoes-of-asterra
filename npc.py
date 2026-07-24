@@ -506,7 +506,7 @@ class SpiritOfAsterra(NPC):
 class GreedAltar(NPC):
     """Ancient Greed Altar in Dungeon exit rooms. Offers Extraction vs Greed Curse."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Greed Altar", "slime")
+        super().__init__(pos, groups, "Greed Altar", "greed_altar")
         self.image = pygame.Surface((36, 48), pygame.SRCALPHA)
         pygame.draw.rect(self.image, (120, 20, 40), (4, 8, 28, 36), border_radius=4)
         pygame.draw.rect(self.image, (255, 60, 60), (6, 10, 24, 32), 2, border_radius=3)
@@ -546,7 +546,7 @@ class GreedAltar(NPC):
 class TownNoticeboard(NPC):
     """Town Investment Board in Village Plaza."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Town Investment Board", "slime")
+        super().__init__(pos, groups, "Town Investment Board", "noticeboard")
         self.image = pygame.Surface((44, 44), pygame.SRCALPHA)
         pygame.draw.rect(self.image, (100, 70, 40), (0, 0, 44, 44), border_radius=4)
         pygame.draw.rect(self.image, (210, 170, 60), (2, 2, 40, 40), 2, border_radius=3)

@@ -1302,13 +1302,16 @@ class UIManager:
     # --- DIALOGUE WINDOW ---
 
     def draw_dialogue_box(self, surface: pygame.Surface, dialogue_manager: Any) -> None:
-        """Typing dialogue node panel at screen bottom."""
+        """Typing dialogue node panel at screen bottom with dynamic height and vertical choices list."""
         node = dialogue_manager.current_node
         if not node:
             return
             
-        dw, dh = SCREEN_WIDTH - 80, 160
-        dx, dy = 40, SCREEN_HEIGHT - 200
+        n_choices = len(node.choices) if (dialogue_manager.typing_finished and node.choices) else 0
+        dw = SCREEN_WIDTH - 80
+        dh = 160 + max(0, n_choices * 36)
+        dx = 40
+        dy = SCREEN_HEIGHT - dh - 20
         
         box = pygame.Rect(dx, dy, dw, dh)
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
@@ -1325,7 +1328,7 @@ class UIManager:
         pygame.draw.circle(surface, (120, 80, 40), (px + 60, py + 52), 34, 4) # Hair
         pygame.draw.circle(surface, COLOR_BLACK, (px + 50, py + 56), 3) # Eyes
         pygame.draw.circle(surface, COLOR_BLACK, (px + 70, py + 56), 3)
-        pygame.draw.circle(surface, COLOR_RED, (px + 60, py + 72), 6, 2) # Smile
+        pygame.draw.circle(surface, COLOR_RED, (px + 60, py + 72), 6, 2) # Mouth
 
         # Speaker Name & Relationship Standing Badge
         name_str = node.speaker_name
@@ -1347,42 +1350,41 @@ class UIManager:
         
         for w in words:
             test_line = curr_line + w + " "
-            # Clip lines by pixel width
-            if self.fonts["small"].size(test_line)[0] < dw - 200:
+            if self.fonts["small"].size(test_line)[0] < dw - 180:
                 curr_line = test_line
             else:
                 lines.append(curr_line)
                 curr_line = w + " "
         lines.append(curr_line)
         
-        for idx, line in enumerate(lines[:3]):
+        for idx, line in enumerate(lines[:2]):
             lbl = self.fonts["small"].render(line, True, COLOR_WHITE)
             surface.blit(lbl, (dx + 160, txt_y + idx * 20))
 
-        # Dialogue choices list
+        # Render choices in a clean VERTICAL STACKED LIST
         if dialogue_manager.typing_finished and node.choices:
-            choice_start_x = dx + 160
-            choice_start_y = dy + 104
+            choice_x = dx + 160
+            choice_w = dw - 180
+            choice_start_y = dy + 92
             m_pos = pygame.mouse.get_pos()
             
-            for idx, choice in enumerate(node.choices[:2]):
-                cx = choice_start_x + idx * 240
-                choice_rect = pygame.Rect(cx, choice_start_y, 220, 32)
+            for idx, choice in enumerate(node.choices[:4]):
+                cy = choice_start_y + idx * 36
+                choice_rect = pygame.Rect(choice_x, cy, choice_w, 32)
                 
                 if choice_rect.collidepoint(m_pos):
                     dialogue_manager.selected_choice_idx = idx
                 
                 is_selected = (idx == dialogue_manager.selected_choice_idx)
-                bg_c = COLOR_UI_HIGHLIGHT if is_selected else COLOR_DARK_GRAY
+                bg_c = COLOR_UI_HIGHLIGHT if is_selected else (45, 48, 55)
                 text_c = COLOR_BLACK if is_selected else COLOR_WHITE
                 
                 pygame.draw.rect(surface, bg_c, choice_rect, border_radius=4)
                 pygame.draw.rect(surface, COLOR_UI_BORDER, choice_rect, 1, border_radius=4)
                 
                 lbl = self.fonts["small"].render(choice.text, True, text_c)
-                surface.blit(lbl, (cx + 110 - lbl.get_width() // 2, choice_start_y + 16 - lbl.get_height() // 2))
+                surface.blit(lbl, (choice_x + 12, cy + 16 - lbl.get_height() // 2))
         elif dialogue_manager.typing_finished:
-            # Advance hint
             hint = self.fonts["small"].render("[Space/Enter] Continue", True, COLOR_GRAY)
             surface.blit(hint, (dx + dw - hint.get_width() - 20, dy + dh - 24))
 
@@ -1471,17 +1473,21 @@ class UIManager:
         elif state == STATE_DIALOGUE:
             node = game.dialogue_manager.current_node
             if node:
-                dw, dh = SCREEN_WIDTH - 80, 160
-                dx, dy = 40, SCREEN_HEIGHT - 200
+                n_choices = len(node.choices) if (game.dialogue_manager.typing_finished and node.choices) else 0
+                dw = SCREEN_WIDTH - 80
+                dh = 160 + max(0, n_choices * 36)
+                dx = 40
+                dy = SCREEN_HEIGHT - dh - 20
                 box = pygame.Rect(dx, dy, dw, dh)
                 
                 if box.collidepoint(mouse_pos):
                     if game.dialogue_manager.typing_finished and node.choices:
-                        choice_start_x = dx + 160
-                        choice_start_y = dy + 104
-                        for idx, choice in enumerate(node.choices[:2]):
-                            cx = choice_start_x + idx * 240
-                            choice_rect = pygame.Rect(cx, choice_start_y, 220, 32)
+                        choice_x = dx + 160
+                        choice_w = dw - 180
+                        choice_start_y = dy + 92
+                        for idx, choice in enumerate(node.choices[:4]):
+                            cy = choice_start_y + idx * 36
+                            choice_rect = pygame.Rect(choice_x, cy, choice_w, 32)
                             if choice_rect.collidepoint(mouse_pos):
                                 game.dialogue_manager.selected_choice_idx = idx
                                 break
