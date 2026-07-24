@@ -258,6 +258,10 @@ class WorldManager:
                 enemy = Boss(e_pos, [game.visible_sprites], game.sound_manager, game.particles)
                 
             enemy.game = game
+            p_level = getattr(game.player, "level", 1) if hasattr(game, "player") else 1
+            floor_d = getattr(self, "current_floor", 1) if map_name == MAP_CRYPT else 1
+            e_key = getattr(enemy, "asset_key", "slime")
+            enemy.setup_balance(e_key, map_name, p_level, floor_d)
             enemy.sound_manager = game.sound_manager
             enemy.particles = game.particles
             

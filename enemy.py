@@ -118,13 +118,40 @@ class Enemy(BaseSprite):
         self.slow_multiplier = 0.5
         self.hit_flash_timer = 0.0
         
-        # --- AI CONTROLLER ---
+        # --- AI CONTROLLER & UNLOCKED ABILITIES ---
         self.ai = EnemyAI(self.pos)
+        self.level = 1
+        self.enemy_key = "slime"
+        self.unlocked_abilities: List[str] = []
         
         # --- ANIMATIONS ---
         self.frame_index = 0.0
         self.prev_state = "idle"
         self.prev_direction = DIR_DOWN
+
+    def setup_balance(self, enemy_key: str, map_name: str = "village", player_level: int = 1, floor_depth: int = 1) -> None:
+        """Applies data-driven balance curves, level scaling, and archetype AI unlocks."""
+        from rpg.balance import compute_enemy_level, ENEMY_BALANCES, GrowthCurve, compute_reward_multiplier
+        
+        self.enemy_key = enemy_key
+        self.level = compute_enemy_level(enemy_key, map_name, player_level, floor_depth)
+        
+        bal = ENEMY_BALANCES.get(enemy_key, ENEMY_BALANCES.get("slime"))
+        if bal:
+            self.max_hp = GrowthCurve.calculate_hp(bal.hp_base, self.level)
+            self.hp = self.max_hp
+            self.atk = GrowthCurve.calculate_atk(bal.atk_base, self.level)
+            self.defense = bal.def_base
+            
+            # Level delta reward scaling
+            reward_mult = compute_reward_multiplier(self.level, player_level)
+            base_xp = GrowthCurve.calculate_xp(bal.xp_base, self.level)
+            base_gold = GrowthCurve.calculate_gold(bal.gold_base, self.level)
+            self.xp_reward = max(1, int(base_xp * reward_mult))
+            self.gold_reward = max(1, int(base_gold * reward_mult))
+            
+            # Archetype AI Abilities unlock
+            self.unlocked_abilities = [ability for lvl, ability in bal.abilities_by_level.items() if self.level >= lvl]
 
     def trigger_invincibility(self, duration_ms: float) -> None:
         """Triggers temporary invincibility on getting hit."""
