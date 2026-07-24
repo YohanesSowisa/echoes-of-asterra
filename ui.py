@@ -913,7 +913,8 @@ class UIManager:
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
 
         # Header Title
-        hdr = self.fonts["medium"].render("Hero Attributes & Social Directory", True, COLOR_UI_HIGHLIGHT)
+        active_title = getattr(game.reputation_manager, "active_title", "The Wanderer") if hasattr(game, "reputation_manager") else "The Wanderer"
+        hdr = self.fonts["medium"].render(f"Hero Attributes  •  Title: {active_title}", True, COLOR_UI_HIGHLIGHT)
         surface.blit(hdr, (cx + 16, cy + 16))
 
         # Close label & Nav hint

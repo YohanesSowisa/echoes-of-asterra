@@ -64,6 +64,13 @@ class EnemyAI:
             self.patrol_timer -= dt
 
         # State transitions
+        # Enemy Recognition: Player titles (e.g. Scourge of Bandits) trigger fear & hesitation
+        if hasattr(enemy, "game") and enemy.game and hasattr(enemy.game, "reputation_manager"):
+            rep_mgr = enemy.game.reputation_manager
+            if (rep_mgr.active_title in ["Scourge of Bandits", "Greed Challenger"] or rep_mgr.get_global_tier() in ["Hero", "Legend"]) and dist_to_player <= self.vision_radius * 0.7:
+                if random.random() < 0.15:
+                    self.state = AI_STATE_RETREAT
+
         if dist_to_home > self.tether_radius:
             # Chased too far, force retreat back to home spawn
             self.state = AI_STATE_RETREAT

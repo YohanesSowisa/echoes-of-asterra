@@ -58,6 +58,12 @@ class Game:
         self.npc_memory = NPCMemoryManager()
         self.npc_memory.register_event_listeners(self.event_bus)
         
+        from rpg.memory import MemoryManager
+        self.memory_manager = MemoryManager(self.event_bus)
+        
+        from rpg.social import ReputationManager
+        self.reputation_manager = ReputationManager(self.event_bus, self.memory_manager)
+        
         self.sound_manager = SoundManager()
         self.input_handler = InputHandler()
         self.ui_manager = UIManager()

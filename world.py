@@ -181,11 +181,14 @@ class WorldManager:
             if npc:
                 npc.game = game
 
-        # Spawn Town Noticeboard & Past Hero Statue in Village Square
+        # Spawn Town Noticeboard, Past Hero Statue & Bard Finn in Village Square
         if map_name == MAP_VILLAGE:
-            from rpg.npc import TownNoticeboard, PastHeroStatue
+            from rpg.npc import TownNoticeboard, PastHeroStatue, BardFinn
             tb = TownNoticeboard((11 * TILE_SIZE, 11 * TILE_SIZE), [game.visible_sprites, game.npcs])
             tb.game = game
+
+            bf = BardFinn((15 * TILE_SIZE, 11 * TILE_SIZE), [game.visible_sprites, game.npcs])
+            bf.game = game
 
             # Spawn Past Hero Statue in Village Plaza if past run history exists
             if hasattr(game, "mythos_manager"):

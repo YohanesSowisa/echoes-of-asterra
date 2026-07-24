@@ -208,11 +208,19 @@ class MerchantSilas(NPC):
         def open_shop_callback():
             self.game.game_state = STATE_SHOP
             
+        # Check Silas relationship tier for hidden inventory unlock
+        silas_tier = "Unknown"
+        greeting_txt = "Welcome! Looking to trade? I carry fine supplies and will buy raw ores/apples."
+        if hasattr(self.game, "reputation_manager"):
+            silas_tier = self.game.reputation_manager.get_npc_tier("Silas")
+            if silas_tier in ["Trusted", "Friend", "Hero", "Legend"]:
+                greeting_txt = "Welcome back, my trusted friend! I kept these rare imported goods set aside just for you."
+
         # Dialogue prompting to trade
         node = DialogueNode(
             "silas_start",
             self.name,
-            "Welcome! Looking to trade? I carry fine supplies and will buy raw ores/apples.",
+            greeting_txt,
             [
                 DialogueChoice("Let's trade.", None, open_shop_callback),
                 DialogueChoice("Just looking around.", None)
@@ -250,6 +258,11 @@ class BlacksmithDennis(NPC):
                     self.game.living_world.settlement._on_prosperity_changed(prosperity=70.0)
                 if hasattr(self.game, "factions"):
                     self.game.factions.modify_reputation("knights", 15)
+                if hasattr(self.game, "memory_manager"):
+                    self.game.memory_manager.add_memory("donated_iron_ore", "settlement", 4, target="Dennis")
+                if hasattr(self.game, "reputation_manager"):
+                    self.game.reputation_manager.modify_npc_relationship("Dennis", 45)
+                    self.game.reputation_manager.modify_global_reputation(15)
                 
                 from rpg.combat import DamageNumber
                 DamageNumber(self.rect.center, "+35 Guard Defense! Market Tax -15%!", (255, 215, 0), [self.game.ui_sprites], size=20)
@@ -306,9 +319,11 @@ class BlacksmithDennis(NPC):
                 node = DialogueNode("dennis_locked", self.name, "Complete Scholar Mira's quest in Ruins first!", choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("dennis_locked")
-        else:
+            dennis_greeting = "Ready to work the anvil?"
+            if hasattr(self.game, "memory_manager") and self.game.memory_manager.has_memory("donated_iron_ore"):
+                dennis_greeting = "I've been forging ever since you brought me that iron ore. The village guards still carry your shields! What can I craft for you today?"
             hint = " Next: Visit Guardian Kai at Lake." if side_quest.status == QUEST_COMPLETED else ""
-            node = DialogueNode("dennis_regular", self.name, f"Ready to work the anvil?{hint}", choices)
+            node = DialogueNode("dennis_regular", self.name, f"{dennis_greeting}{hint}", choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("dennis_regular")
             
@@ -624,5 +639,32 @@ class PastHeroStatue(NPC):
         node = DialogueNode("past_statue_read", self.name, txt, [DialogueChoice("Honor the Old Hero.", None)])
         self.game.dialogue_manager.add_node(node)
         self.game.dialogue_manager.start_dialogue("past_statue_read")
+        self.game.game_state = STATE_DIALOGUE
+
+class BardFinn(NPC):
+    """Bard Finn. Sings procedural ballad songs generated from player memories."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Bard Finn", "mage")
+
+    def interact(self) -> None:
+        """Triggers procedural song composition and dialogue."""
+        if not self.on_interact_start("Finn"):
+            return
+        self.game.dialogue_manager.close()
+
+        from rpg.bard import BardSongEngine
+        song_txt = BardSongEngine.compose_song(
+            getattr(self.game, "memory_manager", None),
+            getattr(self.game, "reputation_manager", None)
+        )
+
+        node = DialogueNode(
+            "bard_song",
+            self.name,
+            song_txt,
+            [DialogueChoice("Bravo! What a song.", None)]
+        )
+        self.game.dialogue_manager.add_node(node)
+        self.game.dialogue_manager.start_dialogue("bard_song")
         self.game.game_state = STATE_DIALOGUE
 
