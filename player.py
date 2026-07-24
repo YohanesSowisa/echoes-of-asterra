@@ -405,10 +405,14 @@ class Player(BaseSprite):
                 
             # Speed parameters
             curr_speed = self.speed
-            if self.is_running and self.stamina > 5:
-                curr_speed *= PLAYER_RUN_MULTIPLIER
-                # Consume stamina slowly when running
-                self.stamina = max(0.0, self.stamina - 15.0 * self.game.dt)
+            if self.is_running:
+                # Check if player is currently engaged in combat
+                in_combat = getattr(self.game, "enemies_in_combat", False) if self.game else False
+                if not in_combat or self.stamina > 5:
+                    curr_speed *= PLAYER_RUN_MULTIPLIER
+                    if in_combat:
+                        # Consume stamina slowly when running during active combat
+                        self.stamina = max(0.0, self.stamina - 15.0 * self.game.dt)
                 
             self.velocity = move_vec * curr_speed
         else:

@@ -98,6 +98,11 @@ class NPCScheduleManager:
             if not npc_type:
                 continue
 
+            # Schedule Override System: If NPC has an active quest step for the player, override routine!
+            if getattr(npc, "has_active_quest_override", False):
+                npc.current_activity = "quest_post"
+                continue
+
             task = self.get_current_task(npc_type, time_of_day)
             if not task:
                 continue

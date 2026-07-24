@@ -96,6 +96,11 @@ class Boss(Enemy):
         self.attack_timer = self.attack_cooldown
         self.state = "attack"
         self.frame_index = 0.0
+        
+        # Project 1.0s Floor Danger Telegraph Circle centered on target
+        self.telegraph_timer = 1.0
+        self.telegraph_pos = pygame.math.Vector2(self.game.player.pos)
+        self.telegraph_radius = 96.0 if self.phase == 2 else 72.0
 
         attack_choice = random.choice([1, 2])
         if self.phase == 2:
@@ -194,9 +199,26 @@ class Boss(Enemy):
         # 2. Standard enemy updates (AI, collisions, moves)
         super().update(dt)
 
+        if self.telegraph_timer > 0.0:
+            self.telegraph_timer = max(0.0, self.telegraph_timer - dt)
+
         # 3. Particle glow in Phase 2
         if self.phase == 2 and random.random() < 0.2:
             self.particles.create_sparkle(self.rect.center + pygame.math.Vector2(random.uniform(-20, 20), random.uniform(-20, 20)), COLOR_ORANGE)
+
+    def draw_danger_telegraph(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+        """Renders glowing translucent red floor danger circle 1.0s before heavy attacks."""
+        if self.telegraph_timer <= 0.0:
+            return
+            
+        screen_pos = self.telegraph_pos - camera_offset
+        r = int(self.telegraph_radius)
+        
+        surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        alpha = int(140 * (self.telegraph_timer / 1.0))
+        pygame.draw.circle(surf, (240, 40, 40, alpha), (r, r), r)
+        pygame.draw.circle(surf, (255, 200, 50, alpha), (r, r), r, width=3)
+        surface.blit(surf, (screen_pos.x - r, screen_pos.y - r))
 
     def draw_health_bar(self, surface: pygame.Surface) -> None:
         """Renders the custom Boss HP overlay on top of screen."""

@@ -237,6 +237,24 @@ class SoundManager:
             return (bass + melody)
         self.sounds["boss_music"] = self._generate_wav("boss_music", boss_music_wave, 6.0, 0.4)
 
+        self.music_priorities: Dict[str, int] = {
+            "boss_music": 5,
+            "combat_music": 4,
+            "dungeon_music": 3,
+            "village_music": 2,
+            "forest_music": 1
+        }
+        self.music_playback_timer: float = 0.0
+        self.music_cooldown_timer: float = 0.0
+        self.min_track_duration: float = 10.0
+        self.transition_cooldown: float = 3.0
+
+    def update_timers(self, dt: float) -> None:
+        """Updates music playback timers and transition cooldowns."""
+        self.music_playback_timer += dt
+        if self.music_cooldown_timer > 0.0:
+            self.music_cooldown_timer = max(0.0, self.music_cooldown_timer - dt)
+
     def play_sound(self, name: str) -> None:
         """Plays a sound effect by name, applying the SFX volume."""
         if not self.enabled:
@@ -246,13 +264,34 @@ class SoundManager:
             sound.set_volume(self.sfx_volume)
             sound.play()
 
-    def play_music(self, name: str) -> None:
-        """Loops background music by name, applying the music volume."""
+    def play_footstep(self, tile_type: str = "grass") -> None:
+        """Plays tile-specific footstep sound variation (grass, dirt, stone, cave)."""
+        if not self.enabled:
+            return
+        # Sound FX selection based on surface tile
+        sfx_name = "footstep"
+        if tile_type in ["stone", "cave"]:
+            sfx_name = "click"
+        self.play_sound(sfx_name)
+
+    def play_music(self, name: str, force: bool = False) -> None:
+        """
+        Loops background music by name, respecting Priority Table & Transition Cooldowns.
+        Priority: boss_music (5) > combat_music (4) > dungeon_music (3) > village_music (2) > forest_music (1).
+        """
         if not self.enabled:
             return
         if self.current_music == name:
             return
+            
+        curr_prio = self.music_priorities.get(self.current_music or "", 0)
+        new_prio = self.music_priorities.get(name, 0)
         
+        # Enforce transition cooldowns for lower/equal priority switches unless forced or higher priority
+        if not force and new_prio <= curr_prio:
+            if self.music_playback_timer < self.min_track_duration or self.music_cooldown_timer > 0.0:
+                return
+
         # Stop existing music
         if self.current_music:
             music_sound = self.sounds.get(self.current_music)
@@ -260,6 +299,9 @@ class SoundManager:
                 music_sound.stop()
                 
         self.current_music = name
+        self.music_playback_timer = 0.0
+        self.music_cooldown_timer = self.transition_cooldown
+        
         music_sound = self.sounds.get(name)
         if music_sound:
             music_sound.set_volume(self.music_volume)

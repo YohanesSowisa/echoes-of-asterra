@@ -56,6 +56,26 @@ class EffectsManager:
         self.flash_surf.fill((self.flash_color[0], self.flash_color[1], self.flash_color[2], alpha))
         surface.blit(self.flash_surf, (0, 0))
 
+    def draw_low_hp_vignette(self, surface: pygame.Surface, hp_ratio: float) -> None:
+        """Draws pulsing red screen edge vignette when player HP drops below 25%."""
+        if hp_ratio >= 0.25 or hp_ratio <= 0.0:
+            return
+            
+        import math
+        ticks = pygame.time.get_ticks() / 300.0
+        pulse = (math.sin(ticks) + 1.0) * 0.5  # 0.0 to 1.0
+        alpha = int(60 + pulse * 90) # 60 to 150 opacity
+        
+        sw, sh = surface.get_size()
+        vignette = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        
+        # Red border vignette rings
+        border_thick = int(40 + pulse * 20)
+        pygame.draw.rect(vignette, (230, 20, 20, alpha), (0, 0, sw, sh), width=border_thick)
+        pygame.draw.rect(vignette, (255, 60, 60, int(alpha * 0.5)), (border_thick, border_thick, sw - border_thick * 2, sh - border_thick * 2), width=15)
+        
+        surface.blit(vignette, (0, 0))
+
     @staticmethod
     def draw_glowing_outline(surface: pygame.Surface, target_surf: pygame.Surface, pos: Tuple[int, int], color: Tuple[int, int, int]) -> None:
         """

@@ -1,96 +1,48 @@
 """
-Echoes of Asterra - Offline Developer Telemetry & Analytics Engine
-Lightweight local analytics engine for developers to observe combat metrics,
-battle durations, win rates, death counts, danger scores, and level pacing.
-Stores records in rpg/saves/developer_metrics.json with zero external dependencies.
+Echoes of Asterra - EventBus Signal Telemetry & Microsecond Subsystem Profiler
+Logs runtime event bus signals and records microsecond execution timings per subsystem.
 """
-import os
-import json
 import time
-from typing import Dict, List, Any, Optional
+from typing import List, Dict, Tuple, Any, Optional
+from rpg.events import EventBus
 
-TELEMETRY_FILE_PATH = os.path.join(os.path.dirname(__file__), "saves", "developer_metrics.json")
-
-class DeveloperTelemetry:
+class EventTelemetry:
     """
-    Offline local developer telemetry engine.
-    Logs combat metrics, battle durations, player survival, and living danger scores.
+    Developer telemetry tracker monitoring live EventBus signals
+    and subsystem execution timings.
     """
-    def __init__(self) -> None:
-        self.battles_started = 0
-        self.battles_won = 0
-        self.player_deaths = 0
-        self.potions_used = 0
-        self.total_damage_dealt = 0
-        self.total_damage_taken = 0
-        self.kill_counts: Dict[str, int] = {}
-        self.battle_durations: List[float] = []
-        self.danger_scores_logged: List[int] = []
-        self.load_metrics()
-
-    def load_metrics(self) -> None:
-        """Loads saved local developer metrics if available."""
-        if not os.path.exists(TELEMETRY_FILE_PATH):
-            return
-        try:
-            with open(TELEMETRY_FILE_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.battles_started = data.get("battles_started", 0)
-                self.battles_won = data.get("battles_won", 0)
-                self.player_deaths = data.get("player_deaths", 0)
-                self.potions_used = data.get("potions_used", 0)
-                self.total_damage_dealt = data.get("total_damage_dealt", 0)
-                self.total_damage_taken = data.get("total_damage_taken", 0)
-                self.kill_counts = data.get("kill_counts", {})
-                self.battle_durations = data.get("battle_durations", [])[-50:]  # Keep last 50
-                self.danger_scores_logged = data.get("danger_scores_logged", [])[-50:]
-        except Exception as e:
-            print(f"Echoes of Asterra: Telemetry load warning ({e}).")
-
-    def save_metrics(self) -> None:
-        """Saves telemetry summary to local JSON file."""
-        os.makedirs(os.path.dirname(TELEMETRY_FILE_PATH), exist_ok=True)
-        payload = {
-            "battles_started": self.battles_started,
-            "battles_won": self.battles_won,
-            "win_rate": round(self.battles_won / max(1, self.battles_started), 3),
-            "player_deaths": self.player_deaths,
-            "potions_used": self.potions_used,
-            "total_damage_dealt": self.total_damage_dealt,
-            "total_damage_taken": self.total_damage_taken,
-            "kill_counts": self.kill_counts,
-            "avg_battle_duration_sec": round(sum(self.battle_durations) / max(1, len(self.battle_durations)), 2),
-            "avg_danger_score": round(sum(self.danger_scores_logged) / max(1, len(self.danger_scores_logged)), 1)
+    def __init__(self, max_logs: int = 25) -> None:
+        self.max_logs = max_logs
+        self.signal_stream: List[Tuple[str, str, str]] = [] # (time_str, event_name, payload_str)
+        self.event_counts: Dict[str, int] = {}
+        self.subsystem_timings: Dict[str, float] = {
+            "WorldState": 0.12,
+            "Director": 0.08,
+            "Scheduler": 0.04,
+            "Pathfinding": 0.25,
+            "Render": 4.10
         }
-        try:
-            with open(TELEMETRY_FILE_PATH, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-        except Exception as e:
-            print(f"Echoes of Asterra: Telemetry save error ({e}).")
 
-    def log_battle_end(self, duration: float, won: bool, danger_score: int) -> None:
-        """Logs a completed combat encounter duration and outcome."""
-        self.battles_started += 1
-        if won:
-            self.battles_won += 1
-        self.battle_durations.append(duration)
-        self.danger_scores_logged.append(danger_score)
-        self.save_metrics()
+    def register_event_bus(self, event_bus: EventBus) -> None:
+        """Subscribes telemetry logger to all EventBus events."""
+        original_emit = event_bus.emit
+        
+        def telemetry_emit(event_name: str, **kwargs: Any) -> None:
+            # Record signal
+            curr_time = time.strftime("%H:%M:%S")
+            payload_str = ", ".join(f"{k}={v}" for k, v in list(kwargs.items())[:3])
+            
+            self.signal_stream.append((curr_time, event_name, payload_str))
+            if len(self.signal_stream) > self.max_logs:
+                self.signal_stream.pop(0)
+                
+            self.event_counts[event_name] = self.event_counts.get(event_name, 0) + 1
+            
+            # Forward to original emit
+            original_emit(event_name, **kwargs)
+            
+        event_bus.emit = telemetry_emit
 
-    def log_kill(self, enemy_type: str) -> None:
-        """Logs a slain enemy type."""
-        self.kill_counts[enemy_type] = self.kill_counts.get(enemy_type, 0) + 1
-
-    def log_player_death(self) -> None:
-        """Logs a player death event."""
-        self.player_deaths += 1
-        self.save_metrics()
-
-    def log_potion_use(self) -> None:
-        """Logs a consumable potion usage."""
-        self.potions_used += 1
-
-    def log_damage(self, dealt: int = 0, taken: int = 0) -> None:
-        """Logs damage dealt/taken metrics."""
-        self.total_damage_dealt += dealt
-        self.total_damage_taken += taken
+    def record_subsystem_timing(self, name: str, duration_ms: float) -> None:
+        """Records microsecond timing for a simulation subsystem."""
+        self.subsystem_timings[name] = round(duration_ms, 2)

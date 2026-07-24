@@ -153,6 +153,18 @@ class CombatSystem:
         # Deduct Health
         defender.take_damage(dmg)
         
+        # Apply Directional Knockback Pushback Vector
+        if hasattr(attacker, "pos") and hasattr(defender, "pos"):
+            knk_dir = defender.pos - attacker.pos
+            if knk_dir.length_squared() > 0:
+                knk_dir = knk_dir.normalize()
+                defender.knockback_vector = knk_dir * knockback_strength * 3.5
+                defender.knockback_duration = 0.25
+
+        # Trigger Dynamic Camera Screen-Shake on Critical Hits or Finishers
+        if (is_crit or damage_multiplier > 1.2) and hasattr(attacker, "game") and hasattr(attacker.game, "camera"):
+            attacker.game.camera.trigger_shake(4.5, 120)
+        
         # Play combat sound
         attacker.sound_manager.play_sound(sound_name)
         

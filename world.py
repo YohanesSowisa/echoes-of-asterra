@@ -93,6 +93,49 @@ class WorldManager:
         self.chests_opened: Dict[str, List[Tuple[int, int]]] = {}
         self.boss_defeated = False
         self.dungeon_depth = 1
+        self.activated_waypoints = set(["village"])
+
+    def activate_waypoint(self, region_id: str, game: Any) -> bool:
+        """Activates an Ancient Waypoint Stone, enabling fast travel."""
+        if region_id not in self.activated_waypoints:
+            self.activated_waypoints.add(region_id)
+            if hasattr(game, "ui_manager") and hasattr(game.ui_manager, "celebration"):
+                from rpg.celebration import CelebrationTier
+                game.ui_manager.celebration.trigger_celebration(
+                    CelebrationTier.MEDIUM,
+                    f"WAYPOINT ACTIVATED: {region_id.upper()}!",
+                    "Fast travel point is now bound and active!",
+                    event_bus=getattr(game, "event_bus", None)
+                )
+            return True
+        return False
+
+    def can_fast_travel(self, target_region: str, game: Any) -> Tuple[bool, str]:
+        """
+        Validates fast travel rules:
+        - Waypoint must be activated
+        - Target region unlocked
+        - Player not in combat
+        - Player not inside dungeon
+        """
+        from rpg.constants import MAP_CRYPT
+        if self.current_map_name == MAP_CRYPT:
+            return False, "Cannot fast travel from subterranean crypts!"
+            
+        if getattr(game, "enemies_in_combat", False):
+            return False, "Cannot fast travel during active combat!"
+            
+        if target_region not in self.activated_waypoints:
+            return False, f"Ancient Waypoint Stone in {target_region.upper()} is not activated!"
+
+        lw = getattr(game, "living_world", None)
+        prog_mgr = getattr(lw, "progression", None) if lw else None
+        if prog_mgr:
+            can_acc, clue, _ = prog_mgr.can_access_region(target_region, game)
+            if not can_acc:
+                return False, f"Target region is locked: {clue}"
+
+        return True, "Fast travel ready"
 
     def load_map(self, map_name: str, player: Any, portal_spawn: bool = True, portal_coord: Tuple[int, int] = None) -> None:
         """

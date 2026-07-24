@@ -26,9 +26,12 @@ class DebugOverlay:
 
     def handle_keydown(self, key: int) -> bool:
         """
-        Handles F9, F10, F11 hotkeys. Returns True if key event was consumed.
+        Handles F8, F9, F10, F11 hotkeys. Returns True if key event was consumed.
         """
-        if key == pygame.K_F9:
+        if key == pygame.K_F8:
+            self.active_panel = None if self.active_panel == "eventbus" else "eventbus"
+            return True
+        elif key == pygame.K_F9:
             self.active_panel = None if self.active_panel == "overview" else "overview"
             return True
         elif key == pygame.K_F10:
@@ -44,7 +47,9 @@ class DebugOverlay:
         if not self.active_panel or not game_context:
             return
             
-        if self.active_panel == "overview":
+        if self.active_panel == "eventbus":
+            self._draw_eventbus_panel(surface, game_context)
+        elif self.active_panel == "overview":
             self._draw_overview_panel(surface, game_context)
         elif self.active_panel == "director":
             self._draw_director_panel(surface, game_context)
@@ -223,3 +228,42 @@ class DebugOverlay:
             surface.blit(t_surf, (x + 24, curr_y))
             surface.blit(c_surf, (x + 200, curr_y))
             curr_y += 20
+
+    def _draw_eventbus_panel(self, surface: pygame.Surface, game_context: Any) -> None:
+        """Renders live EventBus Signal Stream & Microsecond Subsystem Timings (F8)."""
+        w, h = 640, 420
+        x = (SCREEN_WIDTH - w) // 2
+        y = (SCREEN_HEIGHT - h) // 2
+        
+        self._draw_card_frame(surface, x, y, w, h, "[F8] EVENTBUS SIGNAL INSPECTOR & PROFILER", "Live Signal Stream & Subsystem Timings")
+        
+        # Pull telemetry object
+        telemetry = getattr(game_context, "telemetry", None)
+        if not telemetry:
+            lbl = self.font_body.render("Telemetry logger active.", True, (180, 180, 180))
+            surface.blit(lbl, (x + 16, y + 50))
+            return
+
+        curr_y = y + 46
+        # Subsystem Timing breakdown
+        tb_hdr = self.font_header.render("Subsystem Execution Timings (ms):", True, (0, 180, 216))
+        surface.blit(tb_hdr, (x + 16, curr_y))
+        curr_y += 20
+        
+        tb_str = "  ".join([f"{k}: {v}ms" for k, v in telemetry.subsystem_timings.items()])
+        tb_surf = self.font_body.render(tb_str, True, (255, 215, 0))
+        surface.blit(tb_surf, (x + 20, curr_y))
+        curr_y += 26
+
+        # Signal Stream Stream Header
+        st_hdr = self.font_header.render("Recent EventBus Signals (Live Stream):", True, (0, 180, 216))
+        surface.blit(st_hdr, (x + 16, curr_y))
+        curr_y += 20
+
+        # Display recent 12 signals
+        recent_signals = telemetry.signal_stream[-12:]
+        for t_stamp, ev_name, payload in reversed(recent_signals):
+            line_txt = f"[{t_stamp}] {ev_name.upper():<24} ({payload})"
+            l_surf = self.font_body.render(line_txt, True, (200, 220, 240))
+            surface.blit(l_surf, (x + 20, curr_y))
+            curr_y += 18

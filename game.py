@@ -99,7 +99,10 @@ class Game:
         
         # Mythos Inheritance Engine (Warisan Mitos & Legacy)
         from rpg.mythos import MythosManager
+        from rpg.telemetry import EventTelemetry
         self.mythos_manager = MythosManager()
+        self.telemetry = EventTelemetry()
+        self.telemetry.register_event_bus(self.event_bus)
         
         # Load initial village map for menu background
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
@@ -478,8 +481,13 @@ class Game:
         # 3b. Check quest completions and grant rewards
         completed_quests = self.quest_manager.check_completable_quests(self.player)
         for cq in completed_quests:
-            from rpg.combat import DamageNumber
-            DamageNumber(self.player.rect.center, f"Quest Completed: {cq.title}!", (255, 215, 0), [self.ui_sprites], size=26)
+            from rpg.celebration import CelebrationTier
+            self.ui_manager.celebration.trigger_celebration(
+                CelebrationTier.MEDIUM,
+                f"QUEST COMPLETED: {cq.title.upper()}!",
+                "Earned Gold, XP, and NPC Trust!",
+                event_bus=self.event_bus
+            )
             self.event_bus.emit("quest_completed", quest_id=cq.id)
         
         # 3c. Update central Living World simulation orchestrator
@@ -531,11 +539,12 @@ class Game:
                     target_prof = prog_mgr.regions.get(target)
                     reg_name = target_prof.name if target_prof else target.upper()
 
-                    self.ui_manager.show_banner(
-                        title=f"REGION UNLOCKED: {reg_name.upper()}!",
-                        subtitle=f"The path to {reg_name} is now open and accessible.",
-                        color=(255, 215, 0),
-                        duration=5.0
+                    from rpg.celebration import CelebrationTier
+                    self.ui_manager.celebration.trigger_celebration(
+                        CelebrationTier.LARGE,
+                        f"REGION UNLOCKED: {reg_name.upper()}!",
+                        f"The path to {reg_name} is now open and accessible.",
+                        event_bus=self.event_bus
                     )
 
                 # Fade transition flash

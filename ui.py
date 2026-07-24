@@ -102,6 +102,16 @@ class UIManager:
         self.banner_timer: float = 0.0
         self.banner_duration: float = 4.0
 
+        # Centralized Managers
+        from rpg.celebration import CelebrationManager
+        from rpg.notification import NotificationManager
+        self.celebration = CelebrationManager()
+        self.notifications = NotificationManager()
+
+        # Progressive Information Disclosure Timers
+        self.playtime_seconds: float = 0.0
+        self.onboarding_stage: int = 0 # 0: Talk only, 1: Combat prompts, 2: Inventory tutorial, 3: Toasts active, 4: Forecasts active
+
         # Double click tracker
         self.last_click_time = 0
         self.last_click_slot = -1
@@ -191,6 +201,21 @@ class UIManager:
 
     def draw_gameplay_layers(self, surface: pygame.Surface, game: Any) -> None:
         """Renders standard HUD, minimap, dialogue boxes, shops, and active panels."""
+        dt = getattr(game, "dt", 0.016)
+        self.playtime_seconds += dt
+        
+        # Progressive Information Disclosure Stages:
+        # 0: <30s (Talk prompt only), 1: 30-120s (Combat prompts), 2: 120-300s (Inventory tutorial), 3: 300-420s (Toasts active), 4: >420s (Forecasts active)
+        if self.playtime_seconds > 420.0: self.onboarding_stage = 4
+        elif self.playtime_seconds > 300.0: self.onboarding_stage = 3
+        elif self.playtime_seconds > 120.0: self.onboarding_stage = 2
+        elif self.playtime_seconds > 30.0: self.onboarding_stage = 1
+        else: self.onboarding_stage = 0
+
+        # Update managers
+        self.celebration.update(dt)
+        self.notifications.update(dt)
+
         # 1. Base HUD
         self.draw_hud(surface, game.player, game)
         
@@ -225,18 +250,31 @@ class UIManager:
         elif game.game_state == STATE_SHOP:
             self.draw_shop_interface(surface, game.player)
 
-        # 6. Render dragged item outline on top of everything
+        # 6. Render Low-HP Red Screen Vignette (<25% HP)
+        if hasattr(game, "effects_manager") and hasattr(game, "player"):
+            hp_r = game.player.hp / max(1.0, float(game.player.max_hp))
+            game.effects_manager.draw_low_hp_vignette(surface, hp_r)
+
+        # 7. Render Floor Interaction Prompts
+        self.draw_floor_interaction_prompts(surface, game)
+
+        # 8. Render Stacked Notification Feed
+        if self.onboarding_stage >= 3:
+            self.notifications.draw(surface, self.fonts, SCREEN_WIDTH)
+
+        # 9. Render Screen-Centered Top Banner & Celebration Overlay
+        self.celebration.draw(surface, self.fonts, SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.draw_banner_notification(surface, dt)
+
+        # 10. Render dragged item outline on top of everything
         if game.player.inventory.dragged_item:
             m_pos = pygame.mouse.get_pos()
             icon = pygame.transform.scale(game.player.inventory.dragged_item.icon, (36, 36))
             surface.blit(icon, (m_pos[0] - 18, m_pos[1] - 18))
 
-        # 7. Render Tooltip popup on hover
+        # 11. Render Tooltip popup on hover with Side-by-Side comparison
         if self.hovered_item:
-            self.draw_tooltip(surface, self.hovered_item, pygame.mouse.get_pos())
-
-        # 8. Render Screen-Centered Top Banner Notification
-        self.draw_banner_notification(surface, getattr(game, "dt", 0.016))
+            self.draw_tooltip(surface, self.hovered_item, pygame.mouse.get_pos(), player=game.player)
 
     def show_banner(self, title: str, subtitle: str = "", color: Tuple[int, int, int] = (240, 140, 30), duration: float = 4.0) -> None:
         """Displays a screen-centered top banner message overlay."""
@@ -1318,8 +1356,18 @@ class UIManager:
         pygame.draw.rect(surface, COLOR_DARK_GRAY, right_box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, right_box, 1, border_radius=6)
 
-        lbl_p = self.fonts["medium"].render("Sell Items (Right-Click)", True, COLOR_WHITE)
+        lbl_p = self.fonts["medium"].render("Sell Items", True, COLOR_WHITE)
         surface.blit(lbl_p, (sx + 368, sy + 80))
+
+        # Sell All Materials Button
+        sell_all_rect = pygame.Rect(sx + 510, sy + 76, 134, 24)
+        m_pos = pygame.mouse.get_pos()
+        is_sa_hover = sell_all_rect.collidepoint(m_pos)
+        pygame.draw.rect(surface, (80, 50, 20) if is_sa_hover else (50, 30, 15), sell_all_rect, border_radius=3)
+        pygame.draw.rect(surface, (240, 180, 40), sell_all_rect, width=1, border_radius=3)
+        sa_lbl = self.fonts["small"].render("Sell All Junk/Ores", True, COLOR_YELLOW)
+        surface.blit(sa_lbl, (sell_all_rect.centerx - sa_lbl.get_width() // 2, sell_all_rect.centery - sa_lbl.get_height() // 2))
+        self.slot_rects["sell_all"] = [(sell_all_rect, 0)]
 
         # Render mini inventory backpack (6 cols, 4 rows)
         grid_start_x = sx + 368
@@ -1364,9 +1412,40 @@ class UIManager:
 
     # --- ITEM DESCRIPTION TOOLTIP ---
 
-    def draw_tooltip(self, surface: pygame.Surface, item: Any, mouse_pos: Tuple[int, int]) -> None:
-        """Floating tooltip showing description, stats, and rarity colors."""
-        tw, th = 220, 120
+    def draw_floor_interaction_prompts(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders subtle floor key hints ([E] Talk, [E] Open Chest) over nearby interactable entities."""
+        if not hasattr(game, "player") or not hasattr(game, "camera"):
+            return
+            
+        p_pos = game.player.pos
+        cam_offset = game.camera.get_offset()
+        font = self.fonts.get("small", pygame.font.SysFont("Arial", 14))
+
+        # Check nearby NPCs
+        if hasattr(game, "npcs"):
+            for npc in game.npcs:
+                if hasattr(npc, "pos"):
+                    dist = (npc.pos - p_pos).length()
+                    if dist <= 54.0:
+                        screen_p = npc.pos - cam_offset
+                        name_str = getattr(npc, "name", "NPC")
+                        prompt_txt = f"[E] Talk to {name_str}"
+                        
+                        lbl = font.render(prompt_txt, True, (255, 215, 0))
+                        bg_w = lbl.get_width() + 16
+                        bg_h = 24
+                        bx = screen_p.x - bg_w // 2
+                        by = screen_p.y - 48
+                        
+                        bg = pygame.Surface((bg_w, bg_h), pygame.SRCALPHA)
+                        bg.fill((16, 22, 34, 210))
+                        surface.blit(bg, (bx, by))
+                        pygame.draw.rect(surface, (0, 180, 216), (bx, by, bg_w, bg_h), width=1, border_radius=4)
+                        surface.blit(lbl, (bx + 8, by + 3))
+
+    def draw_tooltip(self, surface: pygame.Surface, item: Any, mouse_pos: Tuple[int, int], player: Any = None) -> None:
+        """Floating tooltip showing description, stats, rarity colors, and side-by-side equipped gear comparison."""
+        tw, th = 240, 136
         tx = mouse_pos[0] + 16
         ty = mouse_pos[1] + 16
         
@@ -1395,20 +1474,36 @@ class UIManager:
             val_lbl = self.fonts["small"].render(f"Sell: {sell_val}g", True, COLOR_YELLOW)
             surface.blit(val_lbl, (tx + tw - val_lbl.get_width() - 10, ty + 28))
 
-        # 3. Item stats
+        # 3. Item stats & Side-by-Side Equipment Comparison
         stat_y = ty + 46
         if item.stats:
-            stat_strs = [f"+{val} {k.upper()}" for k, val in item.stats.items()]
-            stat_lbl_txt = ", ".join(stat_strs)
-            stat_lbl = self.fonts["small"].render(stat_lbl_txt, True, COLOR_GREEN)
-            surface.blit(stat_lbl, (tx + 10, stat_y))
-            stat_y += 18
+            eq_item = player.equipment.slots.get(item.item_type) if (player and hasattr(item, "item_type")) else None
+            
+            for k, val in item.stats.items():
+                eq_val = eq_item.stats.get(k, 0) if (eq_item and hasattr(eq_item, "stats")) else 0
+                diff = val - eq_val
+                
+                diff_str = ""
+                diff_c = COLOR_GREEN
+                if eq_item and eq_item != item:
+                    if diff > 0:
+                        diff_str = f" (+{diff} net gain)"
+                        diff_c = (100, 240, 140)
+                    elif diff < 0:
+                        diff_str = f" ({diff} net drop)"
+                        diff_c = (240, 100, 100)
+                    else:
+                        diff_str = " (= same)"
+                        diff_c = COLOR_GRAY
+
+                stat_txt = f"+{val} {k.upper()}{diff_str}"
+                stat_lbl = self.fonts["small"].render(stat_txt, True, diff_c)
+                surface.blit(stat_lbl, (tx + 10, stat_y))
+                stat_y += 18
             
         # 4. Item Description text (wraps slightly)
-        desc_lbl = self.fonts["small"].render(item.description[:36], True, COLOR_WHITE)
-        desc_lbl_2 = self.fonts["small"].render(item.description[36:72], True, COLOR_WHITE)
+        desc_lbl = self.fonts["small"].render(item.description[:38], True, COLOR_WHITE)
         surface.blit(desc_lbl, (tx + 10, stat_y))
-        surface.blit(desc_lbl_2, (tx + 10, stat_y + 14))
 
     # --- DIALOGUE WINDOW ---
 
@@ -1653,6 +1748,27 @@ class UIManager:
                             game.quest_manager.handle_inventory_change(player.inventory)
                     return
             
+            # Sell All Materials Button click
+            for sa_rect, _ in self.slot_rects.get("sell_all", []):
+                if sa_rect.collidepoint(mouse_pos):
+                    total_sold_gold = 0
+                    items_sold_count = 0
+                    for s_idx, slot in enumerate(player.inventory.slots):
+                        if slot and getattr(slot, "item_type", "") == "material":
+                            s_price = self.get_item_sell_price(slot)
+                            if s_price > 0:
+                                gained = s_price * slot.quantity
+                                total_sold_gold += gained
+                                items_sold_count += slot.quantity
+                                player.inventory.slots[s_idx] = None
+                    if items_sold_count > 0:
+                        player.gold += total_sold_gold
+                        player.sound_manager.play_sound("heal")
+                        from rpg.notification import NotificationPriority
+                        self.notifications.push_toast(f"Sold {items_sold_count} materials for +{total_sold_gold}g!", NotificationPriority.HIGH, color=(255, 215, 0))
+                        game.quest_manager.handle_inventory_change(player.inventory)
+                    return
+
             # Player Sell: Click (Left-click OR Right-click) item in Sell Panel to sell to Silas
             for rect, idx in self.slot_rects["inventory"]:
                 if rect.collidepoint(mouse_pos):
@@ -1686,7 +1802,7 @@ class UIManager:
             ih = 380
             sort_rect = pygame.Rect(ix + 16, iy + ih - 44, 100, 26)
             if sort_rect.collidepoint(mouse_pos) and not right_click:
-                player.inventory.sort_inventory()
+                player.inventory.auto_sort()
                 player.sound_manager.play_sound("click")
                 return
 
@@ -2045,13 +2161,30 @@ class UIManager:
             pygame.draw.rect(surface, (255, 215, 0), (bar_x, curr_y, fill_w, bar_h), border_radius=3)
         pygame.draw.rect(surface, (0, 180, 216), (bar_x, curr_y, bar_w, bar_h), width=1, border_radius=3)
         
-        pct_lbl = self.fonts["small"].render(f"{mastery.exploration_percent:.1f}%", True, (255, 255, 255))
-        surface.blit(pct_lbl, (bar_x + bar_w + 10, curr_y - 2))
-        curr_y += 22
-
         m_details = f"Landmarks: {mastery.landmarks_found}/{mastery.max_landmarks}  |  Elites Culled: {mastery.elites_culled}/{mastery.max_elites}  |  Secrets: {mastery.secrets_found}/{mastery.max_secrets}"
         md_surf = self.fonts["small"].render(m_details, True, (180, 200, 220))
         surface.blit(md_surf, (detail_x + 20, curr_y))
+        curr_y += 24
+
+        # Fast Travel Button if Waypoint Activated
+        if hasattr(game, "world_manager") and sel_reg.id in game.world_manager.activated_waypoints:
+            ft_rect = pygame.Rect(detail_x + detail_w - 150, detail_y + detail_h - 38, 134, 26)
+            is_ft_hover = ft_rect.collidepoint(pygame.mouse.get_pos())
+            pygame.draw.rect(surface, (0, 140, 180) if is_ft_hover else (0, 80, 110), ft_rect, border_radius=4)
+            pygame.draw.rect(surface, (0, 220, 255), ft_rect, width=1, border_radius=4)
+            ft_lbl = self.fonts["small"].render("★ Fast Travel", True, (255, 255, 255))
+            surface.blit(ft_lbl, (ft_rect.centerx - ft_lbl.get_width() // 2, ft_rect.centery - ft_lbl.get_height() // 2))
+
+            if pygame.mouse.get_pressed()[0] and is_ft_hover:
+                can_ft, reason = game.world_manager.can_fast_travel(sel_reg.id, game)
+                if can_ft:
+                    self.close_all_panels()
+                    game.sound_manager.play_sound("magic")
+                    game.effects_manager.trigger_flash((255, 255, 255), 300)
+                    game.world_manager.load_map(sel_reg.id, game.player, portal_spawn=False)
+                else:
+                    from rpg.notification import NotificationPriority
+                    self.notifications.push_toast(reason, NotificationPriority.MEDIUM, color=(240, 120, 30))
 
 def cy_crafting(cy: int) -> int:
     return cy

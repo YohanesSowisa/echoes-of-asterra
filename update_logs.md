@@ -8,6 +8,10 @@ Format: `[yyyy-mm-dd hh:mm:ss WIB] | [tipe_pekerjaan]: [pekerjaan]`
 
 ## Timeline Log
 
+- **2026-07-24 16:51:00 WIB** | **new feature**: Implementasi Phase 4 Developer Diagnostics dengan EventTelemetry logger (`rpg/telemetry.py`), Live EventBus Signal Inspector (F8), dan Subsystem Microsecond Execution Profiler (`rpg/debug_overlay.py`).
+- **2026-07-24 16:50:00 WIB** | **new feature**: Implementasi Phase 3 Strict Fast Travel Waypoint Rules (`rpg/world.py`, `rpg/ui.py`), Schedule Override System untuk Quest NPCs (`rpg/npc_schedule.py`), dan Visual Settlement Roof & Road Tier Upgrades (`rpg/settlement.py`).
+- **2026-07-24 16:48:00 WIB** | **new feature**: Implementasi Phase 2 Music Priority Table & Cooldown Engine (`rpg/sound.py`), Dynamic Camera Screen-Shake & Directional Knockback (`rpg/combat.py`), Inventory Auto-Sort (`rpg/inventory.py`), serta Merchant Bulk "Sell All Junk/Ores" Action (`rpg/ui.py`).
+- **2026-07-24 16:39:00 WIB** | **new feature**: Implementasi Phase 0 & Phase 1 Production QoL Engine dengan CelebrationManager (`rpg/celebration.py`, 4-Tier Profiles), NotificationManager (`rpg/notification.py`, Anti-Fatigue Policy & Pickup Merge), Out-of-Combat Infinite Sprinting (`rpg/player.py`), Low-HP Vignette (`rpg/effects.py`), Boss Danger Telegraphs (`rpg/boss.py`), serta Tooltip Comparison & Floor Key Prompts (`rpg/ui.py`).
 - **2026-07-24 16:06:00 WIB** | **new feature**: Implementasi Progressive World Unlock & Exploration Log (`rpg/progression.py`, `rpg/ui.py`) dengan Region State Machine 6-Stage, Narrative Requirement Clues, Alternative Vector Paths, Identity Metadata, Mastery Tracker, dan UI Log Eksplorasi ('R').
 - **2026-07-24 15:50:00 WIB** | **new feature**: Implementasi World Scheduler (`rpg/scheduler.py`), World Snapshot API (`rpg/world_state.py`), Adaptive Game Director & Pressure Model (`rpg/director.py`), serta Developer Debug Overlay F9/F10/F11 (`rpg/debug_overlay.py`).
 - **2026-07-24 15:44:00 WIB** | **bug fix**: Memperbaiki variabel `game` yang unresolved pada `draw_character_panel` di `ui.py` menjadi `player.game`.

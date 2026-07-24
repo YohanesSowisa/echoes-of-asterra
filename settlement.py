@@ -59,6 +59,14 @@ class SettlementManager:
             return 0.10  # 10% discount
         return 0.0
 
+    def get_roof_style(self) -> str:
+        """Returns visual building roof asset key based on growth tier."""
+        return "roof_tile_slate" if self.growth_tier >= 2 else "roof_tile_thatch"
+
+    def get_road_style(self) -> str:
+        """Returns visual street road asset key based on growth tier."""
+        return "road_cobblestone" if self.growth_tier >= 2 else "road_dirt"
+
     def to_dict(self) -> Dict[str, Any]:
         """Serializes settlement state."""
         return {

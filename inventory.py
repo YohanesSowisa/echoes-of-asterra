@@ -2,7 +2,7 @@
 Echoes of Asterra - Inventory System
 Manages player inventory slots, item sorting, stack logic, drag-and-drop actions, and item usage.
 """
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 from rpg.items import Item
 from rpg.constants import ITEM_POTION, ITEM_FOOD, ITEM_WEAPON, ITEM_SHIELD, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_ACCESSORY, ITEM_LEGS
 
@@ -45,6 +45,23 @@ class Inventory:
                 return True
                 
         return False
+
+    def auto_sort(self) -> None:
+        """Sorts inventory items by Type, Rarity tier, and Item Name."""
+        items = [s for s in self.slots if s is not None]
+        
+        rarity_order = {"Legendary": 0, "Epic": 1, "Rare": 2, "Uncommon": 3, "Common": 4}
+        type_order = {"weapon": 0, "armor": 1, "shield": 2, "helmet": 3, "chest": 4, "boots": 5, "consumable": 6, "material": 7}
+        
+        def sort_key(item: Any) -> Tuple[int, int, str]:
+            t_rank = type_order.get(getattr(item, "item_type", "material"), 8)
+            r_rank = rarity_order.get(getattr(item, "rarity", "Common"), 5)
+            return (t_rank, r_rank, getattr(item, "name", ""))
+            
+        items.sort(key=sort_key)
+        self.slots = [None] * self.size
+        for idx, it in enumerate(items):
+            self.slots[idx] = it
 
     def remove_item(self, name: str, quantity: int = 1) -> bool:
         """
