@@ -25,3 +25,7 @@ share/python-wheels/
 MANIFEST
 
 scratch/
+
+# User Save Files & Generated Map Cache
+saves/
+assets/maps/*.json
