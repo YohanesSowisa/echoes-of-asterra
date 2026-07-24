@@ -416,10 +416,24 @@ class Player(BaseSprite):
             self.velocity.x = 0
             self.velocity.y = 0
 
+    def is_ui_active(self) -> bool:
+        """Helper checking if any UI panel, dialogue, or shop window is currently active."""
+        if not self.game:
+            return False
+        from rpg.constants import STATE_DIALOGUE, STATE_SHOP, STATE_PAUSED, STATE_SETTINGS
+        return bool(self.game.ui_manager.open_panels) or self.game.game_state in [STATE_DIALOGUE, STATE_SHOP, STATE_PAUSED, STATE_SETTINGS]
+
     def update(self, dt: float) -> None:
         """Ticks recovery pools, updates animation frames, and resolves collisions."""
-        # Read keyboard controls and inputs
-        if self.state != "dead":
+        # Freeze all player movement and actions when UI window or dialogue is active (Harvest Moon-like freeze)
+        if self.is_ui_active():
+            self.velocity.x = 0
+            self.velocity.y = 0
+            self.is_running = False
+            self.is_blocking = False
+            if self.state not in ["attack", "roll", "dead"]:
+                self.state = "idle"
+        elif self.state != "dead":
             self.handle_movement_input(self.game.input_handler)
             self.handle_skill_casts(self.game.input_handler)
             

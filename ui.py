@@ -81,7 +81,7 @@ class UIManager:
         self.slots_meta = {}
 
         self.settings_select_idx = 0
-        self.settings_options = ["Music Volume", "SFX Volume", "Display Mode", "Back to Menu"]
+        self.settings_options = ["Music Volume", "SFX Volume", "Display Mode", "Target FPS", "Back to Menu"]
 
         # Tooltip item hovering cache
         self.hovered_item: Optional[Any] = None
@@ -147,10 +147,12 @@ class UIManager:
         }
 
     def toggle_panel(self, panel_name: str) -> None:
-        """Toggles visibility of an RPG panel (inventory, character, quests, crafting)."""
+        """Toggles visibility of an RPG panel (inventory, character, quests, crafting). Enforces exclusive single active panel."""
         if panel_name in self.open_panels:
             self.open_panels.remove(panel_name)
         else:
+            # Exclusive single panel mode: Close all other active panels
+            self.open_panels.clear()
             self.open_panels.add(panel_name)
 
     def close_all_panels(self) -> None:
@@ -521,6 +523,10 @@ class UIManager:
             elif idx == 2:
                 mode_str = "FULLSCREEN" if getattr(game, "is_fullscreen", True) else "WINDOWED"
                 text = f"Display:  <  {mode_str}  >"
+            elif idx == 3:
+                fps_val = getattr(game, "target_fps", 0)
+                fps_str = "MAX (UNCAPPED)" if fps_val == 0 else f"{fps_val} FPS"
+                text = f"Target FPS:  <  {fps_str}  >"
             else:
                 text = opt
                 
@@ -896,21 +902,22 @@ class UIManager:
     # --- CHARACTER PANEL ---
 
     def draw_character_panel(self, surface: pygame.Surface, player: Any) -> None:
-        """Renders equipment gear sockets, stats listings, and faction standings."""
+        """Renders equipment gear sockets, stats listings, and tabbed faction/NPC standings."""
         # Panel Coordinates (Centered)
-        cx, cy = 240, 100
-        cw, ch = 560, 420
+        cw, ch = 680, 460
+        cx = (SCREEN_WIDTH - cw) // 2
+        cy = (SCREEN_HEIGHT - ch) // 2
         
         box = pygame.Rect(cx, cy, cw, ch)
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
 
         # Header Title
-        hdr = self.fonts["medium"].render("Hero Attributes & Factions", True, COLOR_UI_HIGHLIGHT)
+        hdr = self.fonts["medium"].render("Hero Attributes & Social Directory", True, COLOR_UI_HIGHLIGHT)
         surface.blit(hdr, (cx + 16, cy + 16))
 
-        # Close label
-        cls = self.fonts["small"].render("[C] Close", True, COLOR_GRAY)
+        # Close label & Nav hint
+        cls = self.fonts["small"].render("[A/D/Tab] Switch Tabs | [C] Close", True, COLOR_GRAY)
         surface.blit(cls, (cx + cw - cls.get_width() - 16, cy + 18))
 
         # Draw Equipment Slots
@@ -954,7 +961,7 @@ class UIManager:
             self.slot_rects["equipment"].append((slot_rect, slot_type))
 
         # Draw character attributes listings (Middle section of panel)
-        stat_x = cx + 130
+        stat_x = cx + 140
         stat_y = cy + 52
         
         stats = [
@@ -975,7 +982,7 @@ class UIManager:
             surface.blit(val_lbl, (stat_x, y_pos + 12))
 
         # Tab Switcher Header (Right Section)
-        tab_x = cx + 330
+        tab_x = cx + 360
         tab_y = cy + 52
         
         active_tab = getattr(self, "active_char_tab", "factions")
@@ -1009,7 +1016,7 @@ class UIManager:
                     fn_lbl = self.fonts["small"].render(fac_data.name, True, COLOR_WHITE)
                     surface.blit(fn_lbl, (tab_x, y_pos))
                     
-                    bar_w, bar_h = 240, 10
+                    bar_w, bar_h = 260, 10
                     bx, by = tab_x, y_pos + 18
                     pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
                     pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
@@ -1035,9 +1042,14 @@ class UIManager:
                     n_lbl = self.fonts["small"].render(f"{npc_id}: {level_str} ({rel_val:+d})", True, COLOR_WHITE)
                     surface.blit(n_lbl, (tab_x, ny_pos))
 
-                    bar_w, bar_h = 240, 8
+                    bar_w, bar_h = 260, 8
                     bx, by = tab_x, ny_pos + 18
                     pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
+                    pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
+
+                    norm_ratio = max(0.0, min(1.0, (rel_val + 100) / 200.0))
+                    bar_color = (100, 200, 255) if rel_val >= 0 else (250, 100, 100)
+                    pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
                     pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
 
                     norm_ratio = max(0.0, min(1.0, (rel_val + 100) / 200.0))
@@ -1382,22 +1394,26 @@ class UIManager:
         name_lbl = self.fonts["medium"].render(name_str + rel_suffix, True, COLOR_UI_HIGHLIGHT)
         surface.blit(name_lbl, (dx + 160, dy + 18))
 
-        # Dialogue text spelling
-        txt_y = dy + 46
-        words = dialogue_manager.visible_text.split(" ")
+        # Dialogue text spelling with clean newline & word-wrap support
+        txt_y = dy + 44
+        raw_paragraphs = dialogue_manager.visible_text.split("\n")
         lines = []
-        curr_line = ""
         
-        for w in words:
-            test_line = curr_line + w + " "
-            if self.fonts["small"].size(test_line)[0] < dw - 180:
-                curr_line = test_line
-            else:
-                lines.append(curr_line)
-                curr_line = w + " "
-        lines.append(curr_line)
+        for para in raw_paragraphs:
+            words = para.split(" ")
+            curr_line = ""
+            for w in words:
+                test_line = curr_line + w + " "
+                if self.fonts["small"].size(test_line)[0] < dw - 180:
+                    curr_line = test_line
+                else:
+                    if curr_line.strip():
+                        lines.append(curr_line.strip())
+                    curr_line = w + " "
+            if curr_line.strip():
+                lines.append(curr_line.strip())
         
-        for idx, line in enumerate(lines[:2]):
+        for idx, line in enumerate(lines[:3]):
             lbl = self.fonts["small"].render(line, True, COLOR_WHITE)
             surface.blit(lbl, (dx + 160, txt_y + idx * 20))
 
@@ -1539,8 +1555,10 @@ class UIManager:
 
         # Character Panel tab clicks
         if "character" in self.open_panels:
-            cx, cy = 202, 124
-            tab_x, tab_y = cx + 330, cy + 52
+            cw, ch = 680, 460
+            cx = (SCREEN_WIDTH - cw) // 2
+            cy = (SCREEN_HEIGHT - ch) // 2
+            tab_x, tab_y = cx + 360, cy + 52
             tab1_rect = pygame.Rect(tab_x, tab_y, 120, 28)
             tab2_rect = pygame.Rect(tab_x + 130, tab_y, 120, 28)
             if tab1_rect.collidepoint(mouse_pos):

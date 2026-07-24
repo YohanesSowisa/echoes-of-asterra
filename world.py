@@ -181,11 +181,19 @@ class WorldManager:
             if npc:
                 npc.game = game
 
-        # Spawn Town Noticeboard in Village Square
+        # Spawn Town Noticeboard & Past Hero Statue in Village Square
         if map_name == MAP_VILLAGE:
-            from rpg.npc import TownNoticeboard
+            from rpg.npc import TownNoticeboard, PastHeroStatue
             tb = TownNoticeboard((11 * TILE_SIZE, 11 * TILE_SIZE), [game.visible_sprites, game.npcs])
             tb.game = game
+
+            # Spawn Past Hero Statue in Village Plaza if past run history exists
+            if hasattr(game, "mythos_manager"):
+                past_record = game.mythos_manager.get_latest_record()
+                if past_record:
+                    st_pos = (13 * TILE_SIZE, 11 * TILE_SIZE)
+                    st = PastHeroStatue(st_pos, past_record, [game.visible_sprites, game.npcs])
+                    st.game = game
 
         # Spawn Greed Altar & Past Hero Statue in Dungeon Crypt
         if map_name == MAP_CRYPT:

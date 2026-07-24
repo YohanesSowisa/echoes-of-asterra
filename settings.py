@@ -7,7 +7,7 @@ import pygame
 # Display settings
 SCREEN_WIDTH = 1024
 SCREEN_HEIGHT = 768
-TARGET_FPS = 60
+TARGET_FPS = 0  # Default uncapped / max frame rate (0 = unlimited)
 
 # Tile settings
 TILE_SIZE = 48  # pixels per tile

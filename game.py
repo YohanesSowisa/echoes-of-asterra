@@ -39,6 +39,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.dt = 0.0
         self.is_fullscreen = False
+        self.target_fps = TARGET_FPS
         
         # State machine
         self.game_state = STATE_MENU
@@ -156,6 +157,19 @@ class Game:
                 
             elif event.type == pygame.KEYDOWN:
                 if self.game_state == STATE_PLAYING:
+                    # Keyboard WASD / Arrow / Tab / 1-2 tab navigation when Character Panel is open
+                    if "character" in self.ui_manager.open_panels:
+                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2]:
+                            if event.key in [pygame.K_a, pygame.K_LEFT, pygame.K_1]:
+                                self.ui_manager.active_char_tab = "factions"
+                            elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_2]:
+                                self.ui_manager.active_char_tab = "social"
+                            elif event.key == pygame.K_TAB:
+                                curr = getattr(self.ui_manager, "active_char_tab", "factions")
+                                self.ui_manager.active_char_tab = "social" if curr == "factions" else "factions"
+                            self.sound_manager.play_sound("click")
+                            continue
+
                     # Key panel quick toggles
                     if event.key == pygame.K_i:
                         self.ui_manager.toggle_panel("inventory")
@@ -212,6 +226,11 @@ class Game:
                         elif self.ui_manager.settings_select_idx == 2:
                             self.toggle_fullscreen()
                             self.sound_manager.play_sound("click")
+                        elif self.ui_manager.settings_select_idx == 3:
+                            fps_options = [30, 60, 120, 144, 0]
+                            curr_idx = fps_options.index(self.target_fps) if self.target_fps in fps_options else 1
+                            self.target_fps = fps_options[(curr_idx - 1) % len(fps_options)]
+                            self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_d, pygame.K_RIGHT]:
                         if self.ui_manager.settings_select_idx == 0:
                             self.sound_manager.set_music_volume(self.sound_manager.music_volume + 0.1)
@@ -222,11 +241,21 @@ class Game:
                         elif self.ui_manager.settings_select_idx == 2:
                             self.toggle_fullscreen()
                             self.sound_manager.play_sound("click")
+                        elif self.ui_manager.settings_select_idx == 3:
+                            fps_options = [30, 60, 120, 144, 0]
+                            curr_idx = fps_options.index(self.target_fps) if self.target_fps in fps_options else 1
+                            self.target_fps = fps_options[(curr_idx + 1) % len(fps_options)]
+                            self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
                         if self.ui_manager.settings_select_idx == 2:
                             self.toggle_fullscreen()
                             self.sound_manager.play_sound("click")
                         elif self.ui_manager.settings_select_idx == 3:
+                            fps_options = [30, 60, 120, 144, 0]
+                            curr_idx = fps_options.index(self.target_fps) if self.target_fps in fps_options else 1
+                            self.target_fps = fps_options[(curr_idx + 1) % len(fps_options)]
+                            self.sound_manager.play_sound("click")
+                        elif self.ui_manager.settings_select_idx == 4:
                             self.sound_manager.play_sound("click")
                             self.return_from_settings()
                     elif event.key == pygame.K_ESCAPE:
@@ -393,7 +422,7 @@ class Game:
     def update(self) -> None:
         """Ticks recovery pools, triggers camera positioning, and checks portal collisions."""
         # Limit frame rate
-        self.dt = self.clock.tick(TARGET_FPS) / 1000.0
+        self.dt = self.clock.tick(self.target_fps) / 1000.0
         
         # Process inputs
         self.process_events()
