@@ -5,16 +5,18 @@ Defines item class structures, rarities, stat modifiers, and an item database fa
 import pygame
 from typing import Dict, Any, Union
 from rpg.constants import (
-    ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_LEGS, ITEM_BOOTS, ITEM_SHIELD,
+    ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD,
     ITEM_ACCESSORY, ITEM_POTION, ITEM_FOOD, ITEM_QUEST, ITEM_MATERIAL, ITEM_ARTIFACT,
-    RARITY_COMMON, RARITY_UNCOMMON, RARITY_RARE, RARITY_EPIC, RARITY_LEGENDARY
+    RARITY_COMMON, RARITY_UNCOMMON, RARITY_RARE, RARITY_EPIC, RARITY_LEGENDARY,
+    WEAPON_SWORD, WEAPON_AXE, WEAPON_HAMMER, WEAPON_SPEAR, WEAPON_DAGGER,
+    ELEMENT_NONE, ELEMENT_FIRE, ELEMENT_ICE, ELEMENT_LIGHTNING
 )
 from rpg.animation import item_assets
 
 class Item:
     """
     Representation of an item in the player's inventory or world.
-    Tracks item quantity, stats, type, rarity, and icon assets.
+    Tracks item quantity, stats, type, rarity, weapon class, element, and icon assets.
     """
     def __init__(
         self,
@@ -24,7 +26,9 @@ class Item:
         quantity: int = 1,
         max_stack: int = 99,
         stats: Dict[str, int] = None,
-        description: str = ""
+        description: str = "",
+        weapon_class: str = WEAPON_SWORD,
+        element: str = ELEMENT_NONE
     ) -> None:
         self.name = name
         self.item_type = item_type
@@ -33,6 +37,8 @@ class Item:
         self.max_stack = max_stack
         self.stats = stats if stats is not None else {}
         self.description = description
+        self.weapon_class = weapon_class
+        self.element = element
         
         # Load procedural icon asset
         self.icon = self._get_procedural_icon()
@@ -64,14 +70,18 @@ class Item:
             quantity=self.quantity,
             max_stack=self.max_stack,
             stats=self.stats.copy(),
-            description=self.description
+            description=self.description,
+            weapon_class=self.weapon_class,
+            element=self.element
         )
 
 # Item templates database
 ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
-    # Weapons
+    # Weapons - Swords
     "Rusty Sword": {
         "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SWORD,
+        "element": ELEMENT_NONE,
         "rarity": RARITY_COMMON,
         "max_stack": 1,
         "stats": {"atk": 4},
@@ -79,6 +89,8 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
     },
     "Steel Blade": {
         "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SWORD,
+        "element": ELEMENT_NONE,
         "rarity": RARITY_RARE,
         "max_stack": 1,
         "stats": {"atk": 12, "crit": 5},
@@ -86,10 +98,74 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
     },
     "Asterra Sword": {
         "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SWORD,
+        "element": ELEMENT_LIGHTNING,
         "rarity": RARITY_LEGENDARY,
         "max_stack": 1,
         "stats": {"atk": 25, "magic": 10, "crit": 12},
         "description": "A mythical glowing blade forged in Asterra's core."
+    },
+    "Flame Blade": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SWORD,
+        "element": ELEMENT_FIRE,
+        "rarity": RARITY_RARE,
+        "max_stack": 1,
+        "stats": {"atk": 10, "magic": 5},
+        "description": "An enchanted blade glowing with eternal flame."
+    },
+    "Frost Edge": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SWORD,
+        "element": ELEMENT_ICE,
+        "rarity": RARITY_RARE,
+        "max_stack": 1,
+        "stats": {"atk": 9, "magic": 6},
+        "description": "A frozen longsword that chills targets on contact."
+    },
+
+    # Weapons - Axes
+    "Iron Axe": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_AXE,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 1,
+        "stats": {"atk": 9},
+        "description": "Heavy iron cleaver that pierces through armor."
+    },
+
+    # Weapons - Hammers
+    "War Hammer": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_HAMMER,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_RARE,
+        "max_stack": 1,
+        "stats": {"atk": 14, "speed": -1},
+        "description": "Massive battle hammer that stuns targets with crushing blows."
+    },
+
+    # Weapons - Spears
+    "Hunters Spear": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SPEAR,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 1,
+        "stats": {"atk": 8, "crit": 4},
+        "description": "Long thrusting polearm with extended strike reach."
+    },
+
+    # Weapons - Daggers
+    "Shadow Dagger": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_DAGGER,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"atk": 7, "crit": 15, "speed": 1},
+        "description": "Light, rapid assassin dagger capable of swift 4-hit combos."
     },
     
     # Shields
@@ -252,7 +328,9 @@ def create_item(name: str, quantity: int = 1) -> Union[Item, None]:
             quantity=quantity,
             max_stack=template["max_stack"],
             stats=template["stats"].copy(),
-            description=template["description"]
+            description=template["description"],
+            weapon_class=template.get("weapon_class", WEAPON_SWORD),
+            element=template.get("element", ELEMENT_NONE)
         )
     print(f"Warning: Item templates for '{name}' was not found.")
     return None

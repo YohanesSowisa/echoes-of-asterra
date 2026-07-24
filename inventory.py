@@ -2,8 +2,8 @@
 Echoes of Asterra - Inventory System
 Manages player inventory slots, item sorting, stack logic, drag-and-drop actions, and item usage.
 """
-from typing import List, Union, Optional, Any
-from rpg.items import Item, create_item
+from typing import List, Optional, Any
+from rpg.items import Item
 from rpg.constants import ITEM_POTION, ITEM_FOOD, ITEM_WEAPON, ITEM_SHIELD, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_ACCESSORY, ITEM_LEGS
 
 class Inventory:
@@ -201,7 +201,6 @@ class Inventory:
                 player.sound_manager.play_sound("heal")
                 
                 # Particle splash
-                from rpg.particles import ParticleSystem
                 player.particles.create_heal_sparkles(player.hitbox.center)
 
                 # Consume 1 from stack

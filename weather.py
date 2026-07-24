@@ -49,7 +49,7 @@ class WeatherSystem:
         self.state = next_state
         self.intensity = 0.0
 
-    def update(self, particles: Any, camera_offset: pygame.math.Vector2, dt: float) -> None:
+    def update(self, particles: Any, camera_offset: pygame.math.Vector2, dt: float, world_state: Any = None) -> None:
         """
         Ticks the weather cycle timer, increments transition intensity,
         and spawns weather particles above the screen viewport.
@@ -58,8 +58,15 @@ class WeatherSystem:
         self.timer -= dt
         if self.timer <= 0:
             self.timer = 45.0
-            self.cycle_index = (self.cycle_index + 1) % len(self.states_cycle)
-            self.change_weather(self.states_cycle[self.cycle_index])
+            if world_state and hasattr(world_state, "get_weather_bias"):
+                bias = world_state.get_weather_bias()
+                states = list(bias.keys())
+                weights = list(bias.values())
+                next_st = random.choices(states, weights=weights, k=1)[0]
+                self.change_weather(next_st)
+            else:
+                self.cycle_index = (self.cycle_index + 1) % len(self.states_cycle)
+                self.change_weather(self.states_cycle[self.cycle_index])
 
         # Fade in intensity
         if self.intensity < 1.0:

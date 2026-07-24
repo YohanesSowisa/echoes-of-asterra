@@ -5,10 +5,10 @@ NPC interactions, and panel menus overlays.
 """
 import pygame
 import sys
-from typing import List, Tuple, Any, Dict
+from typing import List, Tuple, Any
 from rpg.constants import (
     STATE_MENU, STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY, STATE_DIALOGUE, STATE_SHOP, STATE_SETTINGS,
-    STATE_TUTORIAL, MAP_VILLAGE, COLOR_WHITE, COLOR_RED, COLOR_YELLOW, COLOR_BLACK
+    STATE_TUTORIAL, MAP_VILLAGE, COLOR_BLACK
 )
 from rpg.settings import SCREEN_WIDTH, SCREEN_HEIGHT, TARGET_FPS, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT
 from rpg.sound import SoundManager
@@ -25,6 +25,11 @@ from rpg.world import WorldManager
 from rpg.sprite import YSortedGroup
 from rpg.player import Player
 from rpg.minimap import Minimap
+from rpg.events import EventBus
+from rpg.world_state import WorldState
+from rpg.factions import FactionManager
+from rpg.npc_memory import NPCMemoryManager
+from rpg.ecology import EcologyManager
 
 class Game:
     """
@@ -40,6 +45,19 @@ class Game:
         self.game_state = STATE_MENU
         
         # Initialize Core Subsystems
+        self.event_bus = EventBus()
+        self.world_state = WorldState()
+        self.world_state.register_event_listeners(self.event_bus)
+        
+        self.factions = FactionManager()
+        self.factions.register_event_listeners(self.event_bus)
+        
+        self.npc_memory = NPCMemoryManager()
+        self.npc_memory.register_event_listeners(self.event_bus)
+        
+        self.ecology = EcologyManager()
+        self.ecology.register_event_listeners(self.event_bus)
+        
         self.sound_manager = SoundManager()
         self.input_handler = InputHandler()
         self.ui_manager = UIManager()
@@ -49,6 +67,7 @@ class Game:
         self.effects_manager = EffectsManager()
         self.quest_manager = QuestManager()
         self.dialogue_manager = DialogueManager()
+        self.dialogue_manager.game = self
         self.world_manager = WorldManager()
         
         # Sprite groups
@@ -413,9 +432,13 @@ class Game:
         for cq in completed_quests:
             from rpg.combat import DamageNumber
             DamageNumber(self.player.rect.center, f"Quest Completed: {cq.title}!", (255, 215, 0), [self.ui_sprites], size=26)
+            self.event_bus.emit("quest_completed", quest_id=cq.id)
+        
+        # 3c. Tick dynamic world simulation
+        self.world_state.update(self.dt, self.event_bus)
         
         # 4. Update weather particles
-        self.weather.update(self.particles, self.camera.get_offset(), self.dt)
+        self.weather.update(self.particles, self.camera.get_offset(), self.dt, self.world_state)
         self.particles.update(self.dt)
         
         # 5. Update ambient cycle

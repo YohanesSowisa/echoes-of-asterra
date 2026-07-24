@@ -3,7 +3,7 @@ Echoes of Asterra - Input Handler
 Manages player controls, mapping pygame key events and mouse presses into game actions.
 """
 import pygame
-from typing import Dict, Tuple
+from typing import Dict
 from rpg.settings import (
     KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_RUN, KEY_ROLL,
     KEY_ATTACK, KEY_BLOCK, KEY_INTERACT, KEY_INVENTORY, KEY_CHARACTER,

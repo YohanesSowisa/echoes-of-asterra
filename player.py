@@ -7,13 +7,12 @@ from typing import List, Any, Tuple
 from rpg.sprite import BaseSprite
 from rpg.constants import (
     DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
-    STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER,
-    ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY, ITEM_LEGS,
-    SKILL_DASH, SKILL_HEALING, SKILL_FIREBALL, SKILL_SHIELD, SKILL_ICE_SPIKE, SKILL_LIGHTNING, SKILL_SWORD_MASTERY
+    STATE_GAME_OVER, ITEM_WEAPON, ITEM_SHIELD,
+    SKILL_DASH, SKILL_HEALING, SKILL_FIREBALL, SKILL_ICE_SPIKE, SKILL_SWORD_MASTERY
 )
 from rpg.settings import (
-    TILE_SIZE, PLAYER_SPEED, PLAYER_RUN_MULTIPLIER, PLAYER_ROLL_SPEED,
-    PLAYER_ROLL_DURATION, PLAYER_ROLL_COOLDOWN, PLAYER_I_FRAMES_DURATION
+    TILE_SIZE, PLAYER_RUN_MULTIPLIER, PLAYER_ROLL_SPEED,
+    PLAYER_ROLL_DURATION, PLAYER_ROLL_COOLDOWN
 )
 from rpg.inventory import Inventory
 from rpg.equipment import Equipment
@@ -89,6 +88,11 @@ class Player(BaseSprite):
         self.i_frames_timer = 0.0
         self.is_invincible = False
         self.attack_cooldown_timer = 0.0
+
+        # --- COMBO SYSTEM ---
+        self.combo_count = 0
+        self.combo_timer = 0.0
+        self.COMBO_WINDOW = 0.60
 
         # --- INVENTORY, GEAR, & SKILLS ---
         self.inventory = Inventory(24)
@@ -180,51 +184,86 @@ class Player(BaseSprite):
             self.sound_manager.play_sound("gameover")
 
     def perform_attack(self) -> None:
-        """Triggers a sword slash sweep in front of the player."""
+        """Triggers weapon combo strikes and finishers."""
         if self.state in ["attack", "roll", "dead"]:
             return
             
+        from rpg.weapon_types import WEAPON_CLASSES, WEAPON_SWORD
+        eq_weapon = self.equipment.slots.get(ITEM_WEAPON)
+        weapon_class = getattr(eq_weapon, "weapon_class", WEAPON_SWORD) if eq_weapon else WEAPON_SWORD
+        wc = WEAPON_CLASSES.get(weapon_class, WEAPON_CLASSES[WEAPON_SWORD])
+
+        # Evaluate combo step
+        if self.combo_timer > 0 and self.combo_count < wc.combo_length:
+            self.combo_count += 1
+        else:
+            self.combo_count = 1
+
+        self.combo_timer = self.COMBO_WINDOW
+        is_finisher = (self.combo_count >= wc.combo_length)
+
         self.state = "attack"
         self.frame_index = 0.0
-        # Melee swing duration (fast)
-        self.action_timer = 0.25
-        self.attack_cooldown_timer = 0.35
-        
-        # Play slash sound
-        self.sound_manager.play_sound("sword")
+        self.action_timer = wc.attack_speed
+        self.attack_cooldown_timer = wc.attack_speed + 0.1
 
-        # Determine hit check zone in front of player
-        sweep_dist = 36
-        sweep_rect = pygame.Rect(0, 0, TILE_SIZE, TILE_SIZE)
-        
-        if self.direction == DIR_DOWN:
-            sweep_rect.midtop = self.hitbox.midbottom
-            sweep_rect.y += 4
-        elif self.direction == DIR_UP:
-            sweep_rect.midbottom = self.hitbox.midtop
-            sweep_rect.y -= 4
-        elif self.direction == DIR_LEFT:
-            sweep_rect.midright = self.hitbox.midleft
-            sweep_rect.x -= 4
-        elif self.direction == DIR_RIGHT:
-            sweep_rect.midleft = self.hitbox.midright
-            sweep_rect.x += 4
+        # Play attack sound
+        if weapon_class == "axe":
+            self.sound_manager.play_sound("sword")
+        elif weapon_class == "hammer":
+            self.sound_manager.play_sound("hit")
+        elif weapon_class == "spear":
+            self.sound_manager.play_sound("sword")
+        elif weapon_class == "dagger":
+            self.sound_manager.play_sound("click")
+        else:
+            self.sound_manager.play_sound("sword")
 
-        # Query hits against enemies
-        from rpg.combat import CombatSystem
+        # Range box
+        sweep_w = int(TILE_SIZE * wc.range_multiplier)
+        sweep_h = int(TILE_SIZE * wc.range_multiplier)
+        if is_finisher and wc.finisher_aoe:
+            sweep_w = int(TILE_SIZE * 2.2)
+            sweep_h = int(TILE_SIZE * 2.2)
+            sweep_rect = pygame.Rect(0, 0, sweep_w, sweep_h)
+            sweep_rect.center = self.hitbox.center
+        else:
+            sweep_rect = pygame.Rect(0, 0, sweep_w, sweep_h)
+            if self.direction == DIR_DOWN:
+                sweep_rect.midtop = self.hitbox.midbottom
+                sweep_rect.y += 4
+            elif self.direction == DIR_UP:
+                sweep_rect.midbottom = self.hitbox.midtop
+                sweep_rect.y -= 4
+            elif self.direction == DIR_LEFT:
+                sweep_rect.midright = self.hitbox.midleft
+                sweep_rect.x -= 4
+            elif self.direction == DIR_RIGHT:
+                sweep_rect.midleft = self.hitbox.midright
+                sweep_rect.x += 4
+
+        # Finisher notification
+        dmg_mult = wc.finisher_damage_mult if is_finisher else 1.0
+        if is_finisher:
+            DamageNumber(self.rect.center, "FINISHER!", (255, 200, 40), [self.game.ui_sprites], size=22)
+            if hasattr(self.game, "camera"):
+                self.game.camera.trigger_shake(6.0, 150)
+
         # Apply Sword Mastery passive bonus if unlocked
-        atk_boost = 0
-        if self.skill_manager.skills[SKILL_SWORD_MASTERY].unlocked:
-            atk_boost = 4
-            
-        # Temporarily increase ATK for this strike
+        atk_boost = 4 if self.skill_manager.skills[SKILL_SWORD_MASTERY].unlocked else 0
         self.atk += atk_boost
-        
+
+        from rpg.combat import CombatSystem
         for enemy in self.game.enemies:
             if enemy.hp > 0 and sweep_rect.colliderect(enemy.hitbox):
-                CombatSystem.execute_hit(self, enemy, [self.game.ui_sprites], is_magic=False)
-                
-        # Revert ATK boost
+                CombatSystem.execute_hit(
+                    self, enemy, [self.game.ui_sprites],
+                    is_magic=False,
+                    armor_pierce=wc.armor_pierce,
+                    damage_multiplier=dmg_mult,
+                    stun_duration=wc.stun_duration
+                )
+
         self.atk -= atk_boost
 
     def perform_roll(self) -> None:
@@ -406,6 +445,11 @@ class Player(BaseSprite):
             self.i_frames_timer -= dt
             if self.i_frames_timer <= 0:
                 self.is_invincible = False
+
+        if self.combo_timer > 0:
+            self.combo_timer -= dt
+            if self.combo_timer <= 0:
+                self.combo_count = 0
 
         # Update skill timers
         self.skill_manager.update(dt)

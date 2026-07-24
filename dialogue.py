@@ -2,7 +2,7 @@
 Echoes of Asterra - Dialogue System
 Handles dialogue nodes, typing text animations, portraits, choices, and branching states.
 """
-from typing import List, Tuple, Dict, Callable, Optional, Any
+from typing import List, Dict, Callable, Optional
 
 class DialogueChoice:
     """

@@ -7,16 +7,15 @@ import pygame
 from typing import Dict, List, Tuple, Set, Optional, Any
 from rpg.constants import (
     COLOR_BLACK, COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_LIGHT_GRAY,
-    COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_ORANGE, COLOR_PURPLE, COLOR_CYAN,
-    COLOR_UI_BG, COLOR_UI_BORDER, COLOR_UI_TEXT, COLOR_UI_HIGHLIGHT, COLOR_UI_SHADOW,
+    COLOR_RED, COLOR_GREEN, COLOR_YELLOW,
+    COLOR_UI_BG, COLOR_UI_BORDER, COLOR_UI_TEXT, COLOR_UI_HIGHLIGHT,
     COLOR_BAR_HP, COLOR_BAR_MANA, COLOR_BAR_STAMINA, COLOR_BAR_EXP,
     STATE_MENU, STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY, STATE_DIALOGUE, STATE_SHOP, STATE_SETTINGS,
     STATE_TUTORIAL,
-    ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY, ITEM_LEGS,
     RARITY_COLORS, SKILL_FIREBALL, SKILL_ICE_SPIKE, SKILL_HEALING, SKILL_DASH
 )
-from rpg.settings import SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE
-from rpg.items import create_item, ITEM_DATABASE
+from rpg.settings import SCREEN_WIDTH, SCREEN_HEIGHT
+from rpg.items import create_item
 from rpg.crafting import CRAFTING_RECIPES, CraftingSystem
 
 class UIManager:
@@ -256,8 +255,15 @@ class UIManager:
         # 5b. Current Map Location Name
         if game and hasattr(game, 'world_manager'):
             map_name = game.world_manager.current_map_name.replace("_", " ").title()
-            loc_txt = self.fonts["small"].render(f">> {map_name}", True, (180, 200, 220))
+            depth_str = f" (Floor {game.world_manager.dungeon_depth})" if game.world_manager.current_map_name == "crypt" else ""
+            loc_txt = self.fonts["small"].render(f">> {map_name}{depth_str}", True, (180, 200, 220))
             surface.blit(loc_txt, (240, 56))
+
+        # 5c. Combo Counter overlay
+        if getattr(player, "combo_count", 0) > 1 and getattr(player, "combo_timer", 0) > 0:
+            cb_str = f"COMBO x{player.combo_count}!"
+            cb_lbl = self.fonts["large"].render(cb_str, True, COLOR_YELLOW)
+            surface.blit(cb_lbl, (SCREEN_WIDTH // 2 - cb_lbl.get_width() // 2, 88))
 
         # 6. Quick Skill Hotkeys (Bottom Right)
         hx = SCREEN_WIDTH - 280
@@ -811,17 +817,17 @@ class UIManager:
     # --- CHARACTER PANEL ---
 
     def draw_character_panel(self, surface: pygame.Surface, player: Any) -> None:
-        """Renders equipment gear sockets and stats listings."""
-        # Panel Coordinates (Right side screen)
-        cx, cy = 400, 120
-        cw, ch = 340, 380
+        """Renders equipment gear sockets, stats listings, and faction standings."""
+        # Panel Coordinates (Centered)
+        cx, cy = 240, 100
+        cw, ch = 560, 420
         
         box = pygame.Rect(cx, cy, cw, ch)
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
 
         # Header Title
-        hdr = self.fonts["medium"].render("Hero Attributes", True, COLOR_UI_HIGHLIGHT)
+        hdr = self.fonts["medium"].render("Hero Attributes & Factions", True, COLOR_UI_HIGHLIGHT)
         surface.blit(hdr, (cx + 16, cy + 16))
 
         # Close label
@@ -830,15 +836,14 @@ class UIManager:
 
         # Draw Equipment Slots
         eq_slots = list(player.equipment.slots.keys())
-        # Draw vertically down the left side of the panel
-        slot_sz = 44
-        grid_x = cx + 20
+        slot_sz = 40
+        grid_x = cx + 16
         grid_y = cy + 52
         
         m_pos = pygame.mouse.get_pos()
 
         for idx, slot_type in enumerate(eq_slots):
-            sy = grid_y + idx * 46
+            sy = grid_y + idx * 44
             slot_rect = pygame.Rect(grid_x, sy, slot_sz, slot_sz)
             
             # Hover check
@@ -850,12 +855,12 @@ class UIManager:
             # Label
             abbr = slot_type[:3].upper()
             lbl = self.fonts["small"].render(abbr, True, COLOR_GRAY)
-            surface.blit(lbl, (grid_x + slot_sz + 8, sy + 14))
+            surface.blit(lbl, (grid_x + slot_sz + 6, sy + 12))
 
             # Spun equipped item if active
             equipped_item = player.equipment.slots[slot_type]
             if equipped_item:
-                icon_img = pygame.transform.scale(equipped_item.icon, (32, 32))
+                icon_img = pygame.transform.scale(equipped_item.icon, (28, 28))
                 surface.blit(icon_img, (grid_x + 6, sy + 6))
                 
                 # Color borders by rarity
@@ -866,12 +871,12 @@ class UIManager:
                 if is_hover:
                     self.hovered_item = equipped_item
                     
-            # Cache coordinate rect for click uneqip checks
+            # Cache coordinate rect for click unequip checks
             self.slot_rects["equipment"].append((slot_rect, slot_type))
 
-        # Draw character attributes listings (Right side of panel)
-        stat_x = cx + 160
-        stat_y = cy + 56
+        # Draw character attributes listings (Middle section of panel)
+        stat_x = cx + 130
+        stat_y = cy + 52
         
         stats = [
             ("Base Melee ATK", player.atk),
@@ -885,11 +890,40 @@ class UIManager:
         
         for idx, (label, val) in enumerate(stats):
             y_pos = stat_y + idx * 36
-            # Label
             lbl = self.fonts["small"].render(label, True, COLOR_GRAY)
             val_lbl = self.fonts["medium"].render(str(val), True, COLOR_WHITE)
             surface.blit(lbl, (stat_x, y_pos))
-            surface.blit(val_lbl, (stat_x, y_pos + 14))
+            surface.blit(val_lbl, (stat_x, y_pos + 12))
+
+        # Draw Faction Reputation Listings (Right section of panel)
+        fac_x = cx + 330
+        fac_y = cy + 52
+        
+        fac_title = self.fonts["medium"].render("Faction Standing", True, COLOR_UI_HIGHLIGHT)
+        surface.blit(fac_title, (fac_x, cy + 24))
+        
+        if hasattr(player, "game") and hasattr(player.game, "factions"):
+            fm = player.game.factions
+            for idx, (f_id, fac_data) in enumerate(fm.factions.items()):
+                y_pos = fac_y + idx * 46
+                # Faction Name
+                fn_lbl = self.fonts["small"].render(fac_data.name, True, COLOR_WHITE)
+                surface.blit(fn_lbl, (fac_x, y_pos))
+                
+                # Rep Bar
+                bar_w, bar_h = 180, 10
+                bx, by = fac_x, y_pos + 16
+                pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
+                pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
+                
+                # Fill ratio (-100 to +100 -> 0.0 to 1.0)
+                norm_ratio = (fac_data.reputation + 100) / 200.0
+                bar_color = (60, 200, 80) if fac_data.reputation >= 0 else (220, 60, 60)
+                pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
+                
+                # Standing Text
+                st_lbl = self.fonts["small"].render(f"{fac_data.standing.title()} ({fac_data.reputation})", True, COLOR_GRAY)
+                surface.blit(st_lbl, (fac_x, by + 12))
 
     # --- QUEST LOG PANEL ---
 
@@ -1198,8 +1232,16 @@ class UIManager:
         pygame.draw.circle(surface, COLOR_BLACK, (px + 70, py + 56), 3)
         pygame.draw.circle(surface, COLOR_RED, (px + 60, py + 72), 6, 2) # Smile
 
-        # Speaker Name
-        name_lbl = self.fonts["medium"].render(node.speaker_name, True, COLOR_UI_HIGHLIGHT)
+        # Speaker Name & Relationship Standing Badge
+        name_str = node.speaker_name
+        rel_suffix = ""
+        if hasattr(dialogue_manager, "game") and hasattr(dialogue_manager.game, "npc_memory"):
+            short_id = name_str.split()[-1]
+            mem = dialogue_manager.game.npc_memory.get_memory(short_id)
+            rel_level = mem.friendship_level.replace("_", " ").title()
+            rel_suffix = f" [{rel_level}]"
+            
+        name_lbl = self.fonts["medium"].render(name_str + rel_suffix, True, COLOR_UI_HIGHLIGHT)
         surface.blit(name_lbl, (dx + 160, dy + 18))
 
         # Dialogue text spelling
@@ -1360,13 +1402,22 @@ class UIManager:
             for rect, idx in self.slot_rects["shop"]:
                 if rect.collidepoint(mouse_pos) and not right_click:
                     goods_name = self.shop_goods[idx]
-                    buy_price, _ = self.shop_prices[goods_name]
+                    buy_price_base, _ = self.shop_prices[goods_name]
+                    price_mod = 1.0
+                    if hasattr(game, "factions"):
+                        price_mod *= game.factions.get_price_modifier()
+                    if hasattr(game, "world_state"):
+                        price_mod *= game.world_state.get_price_modifier()
+                    buy_price = max(1, int(buy_price_base * price_mod))
+                    
                     if player.gold >= buy_price:
                         # Try adding to inventory
                         bought_item = create_item(goods_name, 1)
                         if bought_item and player.inventory.add_item(bought_item):
                             player.gold -= buy_price
                             player.sound_manager.play_sound("heal")
+                            if hasattr(game, "event_bus"):
+                                game.event_bus.emit("item_bought", item_name=goods_name, price=buy_price)
                             # Sync quest logs count
                             game.quest_manager.handle_inventory_change(player.inventory)
                     return

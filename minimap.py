@@ -3,8 +3,8 @@ Echoes of Asterra - Minimap System
 Pre-renders map terrain layouts and draws a real-time radar showing player, enemies, and portals.
 """
 import pygame
-from typing import Any, Tuple
-from rpg.constants import COLOR_BLACK, COLOR_WHITE, COLOR_GREEN, COLOR_RED, COLOR_BLUE, COLOR_YELLOW, COLOR_ORANGE
+from typing import Any
+from rpg.constants import COLOR_WHITE, COLOR_GREEN, COLOR_RED, COLOR_BLUE, COLOR_YELLOW, COLOR_ORANGE
 from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 
 class Minimap:

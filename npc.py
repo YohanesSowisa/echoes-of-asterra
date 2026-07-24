@@ -3,16 +3,15 @@ Echoes of Asterra - NPC System
 Implements interactive non-player characters with dialog nodes, trading shop, and quest prompts.
 """
 import pygame
-from typing import Tuple, List, Dict, Any, Optional
+from typing import Tuple, List
 from rpg.sprite import BaseSprite
 from rpg.constants import (
-    DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
+    DIR_DOWN,
     COLOR_WHITE, COLOR_YELLOW, COLOR_DARK_GRAY,
     QUEST_NOT_STARTED, QUEST_ACTIVE, QUEST_COMPLETED,
     STATE_DIALOGUE, STATE_SHOP
 )
 from rpg.dialogue import DialogueNode, DialogueChoice
-from rpg.settings import TILE_SIZE
 
 class NPC(BaseSprite):
     """
@@ -44,6 +43,31 @@ class NPC(BaseSprite):
     def interact(self) -> None:
         """Triggered when the player presses interact key while nearby. Overridden by child classes."""
         pass
+
+    def on_interact_start(self, npc_short_id: str) -> bool:
+        """Emits npc_talked event, checks friendship level. Returns False if NPC refuses interaction."""
+        if not self.game:
+            return True
+            
+        current_day = getattr(self.game.world_state, "day", 1) if hasattr(self.game, "world_state") else 1
+        if hasattr(self.game, "event_bus"):
+            self.game.event_bus.emit("npc_talked", npc_id=npc_short_id, current_day=current_day)
+            
+        if hasattr(self.game, "npc_memory"):
+            mem = self.game.npc_memory.get_memory(npc_short_id)
+            from rpg.constants import REL_ENEMY
+            if mem.friendship_level == REL_ENEMY:
+                node = DialogueNode(
+                    f"{npc_short_id}_hostile",
+                    self.name,
+                    "Get away from me, villain! I will not speak with a criminal."
+                )
+                self.game.dialogue_manager.close()
+                self.game.dialogue_manager.add_node(node)
+                self.game.dialogue_manager.start_dialogue(f"{npc_short_id}_hostile")
+                self.game.game_state = STATE_DIALOGUE
+                return False
+        return True
 
     def update(self, dt: float) -> None:
         """Updates standing idle animation loops."""
@@ -80,6 +104,8 @@ class ElderEldrin(NPC):
 
     def interact(self) -> None:
         """Checks Main Quest state to trigger corresponding dialogues."""
+        if not self.on_interact_start("Eldrin"):
+            return
         quest = self.game.quest_manager.quests["main_quest"]
         
         # Setup Elder conversation trees
@@ -136,6 +162,8 @@ class MerchantSilas(NPC):
 
     def interact(self) -> None:
         """Opens Shop UI trading inventory."""
+        if not self.on_interact_start("Silas"):
+            return
         self.game.dialogue_manager.close()
         
         def open_shop_callback():
@@ -266,6 +294,8 @@ class ScholarMira(NPC):
         super().__init__(pos, groups, "Scholar Mira", "mage")
 
     def interact(self) -> None:
+        if not self.on_interact_start("Mira"):
+            return
         self.game.dialogue_manager.close()
         qm = self.game.quest_manager
         quest = qm.quests["scholar_quest"]
@@ -309,6 +339,8 @@ class MinerGarth(NPC):
         super().__init__(pos, groups, "Miner Garth", "skeleton")
 
     def interact(self) -> None:
+        if not self.on_interact_start("Garth"):
+            return
         self.game.dialogue_manager.close()
         node = DialogueNode("garth_talk", self.name, "Greetings! These caverns are rich with Iron Ores inside resource chests. Bring 5 Iron Ores to Blacksmith Dennis in the Village to forge armor!")
         self.game.dialogue_manager.add_node(node)
@@ -321,6 +353,8 @@ class GuardianKai(NPC):
         super().__init__(pos, groups, "Guardian Kai", "knight")
 
     def interact(self) -> None:
+        if not self.on_interact_start("Kai"):
+            return
         self.game.dialogue_manager.close()
         qm = self.game.quest_manager
         quest = qm.quests["lake_quest"]
@@ -364,6 +398,8 @@ class SpiritOfAsterra(NPC):
         super().__init__(pos, groups, "Spirit of Asterra", "boss")
 
     def interact(self) -> None:
+        if not self.on_interact_start("Spirit"):
+            return
         self.game.dialogue_manager.close()
         node = DialogueNode("spirit_talk", self.name, "Brave champion, you stand in the sacred grove. Claim the legendary Asterra Sword from the chest nearby, then venture into the Dungeon to defeat the Shadow Overlord!")
         self.game.dialogue_manager.add_node(node)

@@ -3,7 +3,7 @@ Echoes of Asterra - Collision System
 Handles axis-aligned bounding box (AABB) checks, movement resolution, and spatial grid lookups.
 """
 import pygame
-from typing import List, Tuple, Any
+from typing import List, Any
 
 class CollisionSystem:
     """

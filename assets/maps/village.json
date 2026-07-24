@@ -21,8 +21,8 @@
             "tree",
             "tree",
             "tree",
-            "tree",
-            "tree",
+            "dirt",
+            "dirt",
             "tree",
             "tree",
             "tree",
@@ -1290,6 +1290,19 @@
             "target_spawn": [
                 960,
                 96
+            ]
+        },
+        {
+            "rect": [
+                960,
+                0,
+                96,
+                48
+            ],
+            "target_map": "crypt",
+            "target_spawn": [
+                960,
+                1248
             ]
         }
     ],

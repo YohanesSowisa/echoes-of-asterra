@@ -3,7 +3,7 @@ Echoes of Asterra - Visual Effects Manager
 Coordinates screen damage flashes, hit-stops, and outline overlays.
 """
 import pygame
-from typing import Tuple, Optional
+from typing import Tuple
 
 class EffectsManager:
     """

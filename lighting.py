@@ -3,7 +3,6 @@ Echoes of Asterra - Day-Night Cycle & Lighting System
 Simulates time progression and renders a light mask to carve out radial glows around light sources at night.
 """
 import pygame
-import math
 from typing import List, Tuple, Any
 from rpg.settings import SCREEN_WIDTH, SCREEN_HEIGHT, DAY_LENGTH_SECONDS
 

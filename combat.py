@@ -6,7 +6,7 @@ import random
 import pygame
 from typing import Tuple, Any, List
 from rpg.sprite import BaseSprite
-from rpg.constants import COLOR_WHITE, COLOR_YELLOW, COLOR_GREEN, COLOR_RED, COLOR_CYAN
+from rpg.constants import COLOR_WHITE, COLOR_YELLOW, COLOR_RED, COLOR_CYAN
 
 class DamageNumber(BaseSprite):
     """
@@ -61,22 +61,24 @@ class CombatSystem:
     Coordinates combat collisions and damage resolutions.
     """
     @staticmethod
-    def calculate_damage(attacker: Any, defender: Any, is_magic: bool = False) -> Tuple[int, bool]:
+    def calculate_damage(attacker: Any, defender: Any, is_magic: bool = False, armor_pierce: float = 0.0, damage_multiplier: float = 1.0) -> Tuple[int, bool]:
         """
         Calculates damage based on attacker's ATK/Magic and defender's Defense.
-        Checks for critical hits.
+        Applies armor piercing and damage multipliers.
         Returns: (damage_amount, is_critical)
         """
         is_crit = False
         
         if is_magic:
-            # Magic damage ignores some physical defense
+            # Magic damage ignores 60% of physical defense
             base_dmg = attacker.magic * 2
             defense_reduc = defender.defense * 0.4
         else:
             base_dmg = attacker.atk
-            defense_reduc = defender.defense
+            defense_reduc = defender.defense * max(0.0, 1.0 - armor_pierce)
             
+        base_dmg = int(base_dmg * damage_multiplier)
+
         # Critical Hit check
         crit_chance = getattr(attacker, "crit_chance", 5)
         if random.randint(1, 100) <= crit_chance:
@@ -93,10 +95,19 @@ class CombatSystem:
         return final_dmg, is_crit
 
     @staticmethod
-    def execute_hit(attacker: Any, defender: Any, ui_group: List[pygame.sprite.Group], is_magic: bool = False, speed_modifier: float = 1.0) -> bool:
+    def execute_hit(
+        attacker: Any,
+        defender: Any,
+        ui_group: List[pygame.sprite.Group],
+        is_magic: bool = False,
+        speed_modifier: float = 1.0,
+        armor_pierce: float = 0.0,
+        damage_multiplier: float = 1.0,
+        stun_duration: float = 0.0
+    ) -> bool:
         """
         Executes a hit from attacker to defender.
-        Applies damage, knockback, triggers screen shake, flash effects, particles, and floating text.
+        Applies damage, knockback, armor piercing, stuns, triggers screen shake, flash effects, particles, and floating text.
         Returns True if hit was successfully registered, False if defender was invincible.
         """
         # If defender is in i-frames, hit fails
@@ -104,7 +115,7 @@ class CombatSystem:
             return False
             
         # Calculate damage
-        dmg, is_crit = CombatSystem.calculate_damage(attacker, defender, is_magic)
+        dmg, is_crit = CombatSystem.calculate_damage(attacker, defender, is_magic, armor_pierce, damage_multiplier)
         
         # Apply Shield Skill absorption (if active)
         if hasattr(defender, "has_shield_active") and defender.has_shield_active:
@@ -133,6 +144,11 @@ class CombatSystem:
             # Standard unblocked hit
             sound_name = "hit"
             knockback_strength = 6.0 * speed_modifier
+            
+        # Apply Stun Effect if weapon class specifies stun
+        if stun_duration > 0 and hasattr(defender, "apply_slow_effect"):
+            defender.apply_slow_effect(stun_duration)
+            DamageNumber(defender.rect.center, "STUNNED!", COLOR_YELLOW, ui_group, size=14)
             
         # Deduct Health
         defender.take_damage(dmg)

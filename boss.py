@@ -6,14 +6,13 @@ import random
 import pygame
 import math
 from typing import Tuple, List
-from rpg.sprite import BaseSprite
 from rpg.constants import (
     DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
-    COLOR_WHITE, COLOR_RED, COLOR_YELLOW, COLOR_CYAN, COLOR_BLACK, COLOR_ORANGE
+    COLOR_WHITE, COLOR_RED, COLOR_YELLOW, COLOR_BLACK, COLOR_ORANGE
 )
 from rpg.settings import TILE_SIZE
 from rpg.enemy import Enemy
-from rpg.ai import EnemyAI, AI_STATE_ATTACK
+from rpg.ai import EnemyAI
 from rpg.combat import CombatSystem, Projectile, DamageNumber
 from typing import Any
 

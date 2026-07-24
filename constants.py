@@ -106,3 +106,58 @@ MAP_LAKE = "lake"
 MAP_MOUNTAIN = "mountain"
 MAP_DUNGEON = "dungeon"
 MAP_SECRET = "secret_area"
+MAP_CRYPT = "crypt"  # Endless procedural dungeon entrance
+
+# Seasons
+SEASON_SPRING = "spring"
+SEASON_SUMMER = "summer"
+SEASON_AUTUMN = "autumn"
+SEASON_WINTER = "winter"
+
+# Factions
+FACTION_KNIGHTS = "knights"
+FACTION_MAGES = "mages"
+FACTION_HUNTERS = "hunters"
+FACTION_MERCHANTS = "merchants"
+FACTION_BANDITS = "bandits"
+FACTION_CULTISTS = "cultists"
+
+# Weapon Classes
+WEAPON_SWORD = "sword"
+WEAPON_AXE = "axe"
+WEAPON_HAMMER = "hammer"
+WEAPON_SPEAR = "spear"
+WEAPON_DAGGER = "dagger"
+
+# Elements
+ELEMENT_NONE = "none"
+ELEMENT_FIRE = "fire"
+ELEMENT_ICE = "ice"
+ELEMENT_LIGHTNING = "lightning"
+ELEMENT_WIND = "wind"
+ELEMENT_POISON = "poison"
+
+# World Event IDs
+EVENT_VILLAGE_FESTIVAL = "village_festival"
+EVENT_MERCHANT_CARAVAN = "merchant_caravan"
+EVENT_BANDIT_INVASION = "bandit_invasion"
+EVENT_BRIDGE_REBUILT = "bridge_rebuilt"
+EVENT_FOREST_CORRUPTION = "forest_corruption"
+EVENT_HARVEST_SEASON = "harvest_season"
+EVENT_BLOOD_MOON = "blood_moon"
+EVENT_BLESSING_ASTERRA = "blessing_of_asterra"
+
+# NPC Relationship Levels
+REL_ENEMY = "enemy"
+REL_STRANGER = "stranger"
+REL_ACQUAINTANCE = "acquaintance"
+REL_FRIEND = "friend"
+REL_CLOSE_FRIEND = "close_friend"
+
+# Dungeon Themes
+DUNGEON_CAVE = "cave"
+DUNGEON_TEMPLE = "temple"
+DUNGEON_CRYPT = "crypt"
+DUNGEON_ICE = "ice"
+DUNGEON_VOLCANO = "volcano"
+

@@ -4,11 +4,11 @@ Defines the base enemy class, specific enemy archetypes, and dropped loot items.
 """
 import random
 import pygame
-from typing import Tuple, List, Dict, Any, Optional
+from typing import Tuple, List, Dict
 from rpg.sprite import BaseSprite
 from rpg.constants import (
     DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
-    COLOR_WHITE, COLOR_RED, COLOR_YELLOW
+    COLOR_RED
 )
 from rpg.settings import TILE_SIZE
 from rpg.ai import EnemyAI
@@ -162,7 +162,12 @@ class Enemy(BaseSprite):
         player.gold += self.gold_reward
         
         # Trigger quest kill progression
-        self.game.quest_manager.handle_kill(getattr(self, "kill_type", self.asset_key))
+        kill_type = getattr(self, "kill_type", self.asset_key)
+        self.game.quest_manager.handle_kill(kill_type)
+        
+        # Emit event bus notification
+        if hasattr(self.game, "event_bus"):
+            self.game.event_bus.emit("enemy_killed", enemy_type=kill_type, enemy_name=self.name, pos=self.rect.center)
         
         # Process drops
         for item_name, chance in self.loot_table.items():

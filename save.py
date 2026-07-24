@@ -6,7 +6,6 @@ import os
 import json
 from typing import Any, Dict
 from rpg.items import create_item
-from rpg.constants import QUEST_NOT_STARTED, QUEST_ACTIVE, QUEST_COMPLETED
 
 SAVE_FILE = "savegame.json"
 
@@ -148,6 +147,16 @@ class SaveSystem:
                 "world": world_data
             }
 
+            if hasattr(player, "game"):
+                if hasattr(player.game, "world_state"):
+                    save_payload["world_simulation"] = player.game.world_state.to_dict()
+                if hasattr(player.game, "factions"):
+                    save_payload["factions"] = player.game.factions.to_dict()
+                if hasattr(player.game, "npc_memory"):
+                    save_payload["npc_memories"] = player.game.npc_memory.to_dict()
+                if hasattr(player.game, "ecology"):
+                    save_payload["ecology"] = player.game.ecology.to_dict()
+
             with open(filename, 'w') as f:
                 json.dump(save_payload, f, indent=4)
                 
@@ -236,6 +245,16 @@ class SaveSystem:
             # --- Restore World Progress ---
             world_manager.chests_opened = world_data.get("chests_opened", {})
             world_manager.boss_defeated = world_data.get("boss_defeated", False)
+
+            if hasattr(player, "game"):
+                if "world_simulation" in save_payload and hasattr(player.game, "world_state"):
+                    player.game.world_state.from_dict(save_payload["world_simulation"])
+                if "factions" in save_payload and hasattr(player.game, "factions"):
+                    player.game.factions.from_dict(save_payload["factions"])
+                if "npc_memories" in save_payload and hasattr(player.game, "npc_memory"):
+                    player.game.npc_memory.from_dict(save_payload["npc_memories"])
+                if "ecology" in save_payload and hasattr(player.game, "ecology"):
+                    player.game.ecology.from_dict(save_payload["ecology"])
 
             # --- Map Transition ---
             target_map = player_data["current_map"]

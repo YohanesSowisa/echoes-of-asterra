@@ -4,10 +4,7 @@ Manages map transitions, entities spawning, chest states, and ambient music trig
 """
 import pygame
 from typing import Dict, List, Any, Tuple
-from rpg.constants import (
-    MAP_VILLAGE, MAP_FOREST, MAP_RUINS, MAP_CAVE,
-    MAP_LAKE, MAP_MOUNTAIN, MAP_DUNGEON, MAP_SECRET
-)
+from rpg.constants import MAP_VILLAGE, MAP_DUNGEON
 from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 from rpg.map_loader import MapGenerator
 from rpg.combat import DamageNumber
@@ -87,16 +84,15 @@ class ChestSprite(pygame.sprite.Sprite):
 
 class WorldManager:
     """
-    Main controller coordinates scene loading and portals mapping.
+    Coordinator of map layouts, world scenes, chest state persistence, and level loading.
     """
     def __init__(self) -> None:
-        self.current_map_name = MAP_VILLAGE
-        self.current_map_grid: List[List[str]] = []
+        self.current_map_name = ""
         self.current_map_data: Dict[str, Any] = {}
-        
-        # Save states progress
-        self.chests_opened: Dict[str, List[Tuple[int, int]]] = {}  # map_name -> List of chest grid positions that are open
+        self.current_map_grid: List[List[str]] = []
+        self.chests_opened: Dict[str, List[Tuple[int, int]]] = {}
         self.boss_defeated = False
+        self.dungeon_depth = 1
 
     def load_map(self, map_name: str, player: Any, portal_spawn: bool = True, portal_coord: Tuple[int, int] = None) -> None:
         """
@@ -104,6 +100,16 @@ class WorldManager:
         re-spawns characters, links camera boundary limits, and starts correct music.
         """
         game = player.game
+        
+        from rpg.constants import MAP_CRYPT
+        if map_name == MAP_CRYPT:
+            if self.current_map_name == MAP_CRYPT:
+                self.dungeon_depth += 1
+            else:
+                self.dungeon_depth = 1
+        else:
+            self.dungeon_depth = 1
+
         self.current_map_name = map_name
         
         # 1. Clear previous level sprites lists
@@ -120,7 +126,14 @@ class WorldManager:
         game.enemies.clear()
 
         # 2. Get procedural map template
-        self.current_map_data = MapGenerator.generate(map_name)
+        if map_name == MAP_CRYPT:
+            from rpg.dungeon_gen import DungeonGenerator, THEMES_LIST
+            theme = THEMES_LIST[(self.dungeon_depth - 1) // 5 % len(THEMES_LIST)]
+            seed = 42 + self.dungeon_depth * 17
+            self.current_map_data = DungeonGenerator.generate_floor(self.dungeon_depth, seed, theme)
+        else:
+            self.current_map_data = MapGenerator.generate(map_name)
+
         self.current_map_grid = self.current_map_data["grid"]
         
         # 3. Position the player
@@ -226,6 +239,14 @@ class WorldManager:
             enemy.game = game
             enemy.sound_manager = game.sound_manager
             enemy.particles = game.particles
+            
+            # Apply WorldState danger level stat scaling
+            if hasattr(game, "world_state"):
+                spawn_mod = game.world_state.get_spawn_modifier()
+                enemy.max_hp = int(enemy.max_hp * spawn_mod)
+                enemy.hp = enemy.max_hp
+                enemy.atk = int(enemy.atk * spawn_mod)
+                
             game.enemies.append(enemy)
 
         # 8. Align Camera Bounds
@@ -246,25 +267,57 @@ class WorldManager:
                     # Align hitbox with the solid tile grid cell
                     tree_sprite.hitbox = pygame.Rect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE)
 
-        # 10. Spawn portal exit markers (glowing indicator sprites)
+        # 10. Spawn portal exit markers (glowing indicator sprites & directional text)
         for portal in self.current_map_data.get("portals", []):
             prect = portal["rect"]
-            # Create a glowing portal marker surface
-            marker_w, marker_h = prect.width, prect.height
+            target_map_raw = portal.get("target_map", "")
+            
+            # Format display label for destination map
+            target_title = target_map_raw.replace("_", " ").title()
+            if target_map_raw == "crypt":
+                target_title = f"Crypt F{self.dungeon_depth + 1}" if self.current_map_name == "crypt" else "Endless Crypt"
+            elif target_map_raw == "secret_area":
+                target_title = "Secret Grove"
+                
+            marker_w, marker_h = max(TILE_SIZE * 2, prect.width), max(TILE_SIZE, prect.height)
             marker_surf = pygame.Surface((marker_w, marker_h), pygame.SRCALPHA)
-            # Pulsing cyan-blue glow rectangle
-            pygame.draw.rect(marker_surf, (80, 200, 255, 100), (0, 0, marker_w, marker_h), border_radius=4)
-            pygame.draw.rect(marker_surf, (120, 220, 255, 180), (2, 2, marker_w - 4, marker_h - 4), 2, border_radius=3)
-            # Arrow indicator pointing toward the portal direction
+            
+            # Pulsing cyan-gold glow rectangle
+            is_return = target_map_raw in ["village", "forest", "cave", "lake"]
+            bg_color = (240, 200, 60, 110) if is_return else (80, 200, 255, 110)
+            border_color = (250, 220, 100, 220) if is_return else (120, 220, 255, 220)
+            
+            pygame.draw.rect(marker_surf, bg_color, (0, 0, marker_w, marker_h), border_radius=4)
+            pygame.draw.rect(marker_surf, border_color, (2, 2, marker_w - 4, marker_h - 4), 2, border_radius=3)
+            
+            # Arrow indicator direction calculation
             cx, cy = marker_w // 2, marker_h // 2
-            if prect.y == 0:  # Top portal -> arrow points up
-                pygame.draw.polygon(marker_surf, (200, 240, 255, 200), [(cx, 4), (cx - 8, 16), (cx + 8, 16)])
-            elif prect.y >= (GRID_HEIGHT - 1) * TILE_SIZE:  # Bottom portal -> arrow points down
-                pygame.draw.polygon(marker_surf, (200, 240, 255, 200), [(cx, marker_h - 4), (cx - 8, marker_h - 16), (cx + 8, marker_h - 16)])
-            elif prect.x == 0:  # Left portal -> arrow points left
-                pygame.draw.polygon(marker_surf, (200, 240, 255, 200), [(4, cy), (16, cy - 8), (16, cy + 8)])
-            elif prect.x >= (GRID_WIDTH - 1) * TILE_SIZE:  # Right portal -> arrow points right
-                pygame.draw.polygon(marker_surf, (200, 240, 255, 200), [(marker_w - 4, cy), (marker_w - 16, cy - 8), (marker_w - 16, cy + 8)])
+            arrow_color = (255, 255, 200, 240) if is_return else (200, 240, 255, 240)
+            
+            if prect.y <= TILE_SIZE * 2:  # Top edge or near top -> arrow points UP
+                pygame.draw.polygon(marker_surf, arrow_color, [(cx, 4), (cx - 8, 16), (cx + 8, 16)])
+            elif prect.y >= (GRID_HEIGHT - 3) * TILE_SIZE:  # Bottom edge -> arrow points DOWN
+                pygame.draw.polygon(marker_surf, arrow_color, [(cx, marker_h - 4), (cx - 8, marker_h - 16), (cx + 8, marker_h - 16)])
+            elif prect.x <= TILE_SIZE * 2:  # Left edge -> arrow points LEFT
+                pygame.draw.polygon(marker_surf, arrow_color, [(4, cy), (16, cy - 8), (16, cy + 8)])
+            elif prect.x >= (GRID_WIDTH - 3) * TILE_SIZE:  # Right edge -> arrow points RIGHT
+                pygame.draw.polygon(marker_surf, arrow_color, [(marker_w - 4, cy), (marker_w - 16, cy - 8), (marker_w - 16, cy + 8)])
+            else:  # Interior portals (stairs, return portals inside rooms)
+                pygame.draw.polygon(marker_surf, arrow_color, [(cx, marker_h - 4), (cx - 8, marker_h - 16), (cx + 8, marker_h - 16)])
+
+            # Render text label (e.g. "To Village" or "To Forest")
+            lbl_font = pygame.font.SysFont("Arial", 11, bold=True)
+            lbl_str = f"To {target_title}"
+            lbl_surf = lbl_font.render(lbl_str, True, (255, 255, 240))
+            
+            lx = (marker_w - lbl_surf.get_width()) // 2
+            ly = (marker_h - lbl_surf.get_height()) // 2
+            
+            # Text background badge
+            bg_rect = pygame.Rect(lx - 4, ly - 1, lbl_surf.get_width() + 8, lbl_surf.get_height() + 2)
+            pygame.draw.rect(marker_surf, (15, 18, 25, 220), bg_rect, border_radius=3)
+            pygame.draw.rect(marker_surf, border_color[:3], bg_rect, 1, border_radius=3)
+            marker_surf.blit(lbl_surf, (lx, ly))
             
             portal_pos = (prect.centerx, prect.centery)
             portal_sprite = BaseSprite(portal_pos, [game.visible_sprites], layer=0)
