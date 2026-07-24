@@ -29,6 +29,7 @@ from rpg.events import EventBus
 from rpg.factions import FactionManager
 from rpg.npc_memory import NPCMemoryManager
 from rpg.living_world import LivingWorldManager
+from rpg.debug_overlay import DebugOverlay
 
 class Game:
     """
@@ -47,6 +48,8 @@ class Game:
         # Initialize Core Subsystems
         self.event_bus = EventBus()
         self.living_world = LivingWorldManager(self.event_bus)
+        self.living_world.game_reference = self
+        self.debug_overlay = DebugOverlay()
         
         # Accessor aliases for backward compatibility
         self.world_state = self.living_world.world_state
@@ -162,6 +165,10 @@ class Game:
                 sys.exit()
                 
             elif event.type == pygame.KEYDOWN:
+                # Developer Debug Overlay hotkey check (F9, F10, F11)
+                if self.debug_overlay.handle_keydown(event.key):
+                    continue
+
                 if self.game_state == STATE_PLAYING:
                     # Keyboard WASD / Arrow / Tab / 1-2 tab navigation when Character Panel is open
                     if "character" in self.ui_manager.open_panels:
@@ -188,6 +195,9 @@ class Game:
                         self.sound_manager.play_sound("click")
                     elif event.key == pygame.K_g:
                         self.ui_manager.toggle_panel("crafting")
+                        self.sound_manager.play_sound("click")
+                    elif event.key == pygame.K_r:
+                        self.ui_manager.toggle_panel("progression")
                         self.sound_manager.play_sound("click")
                     elif event.key == pygame.K_m:
                         self.minimap_enabled = not self.minimap_enabled
@@ -482,13 +492,52 @@ class Game:
         # 5. Update ambient cycle
         self.lighting.update(self.dt, self.world_state)
 
-        # 6. Check Portal level transitions
+        # 6. Check Portal level transitions with Centralized ProgressionManager
         player_hb = self.player.hitbox
         for portal in self.world_manager.current_map_data.get("portals", []):
             if player_hb.colliderect(portal["rect"]):
                 target = portal["target_map"]
                 spawn_coords = portal["target_spawn"]
                 
+                # Evaluate regional access via ProgressionManager (Rule 1)
+                prog_mgr = self.living_world.progression
+                can_access, clue, reg_state = prog_mgr.can_access_region(target, self)
+                
+                if not can_access:
+                    # Push back player slightly to prevent stuck collision loop
+                    push_dir = pygame.math.Vector2(self.player.pos - portal["rect"].center)
+                    if push_dir.length_squared() > 0:
+                        push_dir = push_dir.normalize()
+                        self.player.pos += push_dir * 22.0
+                        self.player.hitbox.center = (int(self.player.pos.x), int(self.player.pos.y))
+                        self.player.rect.center = self.player.hitbox.center
+                    
+                    target_prof = prog_mgr.regions.get(target)
+                    reg_name = target_prof.name if target_prof else target.upper()
+
+                    # Trigger Screen-Centered Banner Notification (100% visible on any screen location)
+                    self.ui_manager.show_banner(
+                        title=f"REGION LOCKED: {reg_name.upper()}",
+                        subtitle=clue,
+                        color=(240, 140, 30),
+                        duration=4.5
+                    )
+                    self.sound_manager.play_sound("click")
+                    break
+
+                # If state was AVAILABLE, unlock region & trigger living celebration!
+                if reg_state.value == "available":
+                    prog_mgr.unlock_region(target, self, self.event_bus)
+                    target_prof = prog_mgr.regions.get(target)
+                    reg_name = target_prof.name if target_prof else target.upper()
+
+                    self.ui_manager.show_banner(
+                        title=f"REGION UNLOCKED: {reg_name.upper()}!",
+                        subtitle=f"The path to {reg_name} is now open and accessible.",
+                        color=(255, 215, 0),
+                        duration=5.0
+                    )
+
                 # Fade transition flash
                 self.effects_manager.trigger_flash((255, 255, 255), 300)
                 self.sound_manager.play_sound("magic")
@@ -577,6 +626,9 @@ class Game:
         
         # 8. Render damage flashes on top of UI
         self.effects_manager.draw_flash(self.screen)
+        
+        # 9. Render Developer Debug Overlay (F9, F10, F11)
+        self.debug_overlay.draw(self.screen, self)
         
         # Flip display buffer
         pygame.display.flip()

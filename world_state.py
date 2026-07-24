@@ -1,11 +1,11 @@
 """
-Echoes of Asterra - Dynamic World State Simulation
+Echoes of Asterra - Dynamic World State Simulation & Snapshot API
 Tracks continuous world progression: days, seasons, prosperity, danger levels, and dynamic world events.
-Drives weather biases, shop price modifiers, enemy spawn scaling, and event triggers.
+Drives weather biases, shop price modifiers, enemy spawn scaling, and provides immutable WorldSnapshots.
 """
 import random
 from dataclasses import dataclass, field
-from typing import List, Set, Dict, Any
+from typing import List, Set, Dict, Any, Optional, Tuple
 from rpg.constants import (
     SEASON_SPRING, SEASON_SUMMER, SEASON_AUTUMN, SEASON_WINTER,
     EVENT_VILLAGE_FESTIVAL, EVENT_MERCHANT_CARAVAN, EVENT_BANDIT_INVASION,
@@ -15,6 +15,35 @@ from rpg.settings import DAY_LENGTH_SECONDS
 from rpg.events import EventBus
 
 SEASONS_ORDER = [SEASON_SPRING, SEASON_SUMMER, SEASON_AUTUMN, SEASON_WINTER]
+
+@dataclass(frozen=True)
+class WorldSnapshot:
+    """
+    Lightweight immutable snapshot representing current simulation state.
+    Consumed strictly by GameDirector without allowing direct state mutation.
+    """
+    day: int
+    season: str
+    time_of_day: float
+    prosperity: int              # 0 (desolate) to 100 (thriving)
+    guard_strength: float        # 0.0 to 100.0
+    bandit_strength: float       # 0.0 to 100.0
+    road_safety: float           # 0.0 to 100.0
+    danger_level: float          # 0.0 (peaceful) to 100.0 (crisis)
+    trade_activity: float        # 0.0 to 100.0
+    weather: str
+    active_crisis: Optional[str]
+    population: int
+    player_wealth: int
+    player_level: int
+    player_hp_ratio: float
+    reputation: float
+    memory_stats: Dict[str, Any]
+    recent_deaths: int
+    combat_win_rate: float
+    monster_density: float
+    faction_stability: float
+    active_events: Tuple[str, ...]
 
 @dataclass
 class WorldEvent:
@@ -50,14 +79,24 @@ class WorldEvent:
 class WorldState:
     """
     Simulation engine tracking continuous time, seasons, prosperity, and world events.
+    Provides immutable WorldSnapshot objects for system observers.
     """
     def __init__(self) -> None:
         self.day: int = 1
         self.season: str = SEASON_SPRING
         # Start new game at 06:00 AM (6 hours into 24-hour cycle)
         self.time_accumulator: float = (6.0 / 24.0) * DAY_LENGTH_SECONDS
-        self.prosperity: int = 50       # 0 (desolate) to 100 (thriving)
-        self.danger_level: int = 20     # 0 (peaceful) to 100 (hostile overrun)
+        self.prosperity: int = 50       # 0 to 100
+        self.danger_level: int = 20     # 0 to 100
+        
+        # Extended world metrics
+        self.guard_strength: float = 60.0
+        self.bandit_strength: float = 40.0
+        self.road_safety: float = 50.0
+        self.trade_activity: float = 50.0
+        self.population: int = 120
+        self.monster_density: float = 30.0
+        self.faction_stability: float = 65.0
         
         self.active_events: List[WorldEvent] = []
         self.completed_event_ids: Set[str] = set()
@@ -65,6 +104,9 @@ class WorldState:
         # Track daily counters for drift calculations
         self._enemies_killed_today: int = 0
         self._quests_completed_today: int = 0
+        self.recent_deaths: int = 0
+        self._combat_wins: int = 0
+        self._combat_losses: int = 0
 
     @property
     def time_of_day(self) -> float:
@@ -75,12 +117,18 @@ class WorldState:
         """Subscribes WorldState to relevant global events."""
         event_bus.subscribe("enemy_killed", self._on_enemy_killed)
         event_bus.subscribe("quest_completed", self._on_quest_completed)
+        event_bus.subscribe("player_died", self._on_player_died)
 
     def _on_enemy_killed(self, **kwargs: Any) -> None:
         self._enemies_killed_today += 1
+        self._combat_wins += 1
 
     def _on_quest_completed(self, **kwargs: Any) -> None:
         self._quests_completed_today += 1
+
+    def _on_player_died(self, **kwargs: Any) -> None:
+        self.recent_deaths += 1
+        self._combat_losses += 1
 
     def update(self, dt: float, event_bus: EventBus) -> None:
         """Ticks real-time clock. When full day completes, runs day_tick()."""
@@ -97,7 +145,6 @@ class WorldState:
 
         # Cycle seasons every 30 days
         season_index = ((self.day - 1) // 30) % len(SEASONS_ORDER)
-        old_season = self.season
         self.season = SEASONS_ORDER[season_index]
 
         # Drift prosperity: +2 per quest completed today, -1 if high danger
@@ -111,6 +158,10 @@ class WorldState:
             self.danger_level = max(0, self.danger_level - (self._enemies_killed_today // 4))
         elif self._enemies_killed_today == 0:
             self.danger_level = min(100, self.danger_level + 1)
+
+        # Dynamic drift of secondary metrics
+        self.road_safety = max(0.0, min(100.0, 50.0 + (self.guard_strength - self.bandit_strength) * 0.5))
+        self.trade_activity = max(0.0, min(100.0, (self.prosperity * 0.6) + (self.road_safety * 0.4)))
 
         # Reset daily tracking
         self._enemies_killed_today = 0
@@ -220,7 +271,6 @@ class WorldState:
 
     def get_spawn_modifier(self) -> float:
         """Returns enemy stat/count danger scaling multiplier."""
-        # Baseline 1.0 + 0.5% per danger level point
         extra_danger = 0
         for evt in self.active_events:
             extra_danger += evt.effects.get("danger_boost", 0)
@@ -229,14 +279,83 @@ class WorldState:
 
     def get_price_modifier(self) -> float:
         """Returns shop price multiplier based on prosperity and active events."""
-        # Base modifier from prosperity: 100 prosperity = 0.9 (10% discount), 0 prosperity = 1.2 (20% markup)
         base_mod = 1.2 - (self.prosperity / 100.0) * 0.3
-        
-        # Apply event multipliers
         for evt in self.active_events:
             if "price_mult" in evt.effects:
                 base_mod *= evt.effects["price_mult"]
         return max(0.6, min(1.5, base_mod))
+
+    def create_snapshot(self, game_context: Any = None) -> WorldSnapshot:
+        """
+        Generates a lightweight immutable WorldSnapshot representing the current world state.
+        Safely extracts player, reputation, and memory stats from optional game_context.
+        """
+        player_wealth = 0
+        player_level = 1
+        player_hp_ratio = 1.0
+        reputation = 0.0
+        memory_stats: Dict[str, Any] = {"active_memories": 0}
+        active_crisis: Optional[str] = None
+        weather = "clear"
+
+        if game_context:
+            # Extract player properties
+            player = getattr(game_context, "player", None)
+            if player:
+                player_wealth = getattr(player, "gold", 0)
+                player_level = getattr(player, "level", 1)
+                max_hp = max(1, getattr(player, "max_hp", 100))
+                player_hp_ratio = getattr(player, "hp", max_hp) / max_hp
+
+            # Extract reputation
+            rep_mgr = getattr(game_context, "reputation_manager", None)
+            if rep_mgr and hasattr(rep_mgr, "global_reputation"):
+                reputation = float(rep_mgr.global_reputation)
+
+            # Extract memory stats
+            mem_mgr = getattr(game_context, "memory_manager", None)
+            if mem_mgr and hasattr(mem_mgr, "memories"):
+                memory_stats = {"active_memories": len(mem_mgr.memories)}
+
+            # Extract weather
+            weather_sys = getattr(game_context, "weather", None)
+            if weather_sys and hasattr(weather_sys, "current_weather"):
+                weather = str(weather_sys.current_weather)
+
+        # Detect active crisis from active events
+        for evt in self.active_events:
+            if "invasion" in evt.event_id or "outbreak" in evt.event_id or "crisis" in evt.event_id:
+                active_crisis = evt.name
+                break
+
+        # Calculate combat win rate
+        total_battles = self._combat_wins + self._combat_losses
+        win_rate = (self._combat_wins / float(total_battles)) if total_battles > 0 else 0.5
+
+        return WorldSnapshot(
+            day=int(self.day),
+            season=str(self.season),
+            time_of_day=float(self.time_of_day),
+            prosperity=int(self.prosperity),
+            guard_strength=float(self.guard_strength),
+            bandit_strength=float(self.bandit_strength),
+            road_safety=float(self.road_safety),
+            danger_level=float(self.danger_level),
+            trade_activity=float(self.trade_activity),
+            weather=weather,
+            active_crisis=active_crisis,
+            population=int(self.population),
+            player_wealth=int(player_wealth),
+            player_level=int(player_level),
+            player_hp_ratio=float(player_hp_ratio),
+            reputation=float(reputation),
+            memory_stats=dict(memory_stats),
+            recent_deaths=int(self.recent_deaths),
+            combat_win_rate=float(win_rate),
+            monster_density=float(self.monster_density),
+            faction_stability=float(self.faction_stability),
+            active_events=tuple(evt.name for evt in self.active_events)
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes world state to dictionary for JSON saves."""
@@ -246,6 +365,16 @@ class WorldState:
             "time_accumulator": self.time_accumulator,
             "prosperity": self.prosperity,
             "danger_level": self.danger_level,
+            "guard_strength": self.guard_strength,
+            "bandit_strength": self.bandit_strength,
+            "road_safety": self.road_safety,
+            "trade_activity": self.trade_activity,
+            "population": self.population,
+            "monster_density": self.monster_density,
+            "faction_stability": self.faction_stability,
+            "recent_deaths": self.recent_deaths,
+            "combat_wins": self._combat_wins,
+            "combat_losses": self._combat_losses,
             "active_events": [evt.to_dict() for evt in self.active_events],
             "completed_event_ids": list(self.completed_event_ids)
         }
@@ -257,5 +386,15 @@ class WorldState:
         self.time_accumulator = data.get("time_accumulator", 0.0)
         self.prosperity = data.get("prosperity", 50)
         self.danger_level = data.get("danger_level", 20)
+        self.guard_strength = data.get("guard_strength", 60.0)
+        self.bandit_strength = data.get("bandit_strength", 40.0)
+        self.road_safety = data.get("road_safety", 50.0)
+        self.trade_activity = data.get("trade_activity", 50.0)
+        self.population = data.get("population", 120)
+        self.monster_density = data.get("monster_density", 30.0)
+        self.faction_stability = data.get("faction_stability", 65.0)
+        self.recent_deaths = data.get("recent_deaths", 0)
+        self._combat_wins = data.get("combat_wins", 0)
+        self._combat_losses = data.get("combat_losses", 0)
         self.active_events = [WorldEvent.from_dict(d) for d in data.get("active_events", [])]
         self.completed_event_ids = set(data.get("completed_event_ids", []))

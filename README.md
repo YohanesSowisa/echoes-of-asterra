@@ -1,5 +1,8 @@
 # Echoes of Asterra — Living World Expansion
 
+> 📘 **Dokumen Serah Terima AI / Developer**: Lihat [handover.md](handover.md) untuk panduan arsitektur & kelanjutan proyek di sesi chat baru.  
+> 📜 **Histori Log Pembaruan**: Lihat [update_logs.md](update_logs.md) untuk riwayat lengkap penambahan fitur & perbaikan bug.
+
 **Echoes of Asterra** is a complete, production-quality, top-down Action RPG built from scratch in Python 3.12+ using **Pygame Community Edition (`pygame-ce`)**.
 
 The game features an explorable world across multiple procedural maps, real-time combo combat with weapon identities, deeply integrated living world systems (Dynamic World, Factions & Reputation, Monster Ecology, Persistent NPC Memory, and Procedural Endless Dungeons), deep RPG mechanics (leveling, inventory, equipment, crafting, and quests), branching dialogue, ambient systems (day-night cycle, dynamic weather), and a procedural audio synthesizer.

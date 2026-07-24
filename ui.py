@@ -95,6 +95,13 @@ class UIManager:
             "quest_panel": []
         }
 
+        # Banner notification system
+        self.banner_title: str = ""
+        self.banner_subtitle: str = ""
+        self.banner_color: Tuple[int, int, int] = (240, 140, 30)
+        self.banner_timer: float = 0.0
+        self.banner_duration: float = 4.0
+
         # Double click tracker
         self.last_click_time = 0
         self.last_click_slot = -1
@@ -147,7 +154,7 @@ class UIManager:
         }
 
     def toggle_panel(self, panel_name: str) -> None:
-        """Toggles visibility of an RPG panel (inventory, character, quests, crafting). Enforces exclusive single active panel."""
+        """Toggles visibility of an RPG panel (inventory, character, quests, crafting, progression). Enforces exclusive single active panel."""
         if panel_name in self.open_panels:
             self.open_panels.remove(panel_name)
         else:
@@ -207,6 +214,8 @@ class UIManager:
             self.draw_quests_panel(surface, game.quest_manager)
         if "crafting" in self.open_panels:
             self.draw_crafting_panel(surface, game.player)
+        if "progression" in self.open_panels:
+            self.draw_exploration_log_panel(surface, game)
 
         # 4. Dialogue Box
         if game.game_state == STATE_DIALOGUE:
@@ -225,6 +234,54 @@ class UIManager:
         # 7. Render Tooltip popup on hover
         if self.hovered_item:
             self.draw_tooltip(surface, self.hovered_item, pygame.mouse.get_pos())
+
+        # 8. Render Screen-Centered Top Banner Notification
+        self.draw_banner_notification(surface, getattr(game, "dt", 0.016))
+
+    def show_banner(self, title: str, subtitle: str = "", color: Tuple[int, int, int] = (240, 140, 30), duration: float = 4.0) -> None:
+        """Displays a screen-centered top banner message overlay."""
+        self.banner_title = title
+        self.banner_subtitle = subtitle
+        self.banner_color = color
+        self.banner_timer = duration
+        self.banner_duration = duration
+
+    def draw_banner_notification(self, surface: pygame.Surface, dt: float) -> None:
+        """Renders active top banner notification just below HUD at Y=90."""
+        if self.banner_timer <= 0:
+            return
+            
+        self.banner_timer = max(0.0, self.banner_timer - dt)
+        
+        # Calculate alpha fade
+        alpha = 240
+        if self.banner_timer > self.banner_duration - 0.3:
+            alpha = int(240 * ((self.banner_duration - self.banner_timer) / 0.3))
+        elif self.banner_timer < 0.5:
+            alpha = int(240 * (self.banner_timer / 0.5))
+            
+        alpha = max(0, min(240, alpha))
+        if alpha <= 0:
+            return
+
+        t_surf = self.fonts["large"].render(self.banner_title, True, self.banner_color)
+        sub_surf = self.fonts["small"].render(self.banner_subtitle, True, (230, 240, 250)) if self.banner_subtitle else None
+
+        req_w = max(t_surf.get_width(), sub_surf.get_width() if sub_surf else 0) + 40
+        w = max(420, min(SCREEN_WIDTH - 60, req_w))
+        h = 58 if sub_surf else 42
+        x = (SCREEN_WIDTH - w) // 2
+        y = 90
+
+        banner_bg = pygame.Surface((w, h), pygame.SRCALPHA)
+        banner_bg.fill((16, 22, 34, alpha))
+        surface.blit(banner_bg, (x, y))
+
+        pygame.draw.rect(surface, (*self.banner_color, alpha), (x, y, w, h), width=2, border_radius=4)
+
+        surface.blit(t_surf, (x + (w - t_surf.get_width()) // 2, y + 6))
+        if sub_surf:
+            surface.blit(sub_surf, (x + (w - sub_surf.get_width()) // 2, y + 32))
 
     # --- BASE HUD RENDER ---
 
@@ -913,7 +970,8 @@ class UIManager:
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
 
         # Header Title
-        active_title = getattr(game.reputation_manager, "active_title", "The Wanderer") if hasattr(game, "reputation_manager") else "The Wanderer"
+        game_ref = getattr(player, "game", None)
+        active_title = getattr(getattr(game_ref, "reputation_manager", None), "active_title", "The Wanderer") if game_ref else "The Wanderer"
         hdr = self.fonts["medium"].render(f"Hero Attributes  •  Title: {active_title}", True, COLOR_UI_HIGHLIGHT)
         surface.blit(hdr, (cx + 16, cy + 16))
 
@@ -1799,6 +1857,201 @@ class UIManager:
             elif action == "Back":
                 self.pause_menu_state = self.pause_action_source + "_slots"
                 self.pause_select_idx = self.selected_slot_idx
+
+    def draw_exploration_log_panel(self, surface: pygame.Surface, game: Any) -> None:
+        """
+        Renders the Region Exploration Log & Progression Journal panel ('R' key toggle).
+        Displays region states, rumors, narrative unlock paths, region identities, and mastery trackers.
+        """
+        lw = getattr(game, "living_world", None)
+        prog_mgr = getattr(lw, "progression", None) if lw else None
+        
+        if not prog_mgr or not hasattr(prog_mgr, "regions"):
+            return
+
+        w, h = 740, 500
+        x = (SCREEN_WIDTH - w) // 2
+        y = (SCREEN_HEIGHT - h) // 2
+
+        # 1. Dark translucent backdrop
+        overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+        overlay.fill((16, 20, 30, 240))
+        surface.blit(overlay, (x, y))
+        
+        # Outer Border
+        pygame.draw.rect(surface, (0, 180, 216), (x, y, w, h), width=2, border_radius=6)
+        
+        # Title Banner
+        pygame.draw.rect(surface, (25, 38, 56), (x, y, w, 38), border_top_left_radius=6, border_top_right_radius=6)
+        pygame.draw.line(surface, (0, 180, 216), (x, y + 38), (x + w, y + 38), width=1)
+        
+        title_surf = self.fonts["large"].render("[R] REGION EXPLORATION LOG & WORLD PROGRESSION", True, (255, 215, 0))
+        surface.blit(title_surf, (x + 16, y + 6))
+        
+        close_txt = self.fonts["small"].render("Press [R] or [ESC] to Close", True, (160, 200, 220))
+        surface.blit(close_txt, (x + w - close_txt.get_width() - 16, y + 12))
+
+        # 2. Left Column: Region List Selection
+        regions_list = list(prog_mgr.regions.values())
+        if self.progression_select_idx >= len(regions_list):
+            self.progression_select_idx = 0
+            
+        list_x = x + 16
+        list_y = y + 50
+        list_w = 210
+        
+        state_badge_colors = {
+            "unknown": (120, 120, 130),
+            "rumor_heard": (60, 210, 230),
+            "discovered": (240, 200, 40),
+            "locked": (230, 120, 30),
+            "available": (60, 200, 80),
+            "unlocked": (30, 200, 80),
+            "mastered": (255, 215, 0)
+        }
+
+        for idx, reg in enumerate(regions_list):
+            card_rect = pygame.Rect(list_x, list_y + idx * 68, list_w, 62)
+            is_selected = (idx == self.progression_select_idx)
+            
+            # Hover / click selection
+            m_pos = pygame.mouse.get_pos()
+            if card_rect.collidepoint(m_pos):
+                if pygame.mouse.get_pressed()[0]:
+                    self.progression_select_idx = idx
+            
+            bg_col = (35, 50, 75) if is_selected else (22, 28, 42)
+            border_col = (0, 210, 255) if is_selected else (50, 60, 80)
+            
+            pygame.draw.rect(surface, bg_col, card_rect, border_radius=4)
+            pygame.draw.rect(surface, border_col, card_rect, width=2 if is_selected else 1, border_radius=4)
+            
+            # Name
+            disp_name = "???" if reg.state.value == "unknown" else reg.name
+            name_surf = self.fonts["medium"].render(disp_name, True, (255, 255, 255) if is_selected else (200, 210, 220))
+            surface.blit(name_surf, (list_x + 10, list_y + idx * 68 + 8))
+            
+            # State Badge
+            st_val = reg.state.value.upper().replace("_", " ")
+            st_col = state_badge_colors.get(reg.state.value, (180, 180, 180))
+            badge_surf = self.fonts["small"].render(f"[{st_val}]", True, st_col)
+            surface.blit(badge_surf, (list_x + 10, list_y + idx * 68 + 34))
+
+        # 3. Right Column: Detailed Exploration Log Card
+        detail_x = x + 236
+        detail_y = y + 50
+        detail_w = 488
+        detail_h = 434
+        
+        sel_reg = regions_list[self.progression_select_idx]
+        
+        card_bg = pygame.Surface((detail_w, detail_h), pygame.SRCALPHA)
+        card_bg.fill((20, 26, 38, 220))
+        surface.blit(card_bg, (detail_x, detail_y))
+        pygame.draw.rect(surface, (0, 180, 216), (detail_x, detail_y, detail_w, detail_h), width=1, border_radius=4)
+
+        curr_y = detail_y + 14
+        
+        if sel_reg.state.value == "unknown":
+            # Secret / Unrevealed region
+            unkn_surf = self.fonts["large"].render("??? UNKNOWN REGION ???", True, (160, 160, 170))
+            surface.blit(unkn_surf, (detail_x + 16, curr_y))
+            curr_y += 36
+            hint_surf = self.fonts["medium"].render("Speak with villagers or explore noticeboards to uncover rumors.", True, (140, 150, 170))
+            surface.blit(hint_surf, (detail_x + 16, curr_y))
+            return
+
+        # Header Title
+        t_surf = self.fonts["large"].render(sel_reg.name, True, (255, 255, 255))
+        surface.blit(t_surf, (detail_x + 16, curr_y))
+        
+        st_val = sel_reg.state.value.upper().replace("_", " ")
+        st_col = state_badge_colors.get(sel_reg.state.value, (180, 180, 180))
+        st_surf = self.fonts["medium"].render(f"[{st_val}]", True, st_col)
+        surface.blit(st_surf, (detail_x + detail_w - st_surf.get_width() - 16, curr_y + 4))
+        curr_y += 34
+        
+        pygame.draw.line(surface, (50, 70, 95), (detail_x + 16, curr_y), (detail_x + detail_w - 16, curr_y), 1)
+        curr_y += 10
+
+        # Lore / Description
+        lore_lbl = self.fonts["small"].render(f"Lore: {sel_reg.narrative_lore}", True, (200, 220, 240))
+        surface.blit(lore_lbl, (detail_x + 16, curr_y))
+        curr_y += 22
+
+        # Known Rumor
+        rumor_lbl = self.fonts["small"].render(f"Rumor: \"{sel_reg.rumor}\"", True, (240, 200, 40))
+        surface.blit(rumor_lbl, (detail_x + 16, curr_y))
+        curr_y += 26
+
+        # Region Identity Metadata Box
+        ident_hdr = self.fonts["medium"].render("Region Identity & Atmosphere:", True, (0, 180, 216))
+        surface.blit(ident_hdr, (detail_x + 16, curr_y))
+        curr_y += 20
+        
+        ident = sel_reg.identity
+        ident_lines = [
+            f" • Ambient Theme: {ident.ambient_music}  |  Mechanic: {ident.regional_mechanic}",
+            f" • Gathering Resources: {', '.join(ident.resources[:3])}",
+            f" • Dominant Fauna/Enemies: {', '.join(ident.enemies[:3])}"
+        ]
+        for il in ident_lines:
+            il_surf = self.fonts["small"].render(il, True, (170, 190, 210))
+            surface.blit(il_surf, (detail_x + 20, curr_y))
+            curr_y += 18
+            
+        curr_y += 10
+        
+        # Narrative Progress & Unlock Vectors Box
+        req_hdr = self.fonts["medium"].render("Narrative Unlock Requirements & Progress:", True, (0, 180, 216))
+        surface.blit(req_hdr, (detail_x + 16, curr_y))
+        curr_y += 22
+
+        from rpg.progression import RegionState
+        if sel_reg.state in [RegionState.UNLOCKED, RegionState.MASTERED] or getattr(sel_reg.state, "value", sel_reg.state) in ["unlocked", "mastered"]:
+            unl_lbl = self.fonts["medium"].render("✓ Region path is fully open and accessible!", True, (60, 200, 80))
+            surface.blit(unl_lbl, (detail_x + 20, curr_y))
+            curr_y += 26
+        else:
+            for grp in sel_reg.requirement_groups:
+                grp_desc = f"Path Vector ({grp.description}):"
+                g_surf = self.fonts["small"].render(grp_desc, True, (255, 215, 0))
+                surface.blit(g_surf, (detail_x + 20, curr_y))
+                curr_y += 18
+                for req in grp.requirements:
+                    req_met = prog_mgr.evaluate_requirement(req, game)
+                    icon_str = "[✓]" if req_met else "[✗]"
+                    col = (60, 200, 80) if req_met else (230, 120, 30)
+                    r_text = f"  {icon_str} {req.narrative_clue}"
+                    r_surf = self.fonts["small"].render(r_text, True, col)
+                    surface.blit(r_surf, (detail_x + 24, curr_y))
+                    curr_y += 18
+            curr_y += 6
+
+        # Region Mastery Progress Box
+        m_hdr = self.fonts["medium"].render("Region Exploration Mastery:", True, (255, 215, 0))
+        surface.blit(m_hdr, (detail_x + 16, curr_y))
+        curr_y += 20
+        
+        mastery = sel_reg.mastery
+        
+        # Draw Progress Bar
+        bar_w = 400
+        bar_h = 14
+        bar_x = detail_x + 20
+        pygame.draw.rect(surface, (30, 40, 55), (bar_x, curr_y, bar_w, bar_h), border_radius=3)
+        fill_w = int(bar_w * (mastery.exploration_percent / 100.0))
+        if fill_w > 0:
+            pygame.draw.rect(surface, (255, 215, 0), (bar_x, curr_y, fill_w, bar_h), border_radius=3)
+        pygame.draw.rect(surface, (0, 180, 216), (bar_x, curr_y, bar_w, bar_h), width=1, border_radius=3)
+        
+        pct_lbl = self.fonts["small"].render(f"{mastery.exploration_percent:.1f}%", True, (255, 255, 255))
+        surface.blit(pct_lbl, (bar_x + bar_w + 10, curr_y - 2))
+        curr_y += 22
+
+        m_details = f"Landmarks: {mastery.landmarks_found}/{mastery.max_landmarks}  |  Elites Culled: {mastery.elites_culled}/{mastery.max_elites}  |  Secrets: {mastery.secrets_found}/{mastery.max_secrets}"
+        md_surf = self.fonts["small"].render(m_details, True, (180, 200, 220))
+        surface.blit(md_surf, (detail_x + 20, curr_y))
 
 def cy_crafting(cy: int) -> int:
     return cy
