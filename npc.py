@@ -3,7 +3,7 @@ Echoes of Asterra - NPC System
 Implements interactive non-player characters with dialog nodes, trading shop, and quest prompts.
 """
 import pygame
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 from rpg.sprite import BaseSprite
 from rpg.constants import (
     DIR_DOWN,
@@ -592,5 +592,37 @@ class TownNoticeboard(NPC):
         node = DialogueNode("town_board", self.name, "Asterra Town Board: Allocate your gold and resources to fund competing NPC ambitions and town infrastructure!", choices)
         self.game.dialogue_manager.add_node(node)
         self.game.dialogue_manager.start_dialogue("town_board")
+        self.game.game_state = STATE_DIALOGUE
+
+class PastHeroStatue(NPC):
+    """Weathered Stone Statue of a Past Hero from Mythos History."""
+    def __init__(self, pos: Tuple[float, float], record: Dict[str, Any], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, f"Statue of {record.get('hero_name', 'Ancient Champion')}", "past_statue")
+        self.record = record
+        self.image = pygame.Surface((40, 56), pygame.SRCALPHA)
+        # Stone pedestal
+        pygame.draw.rect(self.image, (90, 95, 105), (4, 36, 32, 20), border_radius=4)
+        # Weathered stone hero figure
+        pygame.draw.circle(self.image, (160, 165, 175), (20, 18), 12)
+        pygame.draw.rect(self.image, (140, 145, 155), (10, 26, 20, 14), border_radius=3)
+        # Inscribed rune
+        pygame.draw.circle(self.image, (210, 170, 60), (20, 20), 4)
+
+    def interact(self) -> None:
+        self.game.dialogue_manager.close()
+        h_name = self.record.get("hero_name", "Ancient Champion")
+        days = self.record.get("days_lived", 1)
+        wpn = self.record.get("favored_weapon", "Steel Blade")
+        faction = self.record.get("favored_faction", "knights").title()
+        end_reason = self.record.get("end_cause", "Fell in battle")
+
+        txt = (
+            f"An ancient weathered stone monument inscribed with runes:\n\n"
+            f"'Here rests {h_name}, who favored the {faction} and wielded the {wpn}. "
+            f"Survived {days} days before {end_reason}.'"
+        )
+        node = DialogueNode("past_statue_read", self.name, txt, [DialogueChoice("Honor the Old Hero.", None)])
+        self.game.dialogue_manager.add_node(node)
+        self.game.dialogue_manager.start_dialogue("past_statue_read")
         self.game.game_state = STATE_DIALOGUE
 

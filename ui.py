@@ -974,35 +974,75 @@ class UIManager:
             surface.blit(lbl, (stat_x, y_pos))
             surface.blit(val_lbl, (stat_x, y_pos + 12))
 
-        # Draw Faction Reputation Listings (Right section of panel)
-        fac_x = cx + 330
-        fac_y = cy + 52
+        # Tab Switcher Header (Right Section)
+        tab_x = cx + 330
+        tab_y = cy + 52
         
-        fac_title = self.fonts["medium"].render("Faction Standing", True, COLOR_UI_HIGHLIGHT)
-        surface.blit(fac_title, (fac_x, cy + 24))
+        active_tab = getattr(self, "active_char_tab", "factions")
         
-        if hasattr(player, "game") and hasattr(player.game, "factions"):
-            fm = player.game.factions
-            for idx, (f_id, fac_data) in enumerate(fm.factions.items()):
-                y_pos = fac_y + idx * 46
-                # Faction Name
-                fn_lbl = self.fonts["small"].render(fac_data.name, True, COLOR_WHITE)
-                surface.blit(fn_lbl, (fac_x, y_pos))
-                
-                # Rep Bar
-                bar_w, bar_h = 180, 10
-                bx, by = fac_x, y_pos + 16
-                pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
-                pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
-                
-                # Fill ratio (-100 to +100 -> 0.0 to 1.0)
-                norm_ratio = (fac_data.reputation + 100) / 200.0
-                bar_color = (60, 200, 80) if fac_data.reputation >= 0 else (220, 60, 60)
-                pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
-                
-                # Standing Text
-                st_lbl = self.fonts["small"].render(f"{fac_data.standing.title()} ({fac_data.reputation})", True, COLOR_GRAY)
-                surface.blit(st_lbl, (fac_x, by + 12))
+        # Tab Buttons
+        tab1_rect = pygame.Rect(tab_x, tab_y, 120, 28)
+        tab2_rect = pygame.Rect(tab_x + 130, tab_y, 120, 28)
+        
+        t1_bg = COLOR_UI_HIGHLIGHT if active_tab == "factions" else (40, 42, 50)
+        t1_fg = COLOR_BLACK if active_tab == "factions" else COLOR_WHITE
+        pygame.draw.rect(surface, t1_bg, tab1_rect, border_radius=4)
+        pygame.draw.rect(surface, COLOR_UI_BORDER, tab1_rect, 1, border_radius=4)
+        lbl1 = self.fonts["small"].render("Factions", True, t1_fg)
+        surface.blit(lbl1, (tab_x + 60 - lbl1.get_width() // 2, tab_y + 6))
+        
+        t2_bg = COLOR_UI_HIGHLIGHT if active_tab == "social" else (40, 42, 50)
+        t2_fg = COLOR_BLACK if active_tab == "social" else COLOR_WHITE
+        pygame.draw.rect(surface, t2_bg, tab2_rect, border_radius=4)
+        pygame.draw.rect(surface, COLOR_UI_BORDER, tab2_rect, 1, border_radius=4)
+        lbl2 = self.fonts["small"].render("NPC Social", True, t2_fg)
+        surface.blit(lbl2, (tab_x + 190 - lbl2.get_width() // 2, tab_y + 6))
+        
+        content_y = tab_y + 36
+
+        # TAB 1: FACTIONS
+        if active_tab == "factions":
+            if hasattr(player, "game") and hasattr(player.game, "factions"):
+                fm = player.game.factions
+                for idx, (f_id, fac_data) in enumerate(fm.factions.items()):
+                    y_pos = content_y + idx * 56
+                    fn_lbl = self.fonts["small"].render(fac_data.name, True, COLOR_WHITE)
+                    surface.blit(fn_lbl, (tab_x, y_pos))
+                    
+                    bar_w, bar_h = 240, 10
+                    bx, by = tab_x, y_pos + 18
+                    pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
+                    pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
+                    
+                    norm_ratio = (fac_data.reputation + 100) / 200.0
+                    bar_color = (60, 200, 80) if fac_data.reputation >= 0 else (220, 60, 60)
+                    pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
+                    
+                    st_lbl = self.fonts["small"].render(f"{fac_data.standing.title()} ({fac_data.reputation})", True, COLOR_GRAY)
+                    surface.blit(st_lbl, (tab_x, by + 12))
+
+        # TAB 2: NPC SOCIAL DIRECTORY
+        elif active_tab == "social":
+            if hasattr(player, "game") and hasattr(player.game, "npc_memory"):
+                nm = player.game.npc_memory
+                npc_list = ["Eldrin", "Dennis", "Silas", "Faye", "Mira", "Kai", "Garth"]
+                for idx, npc_id in enumerate(npc_list):
+                    ny_pos = content_y + idx * 48
+                    mem = nm.get_memory(npc_id)
+                    rel_val = mem.relationship
+                    level_str = mem.friendship_level.replace("_", " ").title()
+
+                    n_lbl = self.fonts["small"].render(f"{npc_id}: {level_str} ({rel_val:+d})", True, COLOR_WHITE)
+                    surface.blit(n_lbl, (tab_x, ny_pos))
+
+                    bar_w, bar_h = 240, 8
+                    bx, by = tab_x, ny_pos + 18
+                    pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
+                    pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
+
+                    norm_ratio = max(0.0, min(1.0, (rel_val + 100) / 200.0))
+                    bar_color = (100, 200, 255) if rel_val >= 0 else (250, 100, 100)
+                    pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
 
     # --- QUEST LOG PANEL ---
 
@@ -1496,6 +1536,19 @@ class UIManager:
                     if not game.dialogue_manager.current_node and game.game_state == prev_st:
                         game.game_state = STATE_PLAYING
             return
+
+        # Character Panel tab clicks
+        if "character" in self.open_panels:
+            cx, cy = 202, 124
+            tab_x, tab_y = cx + 330, cy + 52
+            tab1_rect = pygame.Rect(tab_x, tab_y, 120, 28)
+            tab2_rect = pygame.Rect(tab_x + 130, tab_y, 120, 28)
+            if tab1_rect.collidepoint(mouse_pos):
+                self.active_char_tab = "factions"
+                return
+            elif tab2_rect.collidepoint(mouse_pos):
+                self.active_char_tab = "social"
+                return
 
         # 3. Shop Window clicks
         elif state == STATE_SHOP:

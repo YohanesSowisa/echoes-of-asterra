@@ -187,12 +187,20 @@ class WorldManager:
             tb = TownNoticeboard((11 * TILE_SIZE, 11 * TILE_SIZE), [game.visible_sprites, game.npcs])
             tb.game = game
 
-        # Spawn Greed Altar in Dungeon Crypt exit room
+        # Spawn Greed Altar & Past Hero Statue in Dungeon Crypt
         if map_name == MAP_CRYPT:
-            from rpg.npc import GreedAltar
+            from rpg.npc import GreedAltar, PastHeroStatue
             ga_pos = ((GRID_WIDTH // 2) * TILE_SIZE, (GRID_HEIGHT - 6) * TILE_SIZE)
             ga = GreedAltar(ga_pos, [game.visible_sprites, game.npcs])
             ga.game = game
+
+            # Spawn Past Hero Statue from Mythos Inheritance System if past history exists
+            if hasattr(game, "mythos_manager"):
+                past_record = game.mythos_manager.get_latest_record()
+                if past_record:
+                    st_pos = ((GRID_WIDTH // 2 - 3) * TILE_SIZE, 3 * TILE_SIZE)
+                    st = PastHeroStatue(st_pos, past_record, [game.visible_sprites, game.npcs])
+                    st.game = game
 
         # 6. Spawns Chests
         if map_name not in self.chests_opened:

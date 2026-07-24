@@ -87,6 +87,10 @@ class Game:
         self.camera = Camera(GRID_WIDTH * TILE_SIZE, GRID_HEIGHT * TILE_SIZE)
         self.minimap_enabled = True
         
+        # Mythos Inheritance Engine (Warisan Mitos & Legacy)
+        from rpg.mythos import MythosManager
+        self.mythos_manager = MythosManager()
+        
         # Load initial village map for menu background
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
 
