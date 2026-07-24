@@ -259,7 +259,10 @@ class UIManager:
             loc_txt = self.fonts["small"].render(f">> {map_name}{depth_str}", True, (180, 200, 220))
             surface.blit(loc_txt, (240, 56))
 
-        # 5c. Combo Counter overlay
+        # 5c. Harvest Moon / Stardew Valley Time & Season HUD Clock Card
+        self._draw_harvest_moon_clock(surface, game)
+
+        # 5d. Combo Counter overlay
         if getattr(player, "combo_count", 0) > 1 and getattr(player, "combo_timer", 0) > 0:
             cb_str = f"COMBO x{player.combo_count}!"
             cb_lbl = self.fonts["large"].render(cb_str, True, COLOR_YELLOW)
@@ -306,6 +309,82 @@ class UIManager:
             # Key trigger number indicator
             num_lbl = self.fonts["small"].render(key, True, COLOR_WHITE)
             surface.blit(num_lbl, (sx + 4, sy + 2))
+
+    def _draw_harvest_moon_clock(self, surface: pygame.Surface, game: Any) -> None:
+        """
+        Renders a Harvest Moon / Stardew Valley style time & season HUD clock.
+        Displays season badge, day/year counter, 12h digital clock, and Sun/Moon icon.
+        """
+        if not game or not hasattr(game, "world_state"):
+            return
+
+        ws = game.world_state
+        tod = getattr(ws, "time_of_day", 12.0)
+        day = getattr(ws, "day", 1)
+        season = str(getattr(ws, "season", "spring")).upper()
+
+        # Calculate time components (12-hour format)
+        hours = int(tod) % 24
+        mins = int((tod % 1.0) * 60)
+        period = "AM" if hours < 12 else "PM"
+        display_h = 12 if hours in [0, 12] else hours % 12
+        clock_str = f"{display_h:02d}:{mins:02d} {period}"
+
+        # Calculate season & year
+        day_of_season = (day - 1) % 30 + 1
+        year = (day - 1) // 120 + 1
+
+        # Position box at top center
+        box_w, box_h = 190, 52
+        bx = SCREEN_WIDTH // 2 - box_w // 2
+        by = 10
+
+        # Draw retro brass/wooden frame
+        frame_rect = pygame.Rect(bx, by, box_w, box_h)
+        pygame.draw.rect(surface, (25, 22, 30), frame_rect, border_radius=6)
+        pygame.draw.rect(surface, (210, 170, 60), frame_rect, 2, border_radius=6)
+
+        # Season colors and badge text
+        season_colors = {
+            "SPRING": (120, 220, 140),  # Fresh Green
+            "SUMMER": (255, 210, 60),   # Sun Yellow
+            "AUTUMN": (230, 130, 50),   # Crimson Orange
+            "WINTER": (120, 200, 255)   # Ice Blue
+        }
+        s_color = season_colors.get(season, (200, 200, 200))
+
+        # 1. Season & Day Line (e.g., "SPRING · Day 12 (Yr 1)")
+        season_str = f"{season} · Day {day_of_season} (Yr {year})"
+        s_lbl = self.fonts["small"].render(season_str, True, s_color)
+        surface.blit(s_lbl, (bx + 12, by + 8))
+
+        # 2. Digital Clock Line (e.g., "08:30 AM")
+        t_lbl = self.fonts["medium"].render(clock_str, True, COLOR_WHITE)
+        surface.blit(t_lbl, (bx + 12, by + 26))
+
+        # 3. Sun / Moon Icon Badge (Right side of clock card)
+        icon_cx = bx + box_w - 24
+        icon_cy = by + box_h // 2
+        is_day = 6 <= hours < 18
+
+        if is_day:
+            # Draw Sun (Golden circle with rays)
+            pygame.draw.circle(surface, (255, 220, 50), (icon_cx, icon_cy), 9)
+            pygame.draw.circle(surface, (255, 240, 150), (icon_cx, icon_cy), 5)
+        else:
+            # Draw Moon (Cyan/White Crescent)
+            pygame.draw.circle(surface, (200, 230, 255), (icon_cx, icon_cy), 9)
+            pygame.draw.circle(surface, (25, 22, 30), (icon_cx - 4, icon_cy - 2), 7)
+
+        # 4. Render Active Greed Curse HUD Badge if player challenged Greed Altar
+        if hasattr(game, "player") and getattr(game.player, "greed_curse_active", False):
+            gb_rect = pygame.Rect(bx + box_w + 10, by + 10, 160, 32)
+            pygame.draw.rect(surface, (45, 12, 18), gb_rect, border_radius=4)
+            pygame.draw.rect(surface, (255, 60, 60), gb_rect, 1, border_radius=4)
+            g_txt = self.fonts["small"].render("GREED CURSE ACTIVATED", True, (255, 180, 60))
+            sub_txt = self.fonts["small"].render("ATK +50% | Loot x2", True, (255, 220, 220))
+            surface.blit(g_txt, (gb_rect.x + 8, gb_rect.y + 2))
+            surface.blit(sub_txt, (gb_rect.x + 8, gb_rect.y + 16))
 
     def draw_quest_tracker_widget(self, surface: pygame.Surface, game: Any) -> None:
         """Renders small active quest overlay widget on the right side of the screen."""
@@ -1073,6 +1152,17 @@ class UIManager:
         lbl_s = self.fonts["medium"].render("Silas' Wares (Buy)", True, COLOR_WHITE)
         surface.blit(lbl_s, (sx + 36, sy + 80))
 
+        # Render Active Market Tax/Discount Modifier Badge from Living World Decisions
+        if hasattr(player, "game") and hasattr(player.game, "living_world"):
+            c_map = getattr(player.game.world_manager, "current_map_name", "village")
+            p_scalar = player.game.living_world.get_combined_price_multiplier("goods", c_map)
+            perc = int((p_scalar - 1.0) * 100)
+            if perc != 0:
+                badge_str = f"Tax: +{perc}%" if perc > 0 else f"Discount: {perc}%"
+                badge_c = (255, 100, 100) if perc > 0 else (100, 240, 140)
+                badge_lbl = self.fonts["small"].render(f"[{badge_str}]", True, badge_c)
+                surface.blit(badge_lbl, (sx + 185, sy + 82))
+
         m_pos = pygame.mouse.get_pos()
         self.slot_rects["shop"].clear()
 
@@ -1098,8 +1188,13 @@ class UIManager:
             name_lbl = self.fonts["small"].render(item_name, True, COLOR_WHITE)
             surface.blit(name_lbl, (sx + 74, by + 12))
             
-            # Price
-            buy_price, _ = self.shop_prices[item_name]
+            # Price (modified dynamically by Living Economy + Factions + Settlement)
+            base_buy, _ = self.shop_prices[item_name]
+            price_scalar = 1.0
+            if hasattr(player, "game") and hasattr(player.game, "living_world"):
+                current_map = getattr(player.game.world_manager, "current_map_name", "village")
+                price_scalar = player.game.living_world.get_combined_price_multiplier("goods", current_map)
+            buy_price = max(1, int(base_buy * price_scalar))
             prc_color = COLOR_YELLOW if player.gold >= buy_price else COLOR_RED
             prc_lbl = self.fonts["medium"].render(f"{buy_price}g", True, prc_color)
             surface.blit(prc_lbl, (sx + 300 - prc_lbl.get_width() - 46, by + 10))

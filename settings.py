@@ -33,7 +33,7 @@ PLAYER_I_FRAMES_DURATION = 500  # milliseconds
 MAX_PARTICLES = 1000
 
 # Day-Night Cycle settings
-DAY_LENGTH_SECONDS = 120.0  # length of a full day cycle
+DAY_LENGTH_SECONDS = 1440.0  # length of a full day cycle (1s real life = 1m in game -> 1 day = 24 minutes)
 
 # Sound configurations
 AUDIO_SAMPLE_RATE = 44100

@@ -178,7 +178,10 @@ class CombatSystem:
             attacker.game.camera.trigger_shake(3.0, 100) # Minor shake
 
         # Spawn blood / strike particles
-        defender.particles.create_hit_blood(defender.rect.center, -defender.knockback_vector if hasattr(defender, "knockback_vector") else None)
+        if hasattr(defender, "particles"):
+            defender.particles.create_hit_blood(defender.rect.center, -defender.knockback_vector if hasattr(defender, "knockback_vector") else None)
+        elif hasattr(attacker, "game") and hasattr(attacker.game, "particles"):
+            attacker.game.particles.create_hit_blood(defender.rect.center, None)
 
         # Trigger defender hurt state/I-frames
         defender.trigger_invincibility(500) # 0.5 seconds default

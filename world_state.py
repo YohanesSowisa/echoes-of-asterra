@@ -54,7 +54,8 @@ class WorldState:
     def __init__(self) -> None:
         self.day: int = 1
         self.season: str = SEASON_SPRING
-        self.time_accumulator: float = 0.0
+        # Start new game at 06:00 AM (6 hours into 24-hour cycle)
+        self.time_accumulator: float = (6.0 / 24.0) * DAY_LENGTH_SECONDS
         self.prosperity: int = 50       # 0 (desolate) to 100 (thriving)
         self.danger_level: int = 20     # 0 (peaceful) to 100 (hostile overrun)
         
@@ -64,6 +65,11 @@ class WorldState:
         # Track daily counters for drift calculations
         self._enemies_killed_today: int = 0
         self._quests_completed_today: int = 0
+
+    @property
+    def time_of_day(self) -> float:
+        """Returns in-game hour (0.0 to 24.0) calculated from time accumulator."""
+        return (self.time_accumulator / max(1.0, DAY_LENGTH_SECONDS)) * 24.0
 
     def register_event_listeners(self, event_bus: EventBus) -> None:
         """Subscribes WorldState to relevant global events."""
@@ -82,6 +88,8 @@ class WorldState:
         if self.time_accumulator >= DAY_LENGTH_SECONDS:
             self.time_accumulator -= DAY_LENGTH_SECONDS
             self.day_tick(event_bus)
+
+    tick = update
 
     def day_tick(self, event_bus: EventBus) -> None:
         """Advances 1 in-game day, updates season, prosperity/danger, event durations, and rolls for new events."""

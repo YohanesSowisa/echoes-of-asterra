@@ -8,16 +8,16 @@ from rpg.inventory import Inventory
 
 # Struct representing a Recipe: result_name -> (ingredient_dict, quantity)
 CRAFTING_RECIPES: Dict[str, Tuple[Dict[str, int], int]] = {
-    "Steel Blade": ({"Iron Ore": 5, "Oak Wood": 2}, 1),
-    "Wooden Shield": ({"Oak Wood": 4}, 1),
-    "Iron Aegis": ({"Iron Ore": 8, "Oak Wood": 3}, 1),
+    "Steel Blade": ({"Iron Ore": 4, "Timber": 2}, 1),
+    "Wooden Shield": ({"Timber": 4}, 1),
+    "Iron Aegis": ({"Iron Ore": 6, "Timber": 2}, 1),
     "Iron Helmet": ({"Iron Ore": 5}, 1),
-    "Leather Chest": ({"Oak Wood": 6}, 1),
-    "Leather Boots": ({"Oak Wood": 4}, 1),
+    "Leather Chest": ({"Beast Leather": 5}, 1),
+    "Leather Boots": ({"Beast Leather": 3}, 1),
     "Red Potion": ({"Forest Apple": 2}, 1),
-    "Blue Potion": ({"Forest Apple": 1, "Oak Wood": 1}, 1),
-    "Asterra Sword": ({"Asterra Heart": 1, "Iron Ore": 10}, 1),
-    "Dragon Horn Helmet": ({"Asterra Heart": 1, "Iron Ore": 8}, 1)
+    "Blue Potion": ({"Forest Apple": 1, "Beast Leather": 1}, 1),
+    "Asterra Sword": ({"Iron Ore": 10, "Beast Leather": 5, "Timber": 5}, 1),
+    "Dragon Horn Helmet": ({"Iron Ore": 8, "Beast Leather": 4}, 1)
 }
 
 class CraftingSystem:

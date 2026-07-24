@@ -131,6 +131,15 @@ class MapGenerator:
                 "target_spawn": (w // 2 * TILE_SIZE, 2 * TILE_SIZE)
             })
 
+            # Portal to Lake (Left side)
+            grid[h // 2][0] = "dirt"
+            grid[h // 2 + 1][0] = "dirt"
+            portals.append({
+                "rect": pygame.Rect(0, (h // 2) * TILE_SIZE, TILE_SIZE, TILE_SIZE * 2),
+                "target_map": MAP_LAKE,
+                "target_spawn": ((w - 3) * TILE_SIZE, h // 2 * TILE_SIZE)
+            })
+
             # Portal to Endless Crypt (Top side)
             grid[0][w // 2] = "dirt"
             grid[0][w // 2 + 1] = "dirt"
@@ -399,6 +408,11 @@ class MapGenerator:
             # Top portal (Secret)
             grid[0][w // 2] = "grass"
             grid[0][w // 2 + 1] = "grass"
+            # Right portal (Village)
+            grid[h // 2][w - 1] = "grass"
+            grid[h // 2 + 1][w - 1] = "grass"
+            grid[h // 2][w - 2] = "grass"
+            grid[h // 2 + 1][w - 2] = "grass"
 
             # Landmark: Fishing dock (dirt pier extending toward water)
             for r in range(h // 2 - 2, h // 2 + 3):
@@ -426,6 +440,12 @@ class MapGenerator:
                 "rect": pygame.Rect((w // 2) * TILE_SIZE, 0, TILE_SIZE * 2, TILE_SIZE),
                 "target_map": MAP_SECRET,
                 "target_spawn": (w // 2 * TILE_SIZE, (h - 5) * TILE_SIZE)
+            })
+            # Right -> Village
+            portals.append({
+                "rect": pygame.Rect((w - 1) * TILE_SIZE, (h // 2) * TILE_SIZE, TILE_SIZE, TILE_SIZE * 2),
+                "target_map": MAP_VILLAGE,
+                "target_spawn": (2 * TILE_SIZE, h // 2 * TILE_SIZE)
             })
 
             # Default spawn on grass (not center water)

@@ -7,7 +7,12 @@ import json
 from typing import Any, Dict
 from rpg.items import create_item
 
-SAVE_FILE = "savegame.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SAVES_DIR = os.path.join(BASE_DIR, "saves")
+
+def get_save_path(slot: int) -> str:
+    os.makedirs(SAVES_DIR, exist_ok=True)
+    return os.path.join(SAVES_DIR, f"savegame_{slot}.json")
 
 class SaveSystem:
     """
@@ -17,7 +22,7 @@ class SaveSystem:
     def get_slot_meta(slot: int) -> Dict[str, Any]:
         """Reads basic slot metadata from savegame JSON without loading full state."""
         import json
-        filename = f"savegame_{slot}.json"
+        filename = get_save_path(slot)
         if not os.path.exists(filename):
             return {"exists": False}
         try:
@@ -39,7 +44,7 @@ class SaveSystem:
     def rename_slot(slot: int, new_name: str) -> bool:
         """Modifies the slot name in an existing save file."""
         import json
-        filename = f"savegame_{slot}.json"
+        filename = get_save_path(slot)
         if not os.path.exists(filename):
             return False
         try:
@@ -55,7 +60,7 @@ class SaveSystem:
     @staticmethod
     def delete_slot(slot: int) -> bool:
         """Deletes the save file associated with a slot."""
-        filename = f"savegame_{slot}.json"
+        filename = get_save_path(slot)
         if os.path.exists(filename):
             try:
                 os.remove(filename)
@@ -71,7 +76,7 @@ class SaveSystem:
         and writes them to the save file. Returns True if successful.
         """
         import datetime
-        filename = f"savegame_{slot}.json"
+        filename = get_save_path(slot)
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         
         existing_name = f"Hero {slot}"
@@ -148,6 +153,8 @@ class SaveSystem:
             }
 
             if hasattr(player, "game"):
+                if hasattr(player.game, "living_world"):
+                    save_payload["living_world"] = player.game.living_world.to_dict()
                 if hasattr(player.game, "world_state"):
                     save_payload["world_simulation"] = player.game.world_state.to_dict()
                 if hasattr(player.game, "factions"):
@@ -174,7 +181,7 @@ class SaveSystem:
         rebuilds inventories, equips gear, updates quests, and spawns the map.
         Returns True if successful.
         """
-        filename = f"savegame_{slot}.json"
+        filename = get_save_path(slot)
         if not os.path.exists(filename):
             print(f"Save: No save game file found for slot {slot}.")
             return False
@@ -247,6 +254,8 @@ class SaveSystem:
             world_manager.boss_defeated = world_data.get("boss_defeated", False)
 
             if hasattr(player, "game"):
+                if "living_world" in save_payload and hasattr(player.game, "living_world"):
+                    player.game.living_world.from_dict(save_payload["living_world"])
                 if "world_simulation" in save_payload and hasattr(player.game, "world_state"):
                     player.game.world_state.from_dict(save_payload["world_simulation"])
                 if "factions" in save_payload and hasattr(player.game, "factions"):

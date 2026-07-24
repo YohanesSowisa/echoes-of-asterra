@@ -181,6 +181,19 @@ class WorldManager:
             if npc:
                 npc.game = game
 
+        # Spawn Town Noticeboard in Village Square
+        if map_name == MAP_VILLAGE:
+            from rpg.npc import TownNoticeboard
+            tb = TownNoticeboard((11 * TILE_SIZE, 11 * TILE_SIZE), [game.visible_sprites, game.npcs])
+            tb.game = game
+
+        # Spawn Greed Altar in Dungeon Crypt exit room
+        if map_name == MAP_CRYPT:
+            from rpg.npc import GreedAltar
+            ga_pos = ((GRID_WIDTH // 2) * TILE_SIZE, (GRID_HEIGHT - 6) * TILE_SIZE)
+            ga = GreedAltar(ga_pos, [game.visible_sprites, game.npcs])
+            ga.game = game
+
         # 6. Spawns Chests
         if map_name not in self.chests_opened:
             self.chests_opened[map_name] = []
@@ -319,11 +332,46 @@ class WorldManager:
             pygame.draw.rect(marker_surf, border_color[:3], bg_rect, 1, border_radius=3)
             marker_surf.blit(lbl_surf, (lx, ly))
             
-            portal_pos = (prect.centerx, prect.centery)
-            portal_sprite = BaseSprite(portal_pos, [game.visible_sprites], layer=0)
+            # Adjust portal guide badge center so edge markers are never clipped or covered by top HUD
+            portal_pos_x = prect.centerx
+            portal_pos_y = prect.centery
+            if prect.y <= TILE_SIZE:
+                portal_pos_y = prect.centery + int(TILE_SIZE * 1.5)  # Shift down below top HUD
+            elif prect.y >= (GRID_HEIGHT - 2) * TILE_SIZE:
+                portal_pos_y = prect.centery - int(TILE_SIZE * 0.6)  # Shift up inside map
+            elif prect.x <= TILE_SIZE:
+                portal_pos_x = prect.centerx + int(TILE_SIZE * 0.6)  # Shift right inside map
+            elif prect.x >= (GRID_WIDTH - 2) * TILE_SIZE:
+                portal_pos_x = prect.centerx - int(TILE_SIZE * 0.6)  # Shift left inside map
+
+            portal_sprite = BaseSprite((portal_pos_x, portal_pos_y), [game.visible_sprites], layer=10)
             portal_sprite.image = marker_surf
-            portal_sprite.rect = marker_surf.get_rect(center=portal_pos)
-            portal_sprite.hitbox = pygame.Rect(0, 0, 0, 0)  # No collision
+            portal_sprite.rect = marker_surf.get_rect(center=(portal_pos_x, portal_pos_y))
+            portal_sprite.hitbox = pygame.Rect(0, 0, 0, 0)  # Visual guide only
+
+        # 10b. Spawn Town Investment Architectural Objects in Village
+        if map_name == MAP_VILLAGE and hasattr(game, "living_world"):
+            prosperity = game.living_world.settlement.prosperity
+            if prosperity >= 50.0:
+                wt_pos = (TILE_SIZE * 4, TILE_SIZE * 4)
+                wt_surf = pygame.Surface((TILE_SIZE * 2, TILE_SIZE * 3), pygame.SRCALPHA)
+                pygame.draw.rect(wt_surf, (80, 85, 95), (4, 16, TILE_SIZE * 2 - 8, TILE_SIZE * 3 - 16), border_radius=4)
+                pygame.draw.rect(wt_surf, (180, 50, 50), (12, 0, TILE_SIZE * 2 - 24, 20), border_radius=3)
+                wt_lbl = pygame.font.SysFont("Arial", 10, bold=True).render("WATCHTOWER", True, (255, 240, 200))
+                wt_surf.blit(wt_lbl, (8, TILE_SIZE * 2))
+                wt_sprite = BaseSprite(wt_pos, [game.visible_sprites], layer=1)
+                wt_sprite.image = wt_surf
+                wt_sprite.rect = wt_surf.get_rect(center=wt_pos)
+
+            if prosperity >= 80.0:
+                mkt_pos = (TILE_SIZE * 18, TILE_SIZE * 6)
+                mkt_surf = pygame.Surface((TILE_SIZE * 4, TILE_SIZE * 2), pygame.SRCALPHA)
+                pygame.draw.rect(mkt_surf, (210, 170, 50), (0, 0, TILE_SIZE * 4, 24), border_radius=4)
+                mkt_lbl = pygame.font.SysFont("Arial", 11, bold=True).render("ROYAL MARKET EXCHANGE", True, (25, 20, 10))
+                mkt_surf.blit(mkt_lbl, (12, 4))
+                mkt_sprite = BaseSprite(mkt_pos, [game.visible_sprites], layer=1)
+                mkt_sprite.image = mkt_surf
+                mkt_sprite.rect = mkt_surf.get_rect(center=mkt_pos)
 
         # 11. Trigger background theme
         if map_name == MAP_VILLAGE:

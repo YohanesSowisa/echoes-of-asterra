@@ -26,10 +26,9 @@ from rpg.sprite import YSortedGroup
 from rpg.player import Player
 from rpg.minimap import Minimap
 from rpg.events import EventBus
-from rpg.world_state import WorldState
 from rpg.factions import FactionManager
 from rpg.npc_memory import NPCMemoryManager
-from rpg.ecology import EcologyManager
+from rpg.living_world import LivingWorldManager
 
 class Game:
     """
@@ -46,17 +45,17 @@ class Game:
         
         # Initialize Core Subsystems
         self.event_bus = EventBus()
-        self.world_state = WorldState()
-        self.world_state.register_event_listeners(self.event_bus)
+        self.living_world = LivingWorldManager(self.event_bus)
+        
+        # Accessor aliases for backward compatibility
+        self.world_state = self.living_world.world_state
+        self.ecology = self.living_world.ecology
         
         self.factions = FactionManager()
         self.factions.register_event_listeners(self.event_bus)
         
         self.npc_memory = NPCMemoryManager()
         self.npc_memory.register_event_listeners(self.event_bus)
-        
-        self.ecology = EcologyManager()
-        self.ecology.register_event_listeners(self.event_bus)
         
         self.sound_manager = SoundManager()
         self.input_handler = InputHandler()
@@ -434,15 +433,15 @@ class Game:
             DamageNumber(self.player.rect.center, f"Quest Completed: {cq.title}!", (255, 215, 0), [self.ui_sprites], size=26)
             self.event_bus.emit("quest_completed", quest_id=cq.id)
         
-        # 3c. Tick dynamic world simulation
-        self.world_state.update(self.dt, self.event_bus)
+        # 3c. Update central Living World simulation orchestrator
+        self.living_world.update(self.dt, self.player, self.world_manager, self.visible_sprites)
         
         # 4. Update weather particles
         self.weather.update(self.particles, self.camera.get_offset(), self.dt, self.world_state)
         self.particles.update(self.dt)
         
         # 5. Update ambient cycle
-        self.lighting.update(self.dt)
+        self.lighting.update(self.dt, self.world_state)
 
         # 6. Check Portal level transitions
         player_hb = self.player.hitbox

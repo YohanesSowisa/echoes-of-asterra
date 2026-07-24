@@ -153,13 +153,29 @@ class Enemy(BaseSprite):
         # Check hit on player
         player = self.game.player
         if player.hp > 0 and self.hitbox.colliderect(player.hitbox):
+            # Phase 3 Greed Curse ATK boost
+            if getattr(player, "greed_curse_active", False):
+                self.atk = int(self.atk * 1.5)
             CombatSystem.execute_hit(self, player, [self.game.ui_sprites])
 
     def die(self) -> None:
         """Gives rewards, registers quest kills, and spawns loot items."""
         player = self.game.player
-        player.gain_xp(self.xp_reward)
-        player.gold += self.gold_reward
+        
+        # Check Greed Curse & Faction Drop Multipliers
+        greed_mult = 2.0 if getattr(player, "greed_curse_active", False) else 1.0
+        
+        # Faction Hunters vs Knights Loot Multiplier
+        hunter_mult = 1.0
+        if hasattr(self.game, "factions"):
+            h_rep = self.game.factions.get_reputation("hunters")
+            if h_rep > 10 and self.asset_key in ["wolf", "slime", "slime_blue", "slime_red"]:
+                hunter_mult = 2.0
+            elif h_rep < 0 and self.asset_key in ["wolf", "slime", "slime_blue", "slime_red"]:
+                hunter_mult = 0.5
+
+        player.gain_xp(int(self.xp_reward * greed_mult))
+        player.gold += int(self.gold_reward * greed_mult)
         
         # Trigger quest kill progression
         kill_type = getattr(self, "kill_type", self.asset_key)
@@ -170,13 +186,13 @@ class Enemy(BaseSprite):
             self.game.event_bus.emit("enemy_killed", enemy_type=kill_type, enemy_name=self.name, pos=self.rect.center)
         
         # Process drops
-        for item_name, chance in self.loot_table.items():
-            if random.random() <= chance:
+        for item_name, base_chance in self.loot_table.items():
+            final_chance = min(1.0, base_chance * hunter_mult * greed_mult)
+            if random.random() <= final_chance:
                 loot = create_item(item_name)
                 if loot:
                     dropped = DroppedItem(self.rect.center, loot, [self.game.visible_sprites, self.game.dropped_items])
                     dropped.game = self.game
-                    # Toss randomly slightly away
                     dropped.pos.x += random.uniform(-15, 15)
                     dropped.pos.y += random.uniform(-15, 15)
                     

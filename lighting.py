@@ -39,43 +39,47 @@ class LightingSystem:
                 
             self.glows[sz] = surf
 
-    def update(self, dt: float) -> None:
-        """Ticks day-night timer and recalculates ambient night color opacity."""
-        self.time_of_day = (self.time_of_day + dt) % DAY_LENGTH_SECONDS
+    def update(self, dt: float, world_state: Any = None) -> None:
+        """Ticks day-night timer and recalculates ambient night color opacity synchronized with world_state."""
+        if world_state and hasattr(world_state, "time_accumulator"):
+            self.time_of_day = world_state.time_accumulator
+        else:
+            self.time_of_day = (self.time_of_day + dt) % DAY_LENGTH_SECONDS
         
-        # Calculate ambient color cycles
-        # Progress ranges 0.0 to 1.0
-        prog = self.time_of_day / DAY_LENGTH_SECONDS
+        # Calculate 24-hour hour float
+        hour = (self.time_of_day / max(1.0, DAY_LENGTH_SECONDS)) * 24.0
         
-        # Cycle states:
-        # 0.00 - 0.25 (Morning sunrise: dark blue to bright)
-        # 0.25 - 0.60 (Midday: clear sunlight)
-        # 0.60 - 0.75 (Sunset: bright to orange to dark purple)
-        # 0.75 - 1.00 (Night: deep dark blue)
+        # 24-Hour Lighting Cycle:
+        # 00:00 - 05:00: Deep Night (Dark Blue Overlay)
+        # 05:00 - 07:00: Dawn / Sunrise (Smooth transition to clear daylight)
+        # 07:00 - 17:30: Full Day (Clear Transparent Overlay)
+        # 17:30 - 19:30: Dusk / Sunset (Warm Orange/Purple to Night transition)
+        # 19:30 - 24:00: Deep Night (Dark Blue Overlay)
         
-        if prog < 0.20:
-            # Sunrise: fade out dark overlay
-            ratio = 1.0 - (prog / 0.20)
-            self.ambient_color = (15, 15, 45, int(195 * ratio))
-        elif prog < 0.60:
-            # Day: transparent, full light
+        if hour < 5.0:
+            # Deep Night
+            self.ambient_color = (15, 15, 45, 195)
+        elif hour < 6.5:
+            # Sunrise / Dawn (05:00 - 06:30)
+            ratio = (hour - 5.0) / 1.5
+            r = int(15 + 105 * ratio)
+            g = int(15 + 35 * ratio)
+            b = int(45 - 25 * ratio)
+            a = int(195 * (1.0 - ratio))
+            self.ambient_color = (r, g, b, a)
+        elif hour < 18.0:
+            # Full Day (06:30 - 18:00)
             self.ambient_color = (255, 255, 255, 0)
-        elif prog < 0.75:
-            # Sunset: fade in orange overlay
-            ratio = (prog - 0.60) / 0.15
-            # Shift from transparent to orange/purple sunset
-            self.ambient_color = (120, 50, 20, int(130 * ratio))
-        elif prog < 0.85:
-            # Sunset transition to night
-            ratio = (prog - 0.75) / 0.10
-            # Blend sunset orange into night dark blue
+        elif hour < 19.5:
+            # Sunset / Dusk (17:30 - 19:30)
+            ratio = (hour - 17.5) / 2.0
             r = int(120 - 105 * ratio)
             g = int(50 - 35 * ratio)
             b = int(20 + 25 * ratio)
-            a = int(130 + 65 * ratio)
+            a = int(195 * ratio)
             self.ambient_color = (r, g, b, a)
         else:
-            # Night: deep dark blue
+            # Deep Night
             self.ambient_color = (15, 15, 45, 195)
 
     def draw_lighting(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2, game: Any) -> None:

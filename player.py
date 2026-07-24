@@ -193,13 +193,7 @@ class Player(BaseSprite):
         weapon_class = getattr(eq_weapon, "weapon_class", WEAPON_SWORD) if eq_weapon else WEAPON_SWORD
         wc = WEAPON_CLASSES.get(weapon_class, WEAPON_CLASSES[WEAPON_SWORD])
 
-        # Evaluate combo step
-        if self.combo_timer > 0 and self.combo_count < wc.combo_length:
-            self.combo_count += 1
-        else:
-            self.combo_count = 1
-
-        self.combo_timer = self.COMBO_WINDOW
+        # Evaluate if current attack is a Finisher strike
         is_finisher = (self.combo_count >= wc.combo_length)
 
         self.state = "attack"
@@ -253,16 +247,29 @@ class Player(BaseSprite):
         atk_boost = 4 if self.skill_manager.skills[SKILL_SWORD_MASTERY].unlocked else 0
         self.atk += atk_boost
 
+        # Execute hit registration against active enemies
         from rpg.combat import CombatSystem
+        hit_count = 0
         for enemy in self.game.enemies:
             if enemy.hp > 0 and sweep_rect.colliderect(enemy.hitbox):
-                CombatSystem.execute_hit(
+                hit_success = CombatSystem.execute_hit(
                     self, enemy, [self.game.ui_sprites],
                     is_magic=False,
                     armor_pierce=wc.armor_pierce,
                     damage_multiplier=dmg_mult,
                     stun_duration=wc.stun_duration
                 )
+                if hit_success:
+                    hit_count += 1
+
+        # ONLY update combo count if attack successfully hit an enemy
+        if hit_count > 0:
+            if is_finisher:
+                self.combo_count = 0
+                self.combo_timer = 0.0
+            else:
+                self.combo_count += 1
+                self.combo_timer = self.COMBO_WINDOW
 
         self.atk -= atk_boost
 

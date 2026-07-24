@@ -289,6 +289,20 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "stats": {},
         "description": "Sturdy timber cut from prime forest trees."
     },
+    "Timber": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Sturdy wood timber gathered from forest trees, used in crafting & building."
+    },
+    "Beast Leather": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Tanned hide harvested from forest wolves and beasts."
+    },
     
     # Rare Artifacts
     "Asterra Heart": {

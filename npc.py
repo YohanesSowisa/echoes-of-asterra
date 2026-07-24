@@ -110,19 +110,61 @@ class ElderEldrin(NPC):
         
         # Setup Elder conversation trees
         self.game.dialogue_manager.close()
+        player = self.game.player
         
+        def fund_silas():
+            if player.gold >= 100:
+                player.gold -= 100
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.settlement._on_prosperity_changed(prosperity=90.0)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Royal Market Unlocked! -20% Shop Discount!", (255, 215, 0), [self.game.ui_sprites], size=18)
+                self.game.dialogue_manager.start_dialogue("eldrin_silas")
+
+        def fund_watchtower():
+            if player.gold >= 50:
+                player.gold -= 50
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.event_bus.emit("road_safety_increased", amount=50.0)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Watchtower Erected! Raid Shield Active!", (100, 255, 100), [self.game.ui_sprites], size=18)
+                self.game.dialogue_manager.start_dialogue("eldrin_watchtower")
+
+        def fund_dennis():
+            if player.gold >= 50:
+                player.gold -= 50
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.settlement._on_prosperity_changed(prosperity=75.0)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
+                self.game.dialogue_manager.start_dialogue("eldrin_dennis")
+
+        node_s = DialogueNode("eldrin_silas", self.name, "Wonderful investment! Silas has expanded the Royal Market. All shop prices in Asterra receive a 20% discount!", [DialogueChoice("Great news.", None)])
+        node_w = DialogueNode("eldrin_watchtower", self.name, "The Village Watchtower is built! Watchmen now scout for monster raids and highway safety is fortified.", [DialogueChoice("Asterra is safe.", None)])
+        node_d = DialogueNode("eldrin_dennis", self.name, "Dennis has upgraded his forge to a Master Anvil! You can now forge Tier 2 weapons and armor.", [DialogueChoice("To the forge!", None)])
+        
+        self.game.dialogue_manager.add_node(node_s)
+        self.game.dialogue_manager.add_node(node_w)
+        self.game.dialogue_manager.add_node(node_d)
+
+        investment_choices = []
+        if player.gold >= 100:
+            investment_choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
+        if player.gold >= 50:
+            investment_choices.append(DialogueChoice("[INVEST: ELDRIN] Fund Watchtower (50g -> Raid Shield & Road Safety)", None, fund_watchtower))
+            investment_choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
+
         if quest.status == QUEST_NOT_STARTED:
             # 1. Available Main Quest Node
             def accept_callback():
                 self.game.quest_manager.accept_quest("main_quest")
-                # Advance quest step 1 immediately (spoke to Elder)
                 self.game.quest_manager.handle_talk("Eldrin")
                 
             n1 = DialogueNode(
                 "eldrin_start",
                 self.name,
-                "Greetings, young traveler! A dark shadow is corrupting Asterra's core. Will you help save our land?",
-                [
+                "Greetings, traveler! Review the Town Board or assist us in clearing the shadow corrupting Asterra.",
+                investment_choices + [
                     DialogueChoice("Yes, I will help!", "eldrin_accept", accept_callback),
                     DialogueChoice("Maybe later.", None)
                 ]
@@ -130,26 +172,22 @@ class ElderEldrin(NPC):
             n2 = DialogueNode(
                 "eldrin_accept",
                 self.name,
-                "Wonderful! Go to the Forest to clean out the wolves. You must also mine Cavern Iron Ores, and defeat the Shadow Overlord in the deepest Dungeon."
+                "Wonderful! Go to the Forest to clean out the wolves, mine Cavern Iron Ores, and defeat the Shadow Overlord."
             )
             self.game.dialogue_manager.add_node(n1)
             self.game.dialogue_manager.add_node(n2)
             self.game.dialogue_manager.start_dialogue("eldrin_start")
             
         elif quest.status == QUEST_ACTIVE:
-            # Check objective 1 (talk to Elder) is updated
             self.game.quest_manager.handle_talk("Eldrin")
-            
-            # 2. Main Quest active, check status
-            txt = "How goes the quest? Cleanse the wolves, gather 3 Iron Ores, and defeat the Shadow Overlord in the Dungeon."
-            node = DialogueNode("eldrin_active", self.name, txt)
+            txt = "How goes the quest? Cleanse the wolves, gather 3 Iron Ores, and defeat the Shadow Overlord."
+            node = DialogueNode("eldrin_active", self.name, txt, investment_choices + [DialogueChoice("Continue quest.", None)])
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("eldrin_active")
             
         elif quest.status == QUEST_COMPLETED:
-            # 3. Quest completed
             txt = "You have saved Asterra! The light returns. You are a legendary champion."
-            node = DialogueNode("eldrin_complete", self.name, txt)
+            node = DialogueNode("eldrin_complete", self.name, txt, investment_choices + [DialogueChoice("Thank you.", None)])
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("eldrin_complete")
             
@@ -165,6 +203,7 @@ class MerchantSilas(NPC):
         if not self.on_interact_start("Silas"):
             return
         self.game.dialogue_manager.close()
+        player = self.game.player
         
         def open_shop_callback():
             self.game.game_state = STATE_SHOP
@@ -191,6 +230,7 @@ class BlacksmithDennis(NPC):
     def interact(self) -> None:
         """Prompt to open crafting menu or accept side quest."""
         self.game.dialogue_manager.close()
+        player = self.game.player
         qm = self.game.quest_manager
         side_quest = qm.quests["blacksmith_quest"]
         
@@ -201,6 +241,51 @@ class BlacksmithDennis(NPC):
             
         def accept_side():
             qm.accept_quest("blacksmith_quest")
+
+        def donate_ore_for_guards():
+            if player.inventory.remove_item("Iron Ore", 5):
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.event_bus.emit("road_safety_increased", amount=35.0)
+                    self.game.living_world.event_bus.emit("caravan_arrived", caravan_type="military", cargo_type="supplies", target_map="village")
+                    self.game.living_world.settlement._on_prosperity_changed(prosperity=70.0)
+                if hasattr(self.game, "factions"):
+                    self.game.factions.modify_reputation("knights", 15)
+                
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "+35 Guard Defense! Market Tax -15%!", (255, 215, 0), [self.game.ui_sprites], size=20)
+                self.game.dialogue_manager.start_dialogue("dennis_donated")
+
+        def sell_ore_for_gold():
+            if player.inventory.remove_item("Iron Ore", 5):
+                player.gold += 50
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "+50 Gold Gained!", (255, 255, 0), [self.game.ui_sprites], size=20)
+                self.game.dialogue_manager.start_dialogue("dennis_sold_gold")
+
+        # Response nodes
+        node_donated = DialogueNode(
+            "dennis_donated",
+            self.name,
+            "Outstanding decision, Hero! I've forged 5 Iron Shields for the Village Guards. Highway patrols are reinforced, road danger has dropped, and Silas's shop prices are down by 15%!",
+            [DialogueChoice("Glad to protect Asterra.", None)]
+        )
+        node_sold = DialogueNode(
+            "dennis_sold_gold",
+            self.name,
+            "50 Gold added to your pouch! Personal gold lets you buy spells right now. Remember: if guards remain under-equipped, highway danger will rise!",
+            [DialogueChoice("I need personal power first.", None)]
+        )
+        self.game.dialogue_manager.add_node(node_donated)
+        self.game.dialogue_manager.add_node(node_sold)
+
+        # Build choices list based on player's Iron Ore inventory
+        choices = []
+        if player.inventory.has_item("Iron Ore", 5):
+            choices.append(DialogueChoice("[TOWN SECURITY] Donate 5 Ore -> Forge Guard Shields (-15% Market Tax)", None, donate_ore_for_guards))
+            choices.append(DialogueChoice("[PERSONAL POWER] Sell 5 Ore for 50 Gold (Buy Spells)", None, sell_ore_for_gold))
+        
+        choices.append(DialogueChoice("Open Forge Crafting", None, open_crafting))
+        choices.append(DialogueChoice("Goodbye.", None))
 
         if side_quest.status == QUEST_NOT_STARTED:
             if qm.is_quest_available("blacksmith_quest"):
@@ -218,28 +303,12 @@ class BlacksmithDennis(NPC):
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("dennis_start")
             else:
-                node = DialogueNode(
-                    "dennis_locked",
-                    self.name,
-                    "Complete Scholar Mira's quest 'Echoes of the Past' in the Ruins first so I can forge a shield for you!",
-                    [
-                        DialogueChoice("Open Crafting", None, open_crafting),
-                        DialogueChoice("Goodbye.", None)
-                    ]
-                )
+                node = DialogueNode("dennis_locked", self.name, "Complete Scholar Mira's quest in Ruins first!", choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("dennis_locked")
         else:
-            hint = " Next: Visit Guardian Kai at the Lake." if side_quest.status == QUEST_COMPLETED else ""
-            node = DialogueNode(
-                "dennis_regular",
-                self.name,
-                f"Ready to work the anvil?{hint}",
-                [
-                    DialogueChoice("Open Crafting", None, open_crafting),
-                    DialogueChoice("Not right now.", None)
-                ]
-            )
+            hint = " Next: Visit Guardian Kai at Lake." if side_quest.status == QUEST_COMPLETED else ""
+            node = DialogueNode("dennis_regular", self.name, f"Ready to work the anvil?{hint}", choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("dennis_regular")
             
@@ -255,34 +324,59 @@ class RangerFaye(NPC):
         qm = self.game.quest_manager
         quest = qm.quests["forest_patrol"]
 
-        def accept():
-            qm.accept_quest("forest_patrol")
+        def empower_knights():
+            if hasattr(self.game, "factions"):
+                self.game.factions.modify_reputation("knights", 20)
+                self.game.factions.modify_reputation("hunters", -10)
+            if hasattr(self.game, "living_world"):
+                self.game.living_world.event_bus.emit("territory_control_changed", control_point="Forest Crossroads", map_name="forest", old_owner="hunters", new_owner="knights")
+                self.game.living_world.event_bus.emit("road_safety_increased", amount=20.0)
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "+20 Knights Rep! Highway Safe (-10% Shop Tax)", (100, 200, 255), [self.game.ui_sprites], size=18)
+            self.game.dialogue_manager.start_dialogue("faye_knights")
+
+        def empower_hunters():
+            if hasattr(self.game, "factions"):
+                self.game.factions.modify_reputation("hunters", 20)
+                self.game.factions.modify_reputation("knights", -10)
+            if hasattr(self.game, "living_world"):
+                self.game.living_world.event_bus.emit("territory_control_changed", control_point="Forest Crossroads", map_name="forest", old_owner="knights", new_owner="hunters")
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "+20 Hunters Rep! Beast Drops x2!", (255, 180, 60), [self.game.ui_sprites], size=18)
+            self.game.dialogue_manager.start_dialogue("faye_hunters")
+
+        node_k = DialogueNode("faye_knights", self.name, "Understood! I'll report to Knight Captains. Highway patrols are reinforced, shop taxes dropped 10%, though wild beasts are driven deeper into hiding.", [DialogueChoice("Understood.", None)])
+        node_h = DialogueNode("faye_hunters", self.name, "Excellent choice! The Hunters Guild will preserve the forest habitats. Beast Leather and Meat drops are doubled, though highway danger will rise!", [DialogueChoice("Let nature thrive.", None)])
+        self.game.dialogue_manager.add_node(node_k)
+        self.game.dialogue_manager.add_node(node_h)
+
+        faction_choices = [
+            DialogueChoice("[FACTION: KNIGHTS] Empower Knight Patrols (-10% Shop Tax, Safe Trade)", None, empower_knights),
+            DialogueChoice("[FACTION: HUNTERS] Empower Hunters Preserve (Beast Drops x2, Wild Habitat)", None, empower_hunters),
+        ]
 
         if quest.status == QUEST_NOT_STARTED:
             if qm.is_quest_available("forest_patrol"):
                 node = DialogueNode(
                     "faye_start",
                     self.name,
-                    "Traveler! The forest trails are overrun by slimes and aggressive wolves. Will you help clear them?",
-                    [
-                        DialogueChoice("I'll clear the forest! (5 Slimes, 2 Wolves)", "faye_acc", accept),
-                        DialogueChoice("Not right now.", None)
-                    ]
+                    "Traveler! The forest trails are contested between Knight Patrols and Hunter Preserves. How shall we manage the region?",
+                    faction_choices + [DialogueChoice("I'll clear the forest! (5 Slimes, 2 Wolves)", "faye_acc", accept)]
                 )
                 node_acc = DialogueNode("faye_acc", self.name, "Thank you! Slay 5 Slimes and 2 Wolves. Be careful out there.")
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("faye_start")
             else:
-                node = DialogueNode("faye_locked", self.name, "Speak to Elder Eldrin in the Village first to begin 'The Core of Asterra' before taking on forest duties!")
+                node = DialogueNode("faye_locked", self.name, "Speak to Elder Eldrin in the Village first!", faction_choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("faye_locked")
         elif quest.status == QUEST_ACTIVE:
-            node = DialogueNode("faye_active", self.name, "Keep clearing the paths! Slay 5 Slimes and 2 Wolves in the Forest.")
+            node = DialogueNode("faye_active", self.name, "Keep clearing the paths! Slay 5 Slimes and 2 Wolves.", faction_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("faye_active")
         else:
-            node = DialogueNode("faye_done", self.name, "Great job clearing the forest! The Ruins to the east hold ancient secrets. Seek Scholar Mira in the Ruins.")
+            node = DialogueNode("faye_done", self.name, "Great job in the forest! Seek Scholar Mira in the Ruins to the east.", faction_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("faye_done")
 
@@ -404,5 +498,96 @@ class SpiritOfAsterra(NPC):
         node = DialogueNode("spirit_talk", self.name, "Brave champion, you stand in the sacred grove. Claim the legendary Asterra Sword from the chest nearby, then venture into the Dungeon to defeat the Shadow Overlord!")
         self.game.dialogue_manager.add_node(node)
         self.game.dialogue_manager.start_dialogue("spirit_talk")
+        self.game.game_state = STATE_DIALOGUE
+
+class GreedAltar(NPC):
+    """Ancient Greed Altar in Dungeon exit rooms. Offers Extraction vs Greed Curse."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Greed Altar", "slime")
+        self.image = pygame.Surface((36, 48), pygame.SRCALPHA)
+        pygame.draw.rect(self.image, (120, 20, 40), (4, 8, 28, 36), border_radius=4)
+        pygame.draw.rect(self.image, (255, 60, 60), (6, 10, 24, 32), 2, border_radius=3)
+        pygame.draw.circle(self.image, (255, 200, 60), (18, 20), 6)
+
+    def interact(self) -> None:
+        self.game.dialogue_manager.close()
+        player = self.game.player
+        
+        def extract_to_village():
+            from rpg.constants import MAP_VILLAGE
+            self.game.world_manager.load_map(MAP_VILLAGE, player)
+            
+        def challenge_greed():
+            player.greed_curse_active = True
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "GREED CURSE ACTIVATED! ATK +50%, Loot x2!", (255, 60, 60), [self.game.ui_sprites], size=20)
+            self.game.dialogue_manager.start_dialogue("greed_curse_started")
+
+        node_c = DialogueNode("greed_curse_started", self.name, "The Ancient Altar flares with blood-red energy! Monsters in this crypt now deal +50% Damage, but all Chest Loot & Boss Rewards are DOUBLED!", [DialogueChoice("I accept the challenge!", None)])
+        self.game.dialogue_manager.add_node(node_c)
+
+        node = DialogueNode(
+            "greed_altar_start",
+            self.name,
+            "An Ancient Extraction Altar hums with dark magic. Extract safely back to town, or challenge the Greed Curse?",
+            [
+                DialogueChoice("[EXTRACTION PORTAL] Return Safely to Village (Lock in Loot)", None, extract_to_village),
+                DialogueChoice("[GREED ALTAR] Challenge Greed Curse (Enemies ATK +50%, Loot x2)", None, challenge_greed),
+                DialogueChoice("Leave Altar.", None)
+            ]
+        )
+        self.game.dialogue_manager.add_node(node)
+        self.game.dialogue_manager.start_dialogue("greed_altar_start")
+        self.game.game_state = STATE_DIALOGUE
+
+class TownNoticeboard(NPC):
+    """Town Investment Board in Village Plaza."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Town Investment Board", "slime")
+        self.image = pygame.Surface((44, 44), pygame.SRCALPHA)
+        pygame.draw.rect(self.image, (100, 70, 40), (0, 0, 44, 44), border_radius=4)
+        pygame.draw.rect(self.image, (210, 170, 60), (2, 2, 40, 40), 2, border_radius=3)
+        lbl = pygame.font.SysFont("Arial", 10, bold=True).render("NOTICE", True, (255, 240, 200))
+        self.image.blit(lbl, (4, 14))
+
+    def interact(self) -> None:
+        self.game.dialogue_manager.close()
+        player = self.game.player
+        
+        def fund_silas():
+            if player.gold >= 100:
+                player.gold -= 100
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.settlement._on_prosperity_changed(prosperity=90.0)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Royal Market Unlocked! -20% Shop Discount!", (255, 215, 0), [self.game.ui_sprites], size=18)
+
+        def fund_watchtower():
+            if player.gold >= 50:
+                player.gold -= 50
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.event_bus.emit("road_safety_increased", amount=50.0)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Watchtower Erected! Raid Shield Active!", (100, 255, 100), [self.game.ui_sprites], size=18)
+
+        def fund_dennis():
+            if player.gold >= 50:
+                player.gold -= 50
+                if hasattr(self.game, "living_world"):
+                    self.game.living_world.settlement._on_prosperity_changed(prosperity=75.0)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
+
+        choices = []
+        if player.gold >= 100:
+            choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
+        if player.gold >= 50:
+            choices.append(DialogueChoice("[INVEST: ELDRIN] Fund Watchtower (50g -> Raid Shield & Road Safety)", None, fund_watchtower))
+            choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
+        choices.append(DialogueChoice("Close Town Board.", None))
+
+        node = DialogueNode("town_board", self.name, "Asterra Town Board: Allocate your gold and resources to fund competing NPC ambitions and town infrastructure!", choices)
+        self.game.dialogue_manager.add_node(node)
+        self.game.dialogue_manager.start_dialogue("town_board")
         self.game.game_state = STATE_DIALOGUE
 
