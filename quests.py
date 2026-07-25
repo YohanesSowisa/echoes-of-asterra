@@ -74,7 +74,7 @@ class QuestManager:
             objectives=[
                 QuestObjective("Speak to Elder Eldrin in the village", "talk", "Eldrin", 1),
                 QuestObjective("Defeat 3 Wolves in the Forest", "kill", "wolf", 3),
-                QuestObjective("Retrieve 3 Iron Ores from Caverns", "collect", "Iron Ore", 3),
+                QuestObjective("Gather 3 Iron Ores", "collect", "Iron Ore", 3),
                 QuestObjective("Slay the Shadow Knight in the Dungeon", "kill", "boss", 1)
             ],
             rewards={
@@ -164,6 +164,58 @@ class QuestManager:
             prerequisite="blacksmith_quest"
         )
 
+        # 7. Side Quest: Bridge Repair (Town Board / Elder Eldrin)
+        # Completing this quest emits the 'bridge_rebuilt' construction flag for MAP_LAKE Vector A
+        self.quests["bridge_repair_quest"] = Quest(
+            quest_id="bridge_repair_quest",
+            title="Northern Bridge Reconstruction",
+            description="The northern stone bridge to Asterra Lake collapsed in the spring flood. Gather materials and fund the repair.",
+            objectives=[
+                QuestObjective("Deliver 5 Oak Wood for bridge timbers", "collect", "Oak Wood", 5),
+                QuestObjective("Deliver 3 Iron Ores for bridge bolts", "collect", "Iron Ore", 3)
+            ],
+            rewards={
+                "exp": 120,
+                "gold": 60,
+                "items": [("Red Potion", 2)]
+            }
+        )
+
+        # 8. Side Quest: Watchtower Construction (Town Board / Elder Eldrin)
+        # Completing this quest emits the 'watchtower_built' construction flag for MAP_CAVE
+        self.quests["watchtower_quest"] = Quest(
+            quest_id="watchtower_quest",
+            title="Watchtower Construction",
+            description="Build the village watchtower to secure the road to the Crystal Caverns.",
+            objectives=[
+                QuestObjective("Deliver 3 Oak Wood for scaffolding", "collect", "Oak Wood", 3),
+                QuestObjective("Deliver 2 Iron Ores for reinforcements", "collect", "Iron Ore", 2)
+            ],
+            rewards={
+                "exp": 100,
+                "gold": 50,
+                "items": [("Forest Apple", 3)]
+            }
+        )
+
+        # 9. Side Quest: Ruins Reconnaissance Expedition (Scholar Mira)
+        # Required for MAP_CRYPT unlock
+        self.quests["ruins_expedition"] = Quest(
+            quest_id="ruins_expedition",
+            title="Ruins Reconnaissance Expedition",
+            description="Scholar Mira needs you to explore the Sunken Ruins and recover a Relic Fragment from the ancient vaults.",
+            objectives=[
+                QuestObjective("Recover 1 Relic Fragment from Ruins chests", "collect", "Relic Fragment", 1),
+                QuestObjective("Defeat the Bandit Warlord guarding the vault", "kill", "bandit_leader", 1)
+            ],
+            rewards={
+                "exp": 250,
+                "gold": 120,
+                "items": [("Ancient Relic", 1)]
+            },
+            prerequisite="scholar_quest"
+        )
+
     def is_quest_available(self, quest_id: str) -> bool:
         """Checks if a quest is eligible to be accepted based on prerequisites."""
         quest = self.quests.get(quest_id)
@@ -249,6 +301,17 @@ class QuestManager:
                             
                     # Play quest complete jingle
                     player.sound_manager.play_sound("levelup")
+
+                    # Emit construction completion flags for infrastructure quests
+                    game = getattr(player, "game", None)
+                    if game and hasattr(game, "world_state"):
+                        if quest.id == "bridge_repair_quest":
+                            game.world_state.completed_event_ids.add("bridge_rebuilt")
+                        elif quest.id == "watchtower_quest":
+                            game.world_state.completed_event_ids.add("watchtower_built")
+                            # Also record in settlement upgrades for visual tier changes
+                            if hasattr(game, "living_world") and hasattr(game.living_world, "settlement"):
+                                game.living_world.settlement.upgrades["watchtower_built"] = True
                     
         return completed
 

@@ -10,6 +10,7 @@ from rpg.events import EventBus
 class SettlementManager:
     """
     Manages Village growth tiers, infrastructure visuals, new unlocked services, and villager spawns.
+    Tracks completed town investments idempotently.
     """
     def __init__(self) -> None:
         self.event_bus: Optional[EventBus] = None
@@ -17,6 +18,8 @@ class SettlementManager:
         self._prosperity = 20.0
         self.master_forging_unlocked = False
         self.rare_imports_unlocked = False
+        self.investments_completed: set = set()
+        self.upgrades: Dict[str, bool] = {}
 
     @property
     def prosperity(self) -> float:
@@ -26,15 +29,39 @@ class SettlementManager:
         self.event_bus = event_bus
         event_bus.subscribe("prosperity_changed", self._on_prosperity_changed)
 
-    def _on_prosperity_changed(self, prosperity: float = 50.0, **kwargs) -> None:
+    def is_investment_completed(self, investment_id: str) -> bool:
+        """Returns True if the specified town investment has already been completed."""
+        return investment_id in self.investments_completed
+
+    def fund_investment(self, investment_id: str, prosperity_bonus: float = 15.0) -> bool:
+        """
+        Idempotently funds a town investment.
+        Returns True if newly funded, False if already completed.
+        """
+        if self.is_investment_completed(investment_id):
+            return False
+        self.investments_completed.add(investment_id)
+        self.upgrades[investment_id] = True
+        self.add_prosperity(prosperity_bonus)
+
+        if self.event_bus:
+            self.event_bus.emit("town_invested", investment_id=investment_id, prosperity=self._prosperity)
+        return True
+
+    def add_prosperity(self, amount: float) -> None:
+        """Additive prosperity modification."""
+        new_val = min(100.0, max(0.0, self._prosperity + amount))
+        self._on_prosperity_changed(new_val)
+
+    def _on_prosperity_changed(self, prosperity: float = 50.0, **kwargs: Any) -> None:
         """Evaluates prosperity and triggers milestone upgrades."""
         self._prosperity = float(prosperity)
         old_tier = self.growth_tier
-        if prosperity >= 60.0:
+        if self._prosperity >= 60.0:
             self.growth_tier = 3
             self.master_forging_unlocked = True
             self.rare_imports_unlocked = True
-        elif prosperity >= 30.0:
+        elif self._prosperity >= 30.0:
             self.growth_tier = 2
             self.master_forging_unlocked = True
             self.rare_imports_unlocked = False
@@ -71,8 +98,11 @@ class SettlementManager:
         """Serializes settlement state."""
         return {
             "growth_tier": self.growth_tier,
+            "prosperity": self._prosperity,
             "master_forging_unlocked": self.master_forging_unlocked,
-            "rare_imports_unlocked": self.rare_imports_unlocked
+            "rare_imports_unlocked": self.rare_imports_unlocked,
+            "investments_completed": list(self.investments_completed),
+            "upgrades": self.upgrades
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -80,5 +110,9 @@ class SettlementManager:
         if not data:
             return
         self.growth_tier = data.get("growth_tier", 1)
+        self._prosperity = data.get("prosperity", 20.0)
         self.master_forging_unlocked = data.get("master_forging_unlocked", False)
         self.rare_imports_unlocked = data.get("rare_imports_unlocked", False)
+        self.investments_completed = set(data.get("investments_completed", []))
+        self.upgrades = data.get("upgrades", {})
+        self._on_prosperity_changed(self._prosperity)

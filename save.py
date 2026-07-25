@@ -142,7 +142,8 @@ class SaveSystem:
             # 3. World State
             world_data = {
                 "chests_opened": world_manager.chests_opened,
-                "boss_defeated": world_manager.boss_defeated
+                "boss_defeated": world_manager.boss_defeated,
+                "activated_waypoints": list(world_manager.activated_waypoints)
             }
 
             # Combine
@@ -155,12 +156,16 @@ class SaveSystem:
             if hasattr(player, "game"):
                 if hasattr(player.game, "living_world"):
                     save_payload["living_world"] = player.game.living_world.to_dict()
+                    if hasattr(player.game.living_world, "progression"):
+                        save_payload["progression"] = player.game.living_world.progression.to_dict()
                 if hasattr(player.game, "world_state"):
                     save_payload["world_simulation"] = player.game.world_state.to_dict()
                 if hasattr(player.game, "factions"):
                     save_payload["factions"] = player.game.factions.to_dict()
                 if hasattr(player.game, "npc_memory"):
                     save_payload["npc_memories"] = player.game.npc_memory.to_dict()
+                if hasattr(player.game, "reputation_manager"):
+                    save_payload["social_reputation"] = player.game.reputation_manager.to_dict()
                 if hasattr(player.game, "ecology"):
                     save_payload["ecology"] = player.game.ecology.to_dict()
 
@@ -252,16 +257,22 @@ class SaveSystem:
             # --- Restore World Progress ---
             world_manager.chests_opened = world_data.get("chests_opened", {})
             world_manager.boss_defeated = world_data.get("boss_defeated", False)
+            if "activated_waypoints" in world_data:
+                world_manager.activated_waypoints = set(world_data["activated_waypoints"])
 
             if hasattr(player, "game"):
                 if "living_world" in save_payload and hasattr(player.game, "living_world"):
                     player.game.living_world.from_dict(save_payload["living_world"])
+                    if "progression" in save_payload and hasattr(player.game.living_world, "progression"):
+                        player.game.living_world.progression.from_dict(save_payload["progression"])
                 if "world_simulation" in save_payload and hasattr(player.game, "world_state"):
                     player.game.world_state.from_dict(save_payload["world_simulation"])
                 if "factions" in save_payload and hasattr(player.game, "factions"):
                     player.game.factions.from_dict(save_payload["factions"])
                 if "npc_memories" in save_payload and hasattr(player.game, "npc_memory"):
                     player.game.npc_memory.from_dict(save_payload["npc_memories"])
+                if "social_reputation" in save_payload and hasattr(player.game, "reputation_manager"):
+                    player.game.reputation_manager.from_dict(save_payload["social_reputation"])
                 if "ecology" in save_payload and hasattr(player.game, "ecology"):
                     player.game.ecology.from_dict(save_payload["ecology"])
 

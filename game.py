@@ -173,16 +173,34 @@ class Game:
                     continue
 
                 if self.game_state == STATE_PLAYING:
-                    # Keyboard WASD / Arrow / Tab / 1-2 tab navigation when Character Panel is open
+                    # Keyboard WASD / Arrow / Tab / 1-3 tab navigation when Character Panel is open
                     if "character" in self.ui_manager.open_panels:
-                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2]:
-                            if event.key in [pygame.K_a, pygame.K_LEFT, pygame.K_1]:
+                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2, pygame.K_3]:
+                            tabs = ["factions", "social", "town"]
+                            curr_t = getattr(self.ui_manager, "active_char_tab", "factions")
+                            curr_i = tabs.index(curr_t) if curr_t in tabs else 0
+                            
+                            if event.key in [pygame.K_a, pygame.K_LEFT]:
+                                self.ui_manager.active_char_tab = tabs[(curr_i - 1) % len(tabs)]
+                            elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_TAB]:
+                                self.ui_manager.active_char_tab = tabs[(curr_i + 1) % len(tabs)]
+                            elif event.key == pygame.K_1:
                                 self.ui_manager.active_char_tab = "factions"
-                            elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_2]:
+                            elif event.key == pygame.K_2:
                                 self.ui_manager.active_char_tab = "social"
-                            elif event.key == pygame.K_TAB:
-                                curr = getattr(self.ui_manager, "active_char_tab", "factions")
-                                self.ui_manager.active_char_tab = "social" if curr == "factions" else "factions"
+                            elif event.key == pygame.K_3:
+                                self.ui_manager.active_char_tab = "town"
+                            self.sound_manager.play_sound("click")
+                            continue
+
+                    # Keyboard W/S / Up/Down navigation when Exploration Log (progression) Panel is open
+                    if "progression" in self.ui_manager.open_panels:
+                        if event.key in [pygame.K_w, pygame.K_s, pygame.K_UP, pygame.K_DOWN]:
+                            num_regions = len(self.living_world.progression.regions) if hasattr(self, "living_world") and hasattr(self.living_world, "progression") else 6
+                            if event.key in [pygame.K_w, pygame.K_UP]:
+                                self.ui_manager.progression_select_idx = (self.ui_manager.progression_select_idx - 1) % max(1, num_regions)
+                            else:
+                                self.ui_manager.progression_select_idx = (self.ui_manager.progression_select_idx + 1) % max(1, num_regions)
                             self.sound_manager.play_sound("click")
                             continue
 

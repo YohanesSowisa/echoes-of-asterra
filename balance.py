@@ -137,6 +137,22 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
         behaviors=[BehaviorTag.BERSERK, BehaviorTag.DEFENSIVE_PARRY],
         abilities_by_level={5: "Ground Slam", 10: "Enrage", 15: "Cataclysm"}
     ),
+    "forest_guardian": EnemyBalance(
+        base_level=6,
+        policy=ScalingPolicy.SOFT_SCALE,
+        hp_base=200, atk_base=16, def_base=5, xp_base=150, gold_base=80,
+        hp_profile_key="medium", atk_profile_key="medium",
+        behaviors=[BehaviorTag.BERSERK, BehaviorTag.PACK_TACTICS],
+        abilities_by_level={3: "Nature Roar", 6: "Thorn Charge", 10: "Root Snare"}
+    ),
+    "bandit_leader": EnemyBalance(
+        base_level=10,
+        policy=ScalingPolicy.SOFT_SCALE,
+        hp_base=280, atk_base=20, def_base=6, xp_base=200, gold_base=120,
+        hp_profile_key="medium", atk_profile_key="medium",
+        behaviors=[BehaviorTag.DEFENSIVE_PARRY, BehaviorTag.BERSERK],
+        abilities_by_level={5: "Parry Riposte", 8: "Smoke Bomb", 12: "Execute Strike"}
+    ),
     "critter": EnemyBalance(
         base_level=1,
         policy=ScalingPolicy.STATIC,

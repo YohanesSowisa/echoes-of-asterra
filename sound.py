@@ -190,6 +190,41 @@ class SoundManager:
             return (lead_val * 0.3 + bass_val * 0.4)
         self.sounds["village_music"] = self._generate_wav("village_music", village_music_wave, 8.0, 0.3)
 
+        # 10b. Forest Music: Gentle wooden acoustic flute & lute theme (8 seconds)
+        def forest_music_wave(t: float) -> float:
+            chords = [
+                [220.00, 277.18, 329.63],  # A Minor
+                [174.61, 220.00, 261.63],  # F Major
+                [196.00, 246.94, 293.66],  # G Major
+                [164.81, 207.65, 246.94]   # E Minor
+            ]
+            chord_idx = int(t / 2.0) % 4
+            curr = chords[chord_idx]
+            mel_freq = curr[int(t * 3) % 3] * 1.5
+            bass_freq = curr[0] / 2.0
+            
+            lead = math.sin(2.0 * math.pi * mel_freq * t) * 0.35
+            bass = math.sin(2.0 * math.pi * bass_freq * t) * 0.3
+            return lead + bass
+
+        self.sounds["forest_music"] = self._generate_wav("forest_music", forest_music_wave, 8.0, 0.3)
+
+        # 10c. Lake Music: Calming ambient water echo theme (8 seconds)
+        def lake_music_wave(t: float) -> float:
+            chords = [
+                [261.63, 329.63, 392.00],  # C Major
+                [220.00, 261.63, 329.63],  # Am
+                [174.61, 220.00, 261.63],  # F Major
+                [196.00, 246.94, 293.66]   # G Major
+            ]
+            chord_idx = int(t / 2.0) % 4
+            curr = chords[chord_idx]
+            wave1 = math.sin(2.0 * math.pi * curr[0] * t) * 0.3
+            wave2 = math.sin(2.0 * math.pi * (curr[1] * 1.005) * t) * 0.2
+            return wave1 + wave2
+
+        self.sounds["lake_music"] = self._generate_wav("lake_music", lake_music_wave, 8.0, 0.25)
+
         # 11. Dungeon Music: Spooky low drone and tense melody (8 seconds)
         def dungeon_music_wave(t: float) -> float:
             # Suspenseful progression in D Minor / G# diminished
@@ -240,9 +275,10 @@ class SoundManager:
         self.music_priorities: Dict[str, int] = {
             "boss_music": 5,
             "combat_music": 4,
-            "dungeon_music": 3,
+            "dungeon_music": 2,
             "village_music": 2,
-            "forest_music": 1
+            "forest_music": 2,
+            "lake_music": 2
         }
         self.music_playback_timer: float = 0.0
         self.music_cooldown_timer: float = 0.0

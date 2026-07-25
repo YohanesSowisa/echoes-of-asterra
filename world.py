@@ -4,7 +4,7 @@ Manages map transitions, entities spawning, chest states, and ambient music trig
 """
 import pygame
 from typing import Dict, List, Any, Tuple
-from rpg.constants import MAP_VILLAGE, MAP_DUNGEON
+from rpg.constants import MAP_VILLAGE, MAP_FOREST, MAP_LAKE, MAP_DUNGEON
 from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 from rpg.map_loader import MapGenerator
 from rpg.combat import DamageNumber
@@ -220,6 +220,10 @@ class WorldManager:
                 npc = GuardianKai(pos, [game.visible_sprites, game.npcs])
             elif npc_type == "spirit":
                 npc = SpiritOfAsterra(pos, [game.visible_sprites, game.npcs])
+            elif npc_type in ["villager_male", "villager_female", "guard_village", "hunter_forest"]:
+                from rpg.npc import NPC
+                disp_name = "Village Guard" if npc_type == "guard_village" else ("Forest Hunter" if npc_type == "hunter_forest" else "Villager")
+                npc = NPC(pos, [game.visible_sprites, game.npcs], name=disp_name, asset_key=npc_type)
                 
             if npc:
                 npc.game = game
@@ -308,6 +312,12 @@ class WorldManager:
                 enemy = Goblin(e_pos, [game.visible_sprites])
             elif e_type == "knight":
                 enemy = Knight(e_pos, [game.visible_sprites])
+            elif e_type == "forest_guardian":
+                from rpg.enemy import ForestGuardian
+                enemy = ForestGuardian(e_pos, [game.visible_sprites])
+            elif e_type == "bandit_leader":
+                from rpg.enemy import BanditLeader
+                enemy = BanditLeader(e_pos, [game.visible_sprites])
             elif e_type == "boss":
                 enemy = Boss(e_pos, [game.visible_sprites], game.sound_manager, game.particles)
                 
@@ -441,11 +451,15 @@ class WorldManager:
 
         # 11. Trigger background theme
         if map_name == MAP_VILLAGE:
-            game.sound_manager.play_music("village_music")
+            game.sound_manager.play_music("village_music", force=True)
+        elif map_name == MAP_FOREST:
+            game.sound_manager.play_music("forest_music", force=True)
+        elif map_name == MAP_LAKE:
+            game.sound_manager.play_music("lake_music", force=True)
         elif map_name == MAP_DUNGEON and not self.boss_defeated:
-            game.sound_manager.play_music("boss_music")
+            game.sound_manager.play_music("boss_music", force=True)
         else:
-            game.sound_manager.play_music("dungeon_music")
+            game.sound_manager.play_music("dungeon_music", force=True)
             
         # Spawn map-level entry text float (only during active gameplay, not menu boot)
         from rpg.constants import STATE_PLAYING

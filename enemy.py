@@ -504,6 +504,70 @@ class Knight(Enemy):
         }
         self.ai = EnemyAI(self.pos, vision_radius=300.0, attack_radius=52.0)
 
+class ForestGuardian(Enemy):
+    """Corrupted Forest Guardian mini-boss. Defeating it emits 'boss_forest_guardian' event
+    into world_state.completed_event_ids, which is required to unlock MAP_CAVE."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Forest Guardian", "wolf")
+        self.hp = 200
+        self.max_hp = 200
+        self.atk = 16
+        self.defense = 5
+        self.speed = 2.2
+        self.xp_reward = 150
+        self.gold_reward = 80
+        self.attack_cooldown = 1.4
+        self.kill_type = "forest_guardian"
+        self.enemy_key = "forest_guardian"
+
+        self.loot_table = {
+            "Oak Wood": 0.80,
+            "Forest Apple": 1.00,
+            "Glow Amulet": 0.25,
+            "Red Potion": 0.50
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=400.0, attack_radius=56.0)
+
+    def die(self) -> None:
+        """Emits boss_forest_guardian completion flag into world_state on death."""
+        if self.game and hasattr(self.game, "world_state"):
+            self.game.world_state.completed_event_ids.add("boss_forest_guardian")
+        if self.game and hasattr(self.game, "event_bus"):
+            self.game.event_bus.emit("boss_defeated", boss_id="forest_guardian", boss_name=self.name)
+        super().die()
+
+class BanditLeader(Enemy):
+    """Bandit Warlord mini-boss in the Ruins. Defeating it emits 'boss_bandit_leader' event
+    into world_state.completed_event_ids, which is required to unlock MAP_RUINS access paths."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Bandit Warlord", "knight")
+        self.hp = 280
+        self.max_hp = 280
+        self.atk = 20
+        self.defense = 6
+        self.speed = 2.0
+        self.xp_reward = 200
+        self.gold_reward = 120
+        self.attack_cooldown = 1.5
+        self.kill_type = "bandit_leader"
+        self.enemy_key = "bandit_leader"
+
+        self.loot_table = {
+            "Iron Ore": 0.60,
+            "Steel Blade": 0.20,
+            "Ancient Relic": 0.30,
+            "Red Potion": 0.50
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=380.0, attack_radius=54.0)
+
+    def die(self) -> None:
+        """Emits boss_bandit_leader completion flag into world_state on death."""
+        if self.game and hasattr(self.game, "world_state"):
+            self.game.world_state.completed_event_ids.add("boss_bandit_leader")
+        if self.game and hasattr(self.game, "event_bus"):
+            self.game.event_bus.emit("boss_defeated", boss_id="bandit_leader", boss_name=self.name)
+        super().die()
+
 # Fast math helpers
 def math_sin(rad: float) -> float:
     import math

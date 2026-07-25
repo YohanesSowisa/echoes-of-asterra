@@ -3,10 +3,13 @@ Echoes of Asterra - NPC System
 Implements interactive non-player characters with dialog nodes, trading shop, and quest prompts.
 """
 import pygame
-from typing import Tuple, List, Dict, Any
+import math
+import random
+from typing import Tuple, List, Dict, Any, Optional
 from rpg.sprite import BaseSprite
+from rpg.settings import TILE_SIZE
 from rpg.constants import (
-    DIR_DOWN,
+    DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
     COLOR_WHITE, COLOR_YELLOW, COLOR_DARK_GRAY,
     QUEST_NOT_STARTED, QUEST_ACTIVE, QUEST_COMPLETED,
     STATE_DIALOGUE, STATE_SHOP
@@ -15,18 +18,26 @@ from rpg.dialogue import DialogueNode, DialogueChoice
 
 class NPC(BaseSprite):
     """
-    Base NPC class with interaction detection and dialogue initialization.
+    Base NPC class with interaction detection, dialogue initialization, and autonomous wandering AI.
     """
-    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group], name: str, asset_key: str) -> None:
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group], name: str, asset_key: str, can_wander: bool = True) -> None:
         super().__init__(pos, groups, layer=1)
         self.name = name
         self.asset_key = asset_key
         self.game = None  # bound during map spawn
+        self.can_wander = can_wander
         
         self.direction = DIR_DOWN
         self.state = "idle"
         self.hitbox = pygame.Rect(0, 0, 24, 20)
         self.hitbox.center = self.rect.center
+        
+        # Wandering AI parameters
+        self.spawn_pos = pygame.math.Vector2(pos)
+        self.wander_radius = 80.0
+        self.move_speed = 45.0
+        self.target_pos: Optional[pygame.math.Vector2] = None
+        self.wander_timer = random.uniform(1.0, 3.5)
         
         # Interact indicator
         self.interact_radius = 60.0
@@ -35,9 +46,16 @@ class NPC(BaseSprite):
         self.frame_index = 0.0
 
     def check_interaction_range(self, player_pos: pygame.math.Vector2) -> bool:
-        """Determines if the player is within conversational speaking range."""
+        """Determines if the player is within conversational speaking range and turns NPC to face player."""
         dist = (player_pos - self.pos).length()
         self.show_indicator = (dist <= self.interact_radius)
+        if self.show_indicator:
+            # Turn to face player when nearby
+            diff = player_pos - self.pos
+            if abs(diff.x) > abs(diff.y):
+                self.direction = DIR_RIGHT if diff.x > 0 else DIR_LEFT
+            else:
+                self.direction = DIR_DOWN if diff.y > 0 else DIR_UP
         return self.show_indicator
 
     def interact(self) -> None:
@@ -70,12 +88,89 @@ class NPC(BaseSprite):
         return True
 
     def update(self, dt: float) -> None:
-        """Updates standing idle animation loops."""
-        self.frame_index += 4.0 * dt
+        """Updates standing idle/walking animation loops and autonomous wandering movement."""
+        # Pause wandering during active dialogue or when player is in interaction range
+        is_dialogue = (self.game and getattr(self.game, "game_state", None) == STATE_DIALOGUE)
+        if is_dialogue or self.show_indicator:
+            self.state = "idle"
+            self.target_pos = None
+
+        if self.can_wander and not is_dialogue and not self.show_indicator:
+            self._update_wander(dt)
+
+        self.frame_index += (6.0 if self.state == "walk" else 3.0) * dt
         from rpg.animation import entity_assets
-        frames = entity_assets.get(self.asset_key, {}).get("idle", {}).get(self.direction)
+        frames = entity_assets.get(self.asset_key, {}).get(self.state, {}).get(self.direction)
+        if not frames:
+            frames = entity_assets.get(self.asset_key, {}).get("idle", {}).get(self.direction)
         if frames:
             self.image = frames[int(self.frame_index) % len(frames)]
+
+    def _update_wander(self, dt: float) -> None:
+        """Handles autonomous random wandering around spawn position."""
+        self.wander_timer -= dt
+        if self.wander_timer <= 0:
+            self.wander_timer = random.uniform(2.0, 5.0)
+            if self.state == "idle" and random.random() < 0.65:
+                # Pick a random target within wander_radius
+                angle = random.uniform(0, 2 * math.pi)
+                dist = random.uniform(24.0, self.wander_radius)
+                target = self.spawn_pos + pygame.math.Vector2(math.cos(angle) * dist, math.sin(angle) * dist)
+                
+                if self._is_position_walkable(target):
+                    self.target_pos = target
+                    self.state = "walk"
+            else:
+                self.state = "idle"
+                self.target_pos = None
+
+        if self.state == "walk" and self.target_pos:
+            move_vec = self.target_pos - self.pos
+            dist = move_vec.length()
+            if dist < 4.0:
+                self.pos = pygame.math.Vector2(self.target_pos)
+                self.rect.center = (int(self.pos.x), int(self.pos.y))
+                self.hitbox.center = self.rect.center
+                self.state = "idle"
+                self.target_pos = None
+            else:
+                move_dir = move_vec.normalize()
+                if abs(move_dir.x) > abs(move_dir.y):
+                    self.direction = DIR_RIGHT if move_dir.x > 0 else DIR_LEFT
+                else:
+                    self.direction = DIR_DOWN if move_dir.y > 0 else DIR_UP
+
+                new_pos = self.pos + move_dir * self.move_speed * dt
+                if self._is_position_walkable(new_pos):
+                    self.pos = new_pos
+                    self.rect.center = (int(self.pos.x), int(self.pos.y))
+                    self.hitbox.center = self.rect.center
+                else:
+                    self.state = "idle"
+                    self.target_pos = None
+
+    def _is_position_walkable(self, pos: pygame.math.Vector2) -> bool:
+        """Checks if a target position is within map bounds and not colliding with obstacles."""
+        if not self.game or not hasattr(self.game, "world_manager"):
+            return True
+        wm = self.game.world_manager
+        current_map = wm.current_map_data
+        if not current_map:
+            return True
+
+        w = current_map.get("width", 40)
+        h = current_map.get("height", 30)
+        grid_x = int(pos.x // TILE_SIZE)
+        grid_y = int(pos.y // TILE_SIZE)
+
+        if grid_x < 1 or grid_x >= w - 1 or grid_y < 1 or grid_y >= h - 1:
+            return False
+
+        grid = current_map.get("grid")
+        if grid and grid[grid_y][grid_x] in ["wall", "water", "tree"]:
+            return False
+
+        return True
 
     def draw_indicator(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         """Renders a floating 'E' interaction button above the NPC's head."""
@@ -100,7 +195,7 @@ class NPC(BaseSprite):
 class ElderEldrin(NPC):
     """Elder of Asterra. Guides the player along the Main Quest path."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Elder Eldrin", "mage")  # Reuse mage visual sheet
+        super().__init__(pos, groups, "Elder Eldrin", "npc_eldrin")
 
     def interact(self) -> None:
         """Checks Main Quest state to trigger corresponding dialogues."""
@@ -111,33 +206,33 @@ class ElderEldrin(NPC):
         # Setup Elder conversation trees
         self.game.dialogue_manager.close()
         player = self.game.player
-        
+        settlement = getattr(self.game.living_world, "settlement", None) if hasattr(self.game, "living_world") else None
+
         def fund_silas():
             if player.gold >= 100:
-                player.gold -= 100
-                if hasattr(self.game, "living_world"):
-                    self.game.living_world.settlement._on_prosperity_changed(prosperity=90.0)
-                from rpg.combat import DamageNumber
-                DamageNumber(self.rect.center, "Royal Market Unlocked! -20% Shop Discount!", (255, 215, 0), [self.game.ui_sprites], size=18)
-                self.game.dialogue_manager.start_dialogue("eldrin_silas")
+                if settlement and settlement.fund_investment("silas_market", 30.0):
+                    player.gold -= 100
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "Royal Market Unlocked! -20% Shop Discount!", (255, 215, 0), [self.game.ui_sprites], size=18)
+                    self.game.dialogue_manager.start_dialogue("eldrin_silas")
 
         def fund_watchtower():
             if player.gold >= 50:
-                player.gold -= 50
-                if hasattr(self.game, "living_world"):
-                    self.game.living_world.event_bus.emit("road_safety_increased", amount=50.0)
-                from rpg.combat import DamageNumber
-                DamageNumber(self.rect.center, "Watchtower Erected! Raid Shield Active!", (100, 255, 100), [self.game.ui_sprites], size=18)
-                self.game.dialogue_manager.start_dialogue("eldrin_watchtower")
+                if settlement and settlement.fund_investment("watchtower", 20.0):
+                    player.gold -= 50
+                    if hasattr(self.game, "living_world"):
+                        self.game.living_world.event_bus.emit("road_safety_increased", amount=50.0)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "Watchtower Erected! Raid Shield Active!", (100, 255, 100), [self.game.ui_sprites], size=18)
+                    self.game.dialogue_manager.start_dialogue("eldrin_watchtower")
 
         def fund_dennis():
             if player.gold >= 50:
-                player.gold -= 50
-                if hasattr(self.game, "living_world"):
-                    self.game.living_world.settlement._on_prosperity_changed(prosperity=75.0)
-                from rpg.combat import DamageNumber
-                DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
-                self.game.dialogue_manager.start_dialogue("eldrin_dennis")
+                if settlement and settlement.fund_investment("master_forge", 20.0):
+                    player.gold -= 50
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
+                    self.game.dialogue_manager.start_dialogue("eldrin_dennis")
 
         node_s = DialogueNode("eldrin_silas", self.name, "Wonderful investment! Silas has expanded the Royal Market. All shop prices in Asterra receive a 20% discount!", [DialogueChoice("Great news.", None)])
         node_w = DialogueNode("eldrin_watchtower", self.name, "The Village Watchtower is built! Watchmen now scout for monster raids and highway safety is fortified.", [DialogueChoice("Asterra is safe.", None)])
@@ -148,11 +243,13 @@ class ElderEldrin(NPC):
         self.game.dialogue_manager.add_node(node_d)
 
         investment_choices = []
-        if player.gold >= 100:
-            investment_choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
-        if player.gold >= 50:
-            investment_choices.append(DialogueChoice("[INVEST: ELDRIN] Fund Watchtower (50g -> Raid Shield & Road Safety)", None, fund_watchtower))
-            investment_choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
+        if settlement:
+            if not settlement.is_investment_completed("silas_market") and player.gold >= 100:
+                investment_choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
+            if not settlement.is_investment_completed("watchtower") and player.gold >= 50:
+                investment_choices.append(DialogueChoice("[INVEST: ELDRIN] Fund Watchtower (50g -> Raid Shield & Road Safety)", None, fund_watchtower))
+            if not settlement.is_investment_completed("master_forge") and player.gold >= 50:
+                investment_choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
 
         if quest.status == QUEST_NOT_STARTED:
             # 1. Available Main Quest Node
@@ -180,14 +277,26 @@ class ElderEldrin(NPC):
             
         elif quest.status == QUEST_ACTIVE:
             self.game.quest_manager.handle_talk("Eldrin")
-            txt = "How goes the quest? Cleanse the wolves, gather 3 Iron Ores, and defeat the Shadow Overlord."
-            node = DialogueNode("eldrin_active", self.name, txt, investment_choices + [DialogueChoice("Continue quest.", None)])
-            self.game.dialogue_manager.add_node(node)
-            self.game.dialogue_manager.start_dialogue("eldrin_active")
+            completed_qs = self.game.quest_manager.check_completable_quests(player)
+            if quest in completed_qs or quest.status == QUEST_COMPLETED:
+                # Main Quest Handed In!
+                if hasattr(self.game, "reputation_manager"):
+                    if "Savior of Asterra" not in self.game.reputation_manager.unlocked_titles:
+                        self.game.reputation_manager.unlocked_titles.append("Savior of Asterra")
+                    self.game.reputation_manager.active_title = "Savior of Asterra"
+                txt = "You have defeated the Shadow Overlord and saved Asterra! The land is restored and your legacy is eternal. You are honored as the Savior of Asterra!"
+                node = DialogueNode("eldrin_complete", self.name, txt, investment_choices + [DialogueChoice("I am honored.", None), DialogueChoice("Goodbye.", None)])
+                self.game.dialogue_manager.add_node(node)
+                self.game.dialogue_manager.start_dialogue("eldrin_complete")
+            else:
+                txt = "How goes the quest? Cleanse the wolves, gather 3 Iron Ores, and defeat the Shadow Overlord."
+                node = DialogueNode("eldrin_active", self.name, txt, investment_choices + [DialogueChoice("Continue quest.", None), DialogueChoice("Goodbye.", None)])
+                self.game.dialogue_manager.add_node(node)
+                self.game.dialogue_manager.start_dialogue("eldrin_active")
             
         elif quest.status == QUEST_COMPLETED:
             txt = "You have saved Asterra! The light returns. You are a legendary champion."
-            node = DialogueNode("eldrin_complete", self.name, txt, investment_choices + [DialogueChoice("Thank you.", None)])
+            node = DialogueNode("eldrin_complete", self.name, txt, investment_choices + [DialogueChoice("Thank you.", None), DialogueChoice("Goodbye.", None)])
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("eldrin_complete")
             
@@ -196,7 +305,7 @@ class ElderEldrin(NPC):
 class MerchantSilas(NPC):
     """Silas the merchant. Trades items (buying/selling consumables & weapons)."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Merchant Silas", "goblin")  # Reuse goblin model
+        super().__init__(pos, groups, "Merchant Silas", "npc_silas")
 
     def interact(self) -> None:
         """Opens Shop UI trading inventory."""
@@ -233,7 +342,7 @@ class MerchantSilas(NPC):
 class BlacksmithDennis(NPC):
     """Blacksmith Dennis. Crafts gear and issues side quest."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Blacksmith Dennis", "knight")
+        super().__init__(pos, groups, "Blacksmith Dennis", "npc_dennis")
 
     def interact(self) -> None:
         """Prompt to open crafting menu or accept side quest."""
@@ -332,7 +441,7 @@ class BlacksmithDennis(NPC):
 class RangerFaye(NPC):
     """Ranger Faye in the Forest. Gives Forest Patrol quest."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Ranger Faye", "wolf")
+        super().__init__(pos, groups, "Ranger Faye", "npc_faye")
 
     def interact(self) -> None:
         self.game.dialogue_manager.close()
@@ -373,20 +482,33 @@ class RangerFaye(NPC):
             DialogueChoice("[FACTION: HUNTERS] Empower Hunters Preserve (Beast Drops x2, Wild Habitat)", None, empower_hunters),
         ]
 
+        # Slime quest acceptance callback
+        slime_q = qm.quests.get("slime_quest")
+        def accept_slime():
+            qm.accept_quest("slime_quest")
+
+        slime_choice = None
+        if slime_q and slime_q.status == QUEST_NOT_STARTED:
+            slime_choice = DialogueChoice("[SIDE QUEST] Clear Slime Infestation (5 Slimes)", "faye_slime_acc", accept_slime)
+            node_slime_acc = DialogueNode("faye_slime_acc", self.name, "Good! Slay 5 Green Slimes along the forest trails. They've been scaring travelers.")
+            self.game.dialogue_manager.add_node(node_slime_acc)
+
         if quest.status == QUEST_NOT_STARTED:
             if qm.is_quest_available("forest_patrol"):
+                extra = [slime_choice] if slime_choice else []
                 node = DialogueNode(
                     "faye_start",
                     self.name,
                     "Traveler! The forest trails are contested between Knight Patrols and Hunter Preserves. How shall we manage the region?",
-                    faction_choices + [DialogueChoice("I'll clear the forest! (5 Slimes, 2 Wolves)", "faye_acc", accept)]
+                    faction_choices + extra + [DialogueChoice("I'll clear the forest! (5 Slimes, 2 Wolves)", "faye_acc", accept)]
                 )
                 node_acc = DialogueNode("faye_acc", self.name, "Thank you! Slay 5 Slimes and 2 Wolves. Be careful out there.")
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("faye_start")
             else:
-                node = DialogueNode("faye_locked", self.name, "Speak to Elder Eldrin in the Village first!", faction_choices)
+                extra = [slime_choice] if slime_choice else []
+                node = DialogueNode("faye_locked", self.name, "Speak to Elder Eldrin in the Village first! But if you want a quick task, I have something...", faction_choices + extra)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("faye_locked")
         elif quest.status == QUEST_ACTIVE:
@@ -403,7 +525,7 @@ class RangerFaye(NPC):
 class ScholarMira(NPC):
     """Scholar Mira in the Ruins. Gives Echoes of the Past quest."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Scholar Mira", "mage")
+        super().__init__(pos, groups, "Scholar Mira", "npc_mira")
 
     def interact(self) -> None:
         if not self.on_interact_start("Mira"):
@@ -439,16 +561,35 @@ class ScholarMira(NPC):
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("mira_active")
         else:
-            node = DialogueNode("mira_done", self.name, "The scroll reveals the Shadow Overlord is in the Dungeon! You'll need sturdy iron gear. Speak to Blacksmith Dennis in the Village.")
-            self.game.dialogue_manager.add_node(node)
-            self.game.dialogue_manager.start_dialogue("mira_done")
+            expedition_q = qm.quests.get("ruins_expedition")
+            def accept_expedition():
+                qm.accept_quest("ruins_expedition")
+
+            if expedition_q and expedition_q.status == QUEST_NOT_STARTED:
+                node = DialogueNode(
+                    "mira_expedition_start",
+                    self.name,
+                    "The scroll reveals the Shadow Overlord's void seal in the Catacombs! We need to recover a Relic Fragment from the Bandit Warlord in these Ruins.",
+                    [
+                        DialogueChoice("[EXPEDITION] Accept Ruins Reconnaissance Expedition", "mira_expedition_acc", accept_expedition),
+                        DialogueChoice("I'll prepare first.", None)
+                    ]
+                )
+                node_acc = DialogueNode("mira_expedition_acc", self.name, "Defeat the Bandit Warlord holding the vault and recover the Relic Fragment!")
+                self.game.dialogue_manager.add_node(node)
+                self.game.dialogue_manager.add_node(node_acc)
+                self.game.dialogue_manager.start_dialogue("mira_expedition_start")
+            else:
+                node = DialogueNode("mira_done", self.name, "The scroll reveals the Shadow Overlord is in the Dungeon! You'll need sturdy iron gear. Speak to Blacksmith Dennis in the Village.")
+                self.game.dialogue_manager.add_node(node)
+                self.game.dialogue_manager.start_dialogue("mira_done")
 
         self.game.game_state = STATE_DIALOGUE
 
 class MinerGarth(NPC):
     """Miner Garth in the Caverns. Provides mining guidance."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Miner Garth", "skeleton")
+        super().__init__(pos, groups, "Miner Garth", "npc_garth")
 
     def interact(self) -> None:
         if not self.on_interact_start("Garth"):
@@ -462,7 +603,7 @@ class MinerGarth(NPC):
 class GuardianKai(NPC):
     """Guardian Kai at the Lake. Gives Lake Vigil quest."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Guardian Kai", "knight")
+        super().__init__(pos, groups, "Guardian Kai", "npc_kai")
 
     def interact(self) -> None:
         if not self.on_interact_start("Kai"):
@@ -507,7 +648,7 @@ class GuardianKai(NPC):
 class SpiritOfAsterra(NPC):
     """Spirit of Asterra in the Secret Area. Gives final lore."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Spirit of Asterra", "boss")
+        super().__init__(pos, groups, "Spirit of Asterra", "npc_spirit")
 
     def interact(self) -> None:
         if not self.on_interact_start("Spirit"):
@@ -521,7 +662,7 @@ class SpiritOfAsterra(NPC):
 class GreedAltar(NPC):
     """Ancient Greed Altar in Dungeon exit rooms. Offers Extraction vs Greed Curse."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Greed Altar", "greed_altar")
+        super().__init__(pos, groups, "Greed Altar", "greed_altar", can_wander=False)
         self.image = pygame.Surface((36, 48), pygame.SRCALPHA)
         pygame.draw.rect(self.image, (120, 20, 40), (4, 8, 28, 36), border_radius=4)
         pygame.draw.rect(self.image, (255, 60, 60), (6, 10, 24, 32), 2, border_radius=3)
@@ -561,7 +702,7 @@ class GreedAltar(NPC):
 class TownNoticeboard(NPC):
     """Town Investment Board in Village Plaza."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Town Investment Board", "noticeboard")
+        super().__init__(pos, groups, "Town Investment Board", "noticeboard", can_wander=False)
         self.image = pygame.Surface((44, 44), pygame.SRCALPHA)
         pygame.draw.rect(self.image, (100, 70, 40), (0, 0, 44, 44), border_radius=4)
         pygame.draw.rect(self.image, (210, 170, 60), (2, 2, 40, 40), 2, border_radius=3)
@@ -571,37 +712,65 @@ class TownNoticeboard(NPC):
     def interact(self) -> None:
         self.game.dialogue_manager.close()
         player = self.game.player
-        
+        settlement = getattr(self.game.living_world, "settlement", None) if hasattr(self.game, "living_world") else None
+
         def fund_silas():
             if player.gold >= 100:
-                player.gold -= 100
-                if hasattr(self.game, "living_world"):
-                    self.game.living_world.settlement._on_prosperity_changed(prosperity=90.0)
-                from rpg.combat import DamageNumber
-                DamageNumber(self.rect.center, "Royal Market Unlocked! -20% Shop Discount!", (255, 215, 0), [self.game.ui_sprites], size=18)
+                if settlement and settlement.fund_investment("silas_market", 30.0):
+                    player.gold -= 100
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "Royal Market Unlocked! -20% Shop Discount!", (255, 215, 0), [self.game.ui_sprites], size=18)
 
         def fund_watchtower():
             if player.gold >= 50:
-                player.gold -= 50
-                if hasattr(self.game, "living_world"):
-                    self.game.living_world.event_bus.emit("road_safety_increased", amount=50.0)
-                from rpg.combat import DamageNumber
-                DamageNumber(self.rect.center, "Watchtower Erected! Raid Shield Active!", (100, 255, 100), [self.game.ui_sprites], size=18)
+                if settlement and settlement.fund_investment("watchtower", 20.0):
+                    player.gold -= 50
+                    if hasattr(self.game, "living_world"):
+                        self.game.living_world.event_bus.emit("road_safety_increased", amount=50.0)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "Watchtower Erected! Raid Shield Active!", (100, 255, 100), [self.game.ui_sprites], size=18)
 
         def fund_dennis():
             if player.gold >= 50:
-                player.gold -= 50
-                if hasattr(self.game, "living_world"):
-                    self.game.living_world.settlement._on_prosperity_changed(prosperity=75.0)
-                from rpg.combat import DamageNumber
-                DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
+                if settlement and settlement.fund_investment("master_forge", 20.0):
+                    player.gold -= 50
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
 
         choices = []
-        if player.gold >= 100:
-            choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
-        if player.gold >= 50:
-            choices.append(DialogueChoice("[INVEST: ELDRIN] Fund Watchtower (50g -> Raid Shield & Road Safety)", None, fund_watchtower))
-            choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
+
+        # Add quest options for town infrastructure
+        qm = self.game.quest_manager
+        b_quest = qm.quests.get("bridge_repair_quest")
+        w_quest = qm.quests.get("watchtower_quest")
+
+        def accept_bridge_q():
+            qm.accept_quest("bridge_repair_quest")
+
+        def accept_watchtower_q():
+            qm.accept_quest("watchtower_quest")
+
+        if b_quest and b_quest.status == QUEST_NOT_STARTED:
+            choices.append(DialogueChoice("[QUEST] Northern Bridge Repair (5 Oak Wood, 3 Iron Ore)", None, accept_bridge_q))
+        elif b_quest and b_quest.status == QUEST_ACTIVE:
+            choices.append(DialogueChoice("[STATUS] Bridge Repair Active (5 Oak Wood, 3 Iron Ore needed)", None))
+        elif b_quest and b_quest.status == QUEST_COMPLETED:
+            choices.append(DialogueChoice("[STATUS] Northern Bridge Rebuilt!", None))
+
+        if w_quest and w_quest.status == QUEST_NOT_STARTED:
+            choices.append(DialogueChoice("[QUEST] Watchtower Construction (3 Oak Wood, 2 Iron Ore)", None, accept_watchtower_q))
+        elif w_quest and w_quest.status == QUEST_ACTIVE:
+            choices.append(DialogueChoice("[STATUS] Watchtower Construction Active (3 Oak Wood, 2 Iron Ore needed)", None))
+        elif w_quest and w_quest.status == QUEST_COMPLETED:
+            choices.append(DialogueChoice("[STATUS] Watchtower Erected!", None))
+
+        if settlement:
+            if not settlement.is_investment_completed("silas_market") and player.gold >= 100:
+                choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
+            if not settlement.is_investment_completed("watchtower") and player.gold >= 50:
+                choices.append(DialogueChoice("[INVEST: ELDRIN] Fund Watchtower (50g -> Raid Shield & Road Safety)", None, fund_watchtower))
+            if not settlement.is_investment_completed("master_forge") and player.gold >= 50:
+                choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
         choices.append(DialogueChoice("Close Town Board.", None))
 
         node = DialogueNode("town_board", self.name, "Asterra Town Board: Allocate your gold and resources to fund competing NPC ambitions and town infrastructure!", choices)
@@ -612,7 +781,7 @@ class TownNoticeboard(NPC):
 class PastHeroStatue(NPC):
     """Weathered Stone Statue of a Past Hero from Mythos History."""
     def __init__(self, pos: Tuple[float, float], record: Dict[str, Any], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, f"Statue of {record.get('hero_name', 'Ancient Champion')}", "past_statue")
+        super().__init__(pos, groups, f"Statue of {record.get('hero_name', 'Ancient Champion')}", "past_statue", can_wander=False)
         self.record = record
         self.image = pygame.Surface((40, 56), pygame.SRCALPHA)
         # Stone pedestal
@@ -644,7 +813,7 @@ class PastHeroStatue(NPC):
 class BardFinn(NPC):
     """Bard Finn. Sings procedural ballad songs generated from player memories."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
-        super().__init__(pos, groups, "Bard Finn", "mage")
+        super().__init__(pos, groups, "Bard Finn", "npc_finn")
 
     def interact(self) -> None:
         """Triggers procedural song composition and dialogue."""

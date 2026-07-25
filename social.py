@@ -94,7 +94,6 @@ class ReputationManager:
 
         if event_bus:
             self.register_event_listeners(event_bus)
-        self.load_social_data()
 
     def register_event_listeners(self, event_bus: EventBus) -> None:
         """Subscribes ReputationManager to EventBus actions."""
@@ -104,13 +103,16 @@ class ReputationManager:
         """Modifies global fame/heroism reputation score."""
         self.global_reputation = max(0, min(100, self.global_reputation + amount))
         self.update_titles()
-        self.save_social_data()
 
     def modify_npc_relationship(self, npc_id: str, amount: int) -> None:
         """Modifies personal bond score with a specific NPC (-100 to +100)."""
         curr = self.npc_relationships.get(npc_id, 0)
-        self.npc_relationships[npc_id] = max(-100, min(100, curr + amount))
-        self.save_social_data()
+        new_val = max(-100, min(100, curr + amount))
+        self.npc_relationships[npc_id] = new_val
+        # Sync with MemoryManager relationship score if available
+        if self.memory_manager:
+            mem = self.memory_manager.get_memory(npc_id)
+            mem.relationship = new_val
 
     def get_npc_tier(self, npc_id: str) -> str:
         """Returns the Social Recognition Tier for a specific NPC."""
@@ -132,31 +134,28 @@ class ReputationManager:
         """Callback increasing global reputation on quest completion."""
         self.modify_global_reputation(10)
 
-    def save_social_data(self) -> None:
-        """Serializes reputation and titles to JSON."""
-        os.makedirs(os.path.dirname(SOCIAL_SAVE_PATH), exist_ok=True)
-        payload = {
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes reputation and titles to dictionary payload for slot saving."""
+        return {
             "global_reputation": self.global_reputation,
             "npc_relationships": self.npc_relationships,
             "unlocked_titles": self.unlocked_titles,
             "active_title": self.active_title
         }
-        try:
-            with open(SOCIAL_SAVE_PATH, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-        except Exception as e:
-            print(f"ReputationManager save error: {e}")
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Loads serialized reputation and titles from dictionary payload."""
+        if not data:
+            return
+        self.global_reputation = data.get("global_reputation", 0)
+        self.npc_relationships = data.get("npc_relationships", self.npc_relationships)
+        self.unlocked_titles = data.get("unlocked_titles", [TITLE_WANDERER])
+        self.active_title = data.get("active_title", TITLE_WANDERER)
+
+    def save_social_data(self) -> None:
+        """Legacy helper for backward compatibility (delegates to per-slot save payload)."""
+        pass
 
     def load_social_data(self) -> None:
-        """Loads serialized reputation and titles from JSON."""
-        if not os.path.exists(SOCIAL_SAVE_PATH):
-            return
-        try:
-            with open(SOCIAL_SAVE_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.global_reputation = data.get("global_reputation", 0)
-                self.npc_relationships = data.get("npc_relationships", self.npc_relationships)
-                self.unlocked_titles = data.get("unlocked_titles", [TITLE_WANDERER])
-                self.active_title = data.get("active_title", TITLE_WANDERER)
-        except Exception as e:
-            print(f"ReputationManager load error: {e}")
+        """Legacy helper for backward compatibility."""
+        pass

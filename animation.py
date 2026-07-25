@@ -151,8 +151,15 @@ def init_assets() -> None:
                     pygame.image.save(surf, path)
 
     # 4. Load or Generate Entities
-    check_file = os.path.join(ASSETS_DIR, "sprites", "player_idle_down_0.png")
-    if os.path.exists(check_file):
+    required_entities = [
+        "player", "npc_eldrin", "npc_silas", "npc_dennis", "npc_faye", "npc_mira",
+        "npc_garth", "npc_kai", "npc_finn", "npc_spirit", "villager_male",
+        "villager_female", "guard_village", "hunter_forest", "skeleton",
+        "goblin", "mage", "knight", "slime", "slime_blue", "slime_red", "wolf", "boss"
+    ]
+    all_entities_exist = all(os.path.exists(os.path.join(ASSETS_DIR, "sprites", f"{ent}_idle_down_0.png")) for ent in required_entities)
+    
+    if all_entities_exist:
         filenames = sorted(os.listdir(os.path.join(ASSETS_DIR, "sprites")))
         entity_assets.clear()
         for file in filenames:
@@ -174,14 +181,14 @@ def init_assets() -> None:
                     path = os.path.join(ASSETS_DIR, "sprites", file)
                     entity_assets[entity][state][direction].append(pygame.image.load(path).convert_alpha())
     else:
+        entity_assets.clear()
         _generate_entities()
         for entity, states in entity_assets.items():
             for state, directions in states.items():
                 for direction, frames in directions.items():
                     for f, surf in enumerate(frames):
-                          file_name = f"{entity}_{state}_{direction}_{f}.png"
-                          path = os.path.join(ASSETS_DIR, "sprites", file_name)
-                          pygame.image.save(surf, path)
+                        path = os.path.join(ASSETS_DIR, "sprites", f"{entity}_{state}_{direction}_{f}.png")
+                        pygame.image.save(surf, path)
 
 def _create_outline(surface: pygame.Surface, color: Tuple[int, int, int] = COLOR_BLACK) -> pygame.Surface:
     """Draws a 1-pixel thick outline around a surface's non-transparent pixels."""
@@ -455,8 +462,19 @@ def _generate_projectiles() -> None:
         dark_frames.append(_create_outline(surf))
     projectile_assets["dark_bolt"] = dark_frames
 
-def _draw_humanoid(state: str, direction: str, frame: int, max_frames: int, colors: Dict[str, Tuple[int, int, int]]) -> pygame.Surface:
-    """Helper that procedurally renders a humanoid character frame by frame."""
+def _draw_humanoid(
+    state: str,
+    direction: str,
+    frame: int,
+    max_frames: int,
+    colors: Dict[str, Tuple[int, int, int]],
+    hat_type: Optional[str] = None,
+    cape_color: Optional[Tuple[int, int, int]] = None,
+    accessory: Optional[str] = None
+) -> pygame.Surface:
+    """
+    Renders pixel art character sprite with custom colors, hats, cloaks, and accessories at native scale.
+    """
     sz = 48
     surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
     
@@ -490,37 +508,42 @@ def _draw_humanoid(state: str, direction: str, frame: int, max_frames: int, colo
         roll_angle = (frame / max_frames) * 360
         if direction == DIR_LEFT: roll_angle = -roll_angle
         
-    # 1. Draw Feet / Boots (relative to center of screen)
     cx, cy = sz // 2 + lunge_x, sz // 2 + lunge_y
     
-    # Base walking leg movement
+    # 0. Cape (drawn behind body)
+    if cape_color:
+        pygame.draw.rect(surf, cape_color, (cx - 8, cy - 6 - bounce, 16, 18), border_radius=2)
+
+    # 1. Draw Feet / Boots
     leg_offset = 0
     if state == "walk":
         leg_offset = 3 if (frame % 2 == 0) else -3
         
-    # Draw left foot & right foot
     if direction in [DIR_UP, DIR_DOWN]:
         pygame.draw.rect(surf, c_boots, (cx - 7, cy + 12 - bounce + (leg_offset if direction == DIR_DOWN else -leg_offset), 4, 4))
         pygame.draw.rect(surf, c_boots, (cx + 3, cy + 12 - bounce + (-leg_offset if direction == DIR_DOWN else leg_offset), 4, 4))
-    else: # Left or Right
+    else:
         pygame.draw.rect(surf, c_boots, (cx - 5 + leg_offset, cy + 12 - bounce, 4, 4))
         pygame.draw.rect(surf, c_boots, (cx + 1 - leg_offset, cy + 12 - bounce, 4, 4))
 
     # 2. Draw Legs
     pygame.draw.rect(surf, c_legs, (cx - 6, cy + 6 - bounce, 12, 6))
 
-    # 3. Draw Body/Tunic
+    # 3. Draw Body / Tunic
     pygame.draw.rect(surf, c_body, (cx - 8, cy - 6 - bounce, 16, 12), border_radius=2)
     
+    # Custom Apron for Blacksmith
+    if accessory == "apron":
+        pygame.draw.rect(surf, (70, 45, 25), (cx - 6, cy - 3 - bounce, 12, 12), border_radius=1)
+        pygame.draw.line(surf, (160, 160, 160), (cx - 5, cy - 3 - bounce), (cx + 5, cy - 3 - bounce), 1)
+
     # 4. Draw Head
     pygame.draw.circle(surf, c_skin, (cx, cy - 12 - bounce), 6)
     
     # Hair
     if direction == DIR_UP:
-        # Full back of hair
         pygame.draw.circle(surf, c_hair, (cx, cy - 13 - bounce), 7)
     elif direction == DIR_DOWN:
-        # Front hair bangs
         pygame.draw.arc(surf, c_hair, (cx - 7, cy - 19 - bounce, 14, 10), 0, math.pi, 3)
     elif direction == DIR_LEFT:
         pygame.draw.circle(surf, c_hair, (cx + 2, cy - 13 - bounce), 6)
@@ -529,7 +552,7 @@ def _draw_humanoid(state: str, direction: str, frame: int, max_frames: int, colo
         pygame.draw.circle(surf, c_hair, (cx - 2, cy - 13 - bounce), 6)
         pygame.draw.rect(surf, c_hair, (cx - 1, cy - 19 - bounce, 6, 6))
 
-    # 5. Draw Eyes (except from back)
+    # 5. Draw Eyes
     if direction != DIR_UP:
         eye_color = COLOR_BLACK if "eye" not in colors else colors["eye"]
         if direction == DIR_DOWN:
@@ -540,46 +563,177 @@ def _draw_humanoid(state: str, direction: str, frame: int, max_frames: int, colo
         elif direction == DIR_RIGHT:
             pygame.draw.rect(surf, eye_color, (cx + 2, cy - 13 - bounce, 2, 2))
 
-    # 6. Equipment (Sword, Shield)
-    # Weapon position based on state and frame
-    if state == "block" and c_shield:
-        # Shield drawn in front
+    # 6. Hats / Helmets
+    if hat_type == "feathered":
+        pygame.draw.ellipse(surf, (60, 20, 70), (cx - 11, cy - 20 - bounce, 22, 8))
+        pygame.draw.rect(surf, (80, 25, 90), (cx - 6, cy - 23 - bounce, 12, 5), border_radius=2)
+        pygame.draw.line(surf, (255, 215, 0), (cx + 3, cy - 23 - bounce), (cx + 9, cy - 28 - bounce), 2)
+    elif hat_type == "straw":
+        pygame.draw.ellipse(surf, (190, 150, 70), (cx - 12, cy - 19 - bounce, 24, 8))
+        pygame.draw.circle(surf, (170, 130, 50), (cx, cy - 18 - bounce), 5)
+    elif hat_type == "lantern":
+        pygame.draw.rect(surf, (60, 50, 40), (cx - 7, cy - 19 - bounce, 14, 5), border_radius=2)
+        pygame.draw.circle(surf, (255, 220, 50), (cx, cy - 20 - bounce), 3)
+    elif hat_type == "knight_helm":
+        pygame.draw.rect(surf, (140, 145, 155), (cx - 7, cy - 19 - bounce, 14, 11), border_radius=3)
+        if direction != DIR_UP:
+            pygame.draw.line(surf, (40, 45, 55), (cx - 5, cy - 14 - bounce), (cx + 5, cy - 14 - bounce), 2)
+    elif hat_type == "hood":
+        # Ranger hood cowl framing the head from top/sides without covering the face
+        pygame.draw.ellipse(surf, (20, 60, 35), (cx - 8, cy - 21 - bounce, 16, 10))
+        if direction == DIR_UP:
+            pygame.draw.circle(surf, (20, 60, 35), (cx, cy - 13 - bounce), 7)
+        else:
+            pygame.draw.rect(surf, (20, 60, 35), (cx - 7, cy - 18 - bounce, 3, 8), border_radius=1)
+            pygame.draw.rect(surf, (20, 60, 35), (cx + 4, cy - 18 - bounce, 3, 8), border_radius=1)
+            # Small crimson feather accent on hood
+            pygame.draw.line(surf, (220, 50, 40), (cx + 3, cy - 19 - bounce), (cx + 8, cy - 25 - bounce), 2)
+    elif hat_type == "crown_band":
+        pygame.draw.rect(surf, (255, 215, 0), (cx - 6, cy - 18 - bounce, 12, 3), border_radius=1)
+    elif hat_type == "hero_circlet":
+        pygame.draw.rect(surf, (255, 215, 0), (cx - 7, cy - 16 - bounce, 14, 3), border_radius=1)
+        pygame.draw.rect(surf, (0, 180, 255), (cx - 1, cy - 16 - bounce, 2, 3))
+    elif hat_type == "horned_sk_helm":
+        pygame.draw.rect(surf, (70, 75, 80), (cx - 7, cy - 19 - bounce, 14, 8), border_radius=2)
+        pygame.draw.polygon(surf, (160, 50, 40), [(cx - 7, cy - 17 - bounce), (cx - 13, cy - 24 - bounce), (cx - 5, cy - 18 - bounce)])
+        pygame.draw.polygon(surf, (160, 50, 40), [(cx + 7, cy - 17 - bounce), (cx + 13, cy - 24 - bounce), (cx + 5, cy - 18 - bounce)])
+    elif hat_type == "goblin_war_helm":
+        pygame.draw.polygon(surf, (160, 140, 110), [(cx - 7, cy - 17 - bounce), (cx, cy - 24 - bounce), (cx + 7, cy - 17 - bounce)])
+        pygame.draw.line(surf, (220, 50, 40), (cx - 6, cy - 17 - bounce), (cx + 6, cy - 17 - bounce), 2)
+    elif hat_type == "void_hood":
+        pygame.draw.circle(surf, (20, 15, 35), (cx, cy - 13 - bounce), 8)
+        if direction != DIR_UP:
+            pygame.draw.ellipse(surf, (0, 240, 255), (cx - 5, cy - 14 - bounce, 10, 3))
+    elif hat_type == "doom_helm":
+        pygame.draw.rect(surf, (40, 42, 52), (cx - 7, cy - 19 - bounce, 14, 12), border_radius=3)
+        pygame.draw.polygon(surf, (180, 40, 40), [(cx - 7, cy - 19 - bounce), (cx - 12, cy - 25 - bounce), (cx - 4, cy - 19 - bounce)])
+        pygame.draw.polygon(surf, (180, 40, 40), [(cx + 7, cy - 19 - bounce), (cx + 12, cy - 25 - bounce), (cx + 4, cy - 19 - bounce)])
+        if direction != DIR_UP:
+            pygame.draw.line(surf, (255, 40, 40), (cx - 5, cy - 14 - bounce), (cx + 5, cy - 14 - bounce), 2)
+
+    # 7. Accessories / Weapons
+    if accessory == "sk_scythe":
+        pygame.draw.line(surf, (70, 50, 40), (cx + 8, cy + 12 - bounce), (cx + 8, cy - 24 - bounce), 3)
+        pygame.draw.polygon(surf, (180, 60, 220), [
+            (cx + 8, cy - 24 - bounce),
+            (cx - 6, cy - 20 - bounce),
+            (cx + 8, cy - 14 - bounce)
+        ])
+        pygame.draw.polygon(surf, COLOR_WHITE, [
+            (cx + 8, cy - 24 - bounce),
+            (cx - 4, cy - 20 - bounce),
+            (cx + 8, cy - 16 - bounce)
+        ])
+    elif accessory == "goblin_cleavers":
+        pygame.draw.rect(surf, (150, 155, 160), (cx + 7, cy - 10 - bounce, 7, 14), border_radius=1)
+        pygame.draw.line(surf, (60, 220, 80), (cx + 14, cy - 10 - bounce), (cx + 14, cy + 4 - bounce), 2)
+    elif accessory == "void_staff":
+        pygame.draw.line(surf, (60, 40, 70), (cx + 8, cy + 10 - bounce), (cx + 8, cy - 24 - bounce), 3)
+        pygame.draw.circle(surf, (180, 50, 240), (cx + 8, cy - 25 - bounce), 5)
+        pygame.draw.circle(surf, COLOR_WHITE, (cx + 8, cy - 25 - bounce), 2)
+    elif accessory == "doom_shield":
+        pygame.draw.rect(surf, (30, 32, 40), (cx - 13, cy - 5 - bounce, 7, 14), border_radius=2)
+        pygame.draw.rect(surf, (220, 40, 40), (cx - 11, cy - 1 - bounce, 3, 6))
+    elif accessory == "hero_crest":
+        # Gold hero star emblem on chest
+        pygame.draw.polygon(surf, (255, 215, 0), [
+            (cx, cy - 5 - bounce),
+            (cx + 3, cy - 2 - bounce),
+            (cx, cy + 1 - bounce),
+            (cx - 3, cy - 2 - bounce)
+        ])
+        # Steel pauldrons on shoulders
+        pygame.draw.rect(surf, (160, 165, 175), (cx - 10, cy - 6 - bounce, 3, 5), border_radius=1)
+        pygame.draw.rect(surf, (160, 165, 175), (cx + 7, cy - 6 - bounce, 3, 5), border_radius=1)
+        # Gold belt buckle
+        pygame.draw.rect(surf, (255, 215, 0), (cx - 2, cy + 3 - bounce, 4, 3))
+    elif accessory == "staff_sapphire":
+        pygame.draw.line(surf, (110, 75, 45), (cx + 8, cy + 8 - bounce), (cx + 8, cy - 22 - bounce), 2)
+        pygame.draw.circle(surf, (0, 180, 255), (cx + 8, cy - 23 - bounce), 3)
+    elif accessory == "gold_pouch":
+        pygame.draw.circle(surf, (240, 180, 30), (cx - 9, cy + 3 - bounce), 4)
+    elif accessory == "smith_hammer":
+        pygame.draw.line(surf, (90, 60, 40), (cx + 8, cy + 6 - bounce), (cx + 8, cy - 10 - bounce), 2)
+        pygame.draw.rect(surf, (160, 165, 175), (cx + 5, cy - 13 - bounce, 6, 4), border_radius=1)
+    elif accessory == "bow_quiver":
+        # Archer Longbow & Arrow Quiver
+        pygame.draw.arc(surf, (130, 85, 45), (cx - 12, cy - 10 - bounce, 8, 22), -math.pi/2, math.pi/2, 2)
+        pygame.draw.line(surf, (220, 220, 230), (cx - 8, cy - 9 - bounce), (cx - 8, cy + 11 - bounce), 1)
+        pygame.draw.rect(surf, (90, 55, 30), (cx + 6, cy - 8 - bounce, 5, 12), border_radius=1)
+        pygame.draw.line(surf, COLOR_WHITE, (cx + 7, cy - 8 - bounce), (cx + 7, cy - 14 - bounce), 2)
+        pygame.draw.line(surf, COLOR_WHITE, (cx + 9, cy - 8 - bounce), (cx + 9, cy - 13 - bounce), 2)
+    elif accessory == "grimoire":
+        pygame.draw.rect(surf, (140, 40, 50), (cx + 6, cy - 2 - bounce, 6, 8), border_radius=1)
+        pygame.draw.rect(surf, (255, 215, 0), (cx + 6, cy - 2 - bounce, 6, 8), width=1, border_radius=1)
+    elif accessory == "pickaxe":
+        pygame.draw.line(surf, (100, 70, 40), (cx - 8, cy + 8 - bounce), (cx + 8, cy - 16 - bounce), 2)
+        pygame.draw.line(surf, (180, 185, 195), (cx + 4, cy - 19 - bounce), (cx + 11, cy - 13 - bounce), 2)
+    elif accessory == "lion_shield":
+        pygame.draw.rect(surf, (40, 80, 160), (cx - 12, cy - 3 - bounce, 6, 11), border_radius=2)
+        pygame.draw.circle(surf, (255, 215, 0), (cx - 9, cy + 2 - bounce), 2)
+    elif accessory == "lute":
+        pygame.draw.ellipse(surf, (160, 90, 40), (cx - 5, cy - 3 - bounce, 10, 11))
+        pygame.draw.line(surf, (80, 45, 20), (cx, cy - 3 - bounce), (cx, cy - 11 - bounce), 2)
+    elif accessory == "star_halo":
+        pygame.draw.circle(surf, (0, 220, 255), (cx, cy - 22 - bounce), 8, width=2)
+
+    # 8. Standard Combat Equipment & Slash/Block FX
+    has_held_accessory = accessory in ["staff_sapphire", "lute", "grimoire", "pickaxe", "bow_quiver", "sk_scythe", "goblin_cleavers", "void_staff"]
+    
+    if state == "block" and c_shield and not has_held_accessory:
         if direction == DIR_DOWN:
-            pygame.draw.rect(surf, c_shield, (cx - 8, cy - 2 - bounce, 16, 10), border_radius=2)
+            pygame.draw.rect(surf, c_shield, (cx - 10, cy - 2 - bounce, 20, 14), border_radius=3)
+            pygame.draw.rect(surf, COLOR_YELLOW, (cx - 10, cy - 2 - bounce, 20, 14), width=1, border_radius=3)
         elif direction == DIR_LEFT:
-            pygame.draw.rect(surf, c_shield, (cx - 10, cy - 4 - bounce, 4, 12), border_radius=2)
+            pygame.draw.rect(surf, c_shield, (cx - 12, cy - 6 - bounce, 6, 16), border_radius=3)
+            pygame.draw.rect(surf, COLOR_YELLOW, (cx - 12, cy - 6 - bounce, 6, 16), width=1, border_radius=3)
         elif direction == DIR_RIGHT:
-            pygame.draw.rect(surf, c_shield, (cx + 6, cy - 4 - bounce, 4, 12), border_radius=2)
+            pygame.draw.rect(surf, c_shield, (cx + 6, cy - 6 - bounce, 6, 16), border_radius=3)
+            pygame.draw.rect(surf, COLOR_YELLOW, (cx + 6, cy - 6 - bounce, 6, 16), width=1, border_radius=3)
         elif direction == DIR_UP:
-            pygame.draw.rect(surf, c_shield, (cx - 8, cy - 8 - bounce, 16, 6))
+            pygame.draw.rect(surf, c_shield, (cx - 10, cy - 10 - bounce, 20, 10), border_radius=3)
+            pygame.draw.rect(surf, COLOR_YELLOW, (cx - 10, cy - 10 - bounce, 20, 10), width=1, border_radius=3)
             
-    elif state == "attack":
-        # Swing weapon arc
+    elif state == "attack" and not has_held_accessory:
         prog = frame / max_frames
-        angle = -45 + prog * 135  # swing range
-        
-        # Base weapon length
-        w_len = 16
+        angle = -60 + prog * 150
+        w_len = 20
         rad = math.radians(angle)
         
-        # Attack directions orientations
         if direction == DIR_DOWN:
+            origin = (cx + 6, cy - 2)
             wx, wy = int(math.sin(rad) * w_len), int(math.cos(rad) * w_len)
-            pygame.draw.line(surf, c_weapon, (cx + 6, cy), (cx + 6 + wx, cy + wy), 3)
         elif direction == DIR_UP:
+            origin = (cx - 6, cy - 8)
             wx, wy = int(math.sin(rad) * w_len), -int(math.cos(rad) * w_len)
-            pygame.draw.line(surf, c_weapon, (cx - 6, cy - 8), (cx - 6 + wx, cy - 8 + wy), 3)
         elif direction == DIR_LEFT:
+            origin = (cx - 6, cy)
             wx, wy = -int(math.cos(rad) * w_len), int(math.sin(rad) * w_len)
-            pygame.draw.line(surf, c_weapon, (cx - 6, cy), (cx - 6 + wx, cy + wy), 3)
         elif direction == DIR_RIGHT:
+            origin = (cx + 6, cy)
             wx, wy = int(math.cos(rad) * w_len), int(math.sin(rad) * w_len)
-            pygame.draw.line(surf, c_weapon, (cx + 6, cy), (cx + 6 + wx, cy + wy), 3)
-            
-    else:
-        # Idle / walking weapon sheathed or held at side
+
+        tip = (origin[0] + wx, origin[1] + wy)
+        pygame.draw.line(surf, c_weapon, origin, tip, 4)
+        
+        # Glowing Slash Arc Trail
+        trail_angle = angle - 25
+        t_rad = math.radians(trail_angle)
         if direction == DIR_DOWN:
-            # Shield left hand, Sword right hand
+            tx, ty = int(math.sin(t_rad) * (w_len - 2)), int(math.cos(t_rad) * (w_len - 2))
+        elif direction == DIR_UP:
+            tx, ty = int(math.sin(t_rad) * (w_len - 2)), -int(math.cos(t_rad) * (w_len - 2))
+        elif direction == DIR_LEFT:
+            tx, ty = -int(math.cos(t_rad) * (w_len - 2)), int(math.sin(t_rad) * (w_len - 2))
+        elif direction == DIR_RIGHT:
+            tx, ty = int(math.cos(t_rad) * (w_len - 2)), int(math.sin(t_rad) * (w_len - 2))
+            
+        trail_tip = (origin[0] + tx, origin[1] + ty)
+        pygame.draw.line(surf, (255, 230, 100), tip, trail_tip, 2)
+        pygame.draw.circle(surf, COLOR_WHITE, tip, 3)
+        
+    elif not has_held_accessory:
+        if direction == DIR_DOWN:
             pygame.draw.line(surf, c_weapon, (cx + 8, cy + 4 - bounce), (cx + 12, cy - 6 - bounce), 2)
             pygame.draw.rect(surf, c_shield, (cx - 12, cy - 2 - bounce, 4, 8))
         elif direction == DIR_LEFT:
@@ -589,13 +743,11 @@ def _draw_humanoid(state: str, direction: str, frame: int, max_frames: int, colo
             pygame.draw.line(surf, c_weapon, (cx - 6, cy + 4 - bounce), (cx - 10, cy - 6 - bounce), 2)
             pygame.draw.rect(surf, c_shield, (cx + 6, cy - 2 - bounce, 4, 8))
         elif direction == DIR_UP:
-            # Sword on back
             pygame.draw.line(surf, c_weapon, (cx - 4, cy - 4 - bounce), (cx + 8, cy - 14 - bounce), 2)
-
-    # Apply roll rotation if in roll state
+            
+    # Apply roll rotation
     if state == "roll" and roll_angle != 0:
         rot_surf = pygame.transform.rotate(surf, roll_angle)
-        # Re-center
         new_surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
         new_surf.blit(rot_surf, (sz // 2 - rot_surf.get_width() // 2, sz // 2 - rot_surf.get_height() // 2))
         surf = new_surf
@@ -603,92 +755,19 @@ def _draw_humanoid(state: str, direction: str, frame: int, max_frames: int, colo
     # Apply death filter
     if state == "dead":
         dead_surf = pygame.transform.rotate(surf, 90)
-        # Shift down to ground level and fade
         surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
         dead_surf.fill((100, 100, 100, 150), special_flags=pygame.BLEND_RGBA_MULT)
         surf.blit(dead_surf, (0, 10))
         
     return _create_outline(surf)
 
-def _generate_entities() -> None:
-    """Pre-computes all frames for characters and monsters in all states & directions."""
-    
-    # 1. PLAYER RENDER
-    p_colors = {
-        "skin": (250, 205, 170),
-        "hair": (230, 180, 50),     # Blonde hero
-        "body": (40, 100, 220),     # Blue tunic
-        "legs": (110, 85, 60),      # Brown pants
-        "boots": (60, 45, 30),
-        "weapon": COLOR_WHITE,
-        "shield": (160, 165, 175)
-    }
-    _cache_humanoid_entity("player", p_colors)
-
-    # 2. SKELETON (Monsters / Enemies)
-    sk_colors = {
-        "skin": (220, 220, 220),    # White bone
-        "hair": COLOR_TRANSPARENT,
-        "body": COLOR_DARK_GRAY,    # Tattered armor
-        "legs": (80, 80, 80),
-        "boots": COLOR_DARK_GRAY,
-        "weapon": (160, 160, 165),
-        "shield": COLOR_TRANSPARENT,
-        "eye": COLOR_RED            # Glowing red eye-sockets
-    }
-    _cache_humanoid_entity("skeleton", sk_colors)
-
-    # 3. GOBLIN
-    gob_colors = {
-        "skin": (80, 170, 70),       # Green skin
-        "hair": (50, 40, 30),        # Dark messy hair
-        "body": (140, 100, 60),      # Leather vest
-        "legs": (100, 70, 45),
-        "boots": (50, 35, 25),
-        "weapon": (120, 120, 130),
-        "shield": COLOR_TRANSPARENT,
-        "eye": COLOR_YELLOW
-    }
-    _cache_humanoid_entity("goblin", gob_colors)
-
-    # 4. MAGE
-    mage_colors = {
-        "skin": (245, 190, 150),
-        "hair": (200, 200, 210),     # White beard
-        "body": COLOR_PURPLE,        # Purple wizard robe
-        "legs": COLOR_PURPLE,
-        "boots": (30, 20, 40),
-        "weapon": COLOR_YELLOW,      # Gold staff
-        "shield": COLOR_TRANSPARENT,
-        "eye": COLOR_CYAN
-    }
-    _cache_humanoid_entity("mage", mage_colors)
-
-    # 5. KNIGHT
-    knight_colors = {
-        "skin": COLOR_GRAY,          # Full armor
-        "hair": COLOR_TRANSPARENT,
-        "body": (70, 75, 85),        # Steel armor
-        "legs": (60, 65, 75),
-        "boots": (50, 52, 60),
-        "weapon": COLOR_WHITE,       # Shiny steel broadsword
-        "shield": (120, 125, 135),
-        "eye": COLOR_BLUE
-    }
-    _cache_humanoid_entity("knight", knight_colors)
-
-    # 6. SLIME (Non-humanoid: Custom rendering)
-    _cache_slime_entity("slime", COLOR_GREEN)
-    _cache_slime_entity("slime_blue", COLOR_BLUE)  # Blue Slime variant
-    _cache_slime_entity("slime_red", COLOR_RED)    # Red/Fire Slime variant
-
-    # 7. WOLF (Quadruped: Custom rendering)
-    _cache_wolf_entity("wolf", (110, 115, 125))
-
-    # 8. BOSS: Giant Demonic Shadow Knight
-    _cache_boss_entity()
-
-def _cache_humanoid_entity(name: str, colors: Dict[str, Tuple[int, int, int]]) -> None:
+def _cache_humanoid_entity(
+    name: str,
+    colors: Dict[str, Tuple[int, int, int]],
+    hat_type: Optional[str] = None,
+    cape_color: Optional[Tuple[int, int, int]] = None,
+    accessory: Optional[str] = None
+) -> None:
     """Helper to generate all humanoid animation states and save to registry."""
     entity_assets[name] = {}
     
@@ -707,11 +786,112 @@ def _cache_humanoid_entity(name: str, colors: Dict[str, Tuple[int, int, int]]) -
         for direction in [DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT]:
             frames_list = []
             for f in range(num_frames):
-                frames_list.append(_draw_humanoid(state, direction, f, num_frames, colors))
+                frames_list.append(_draw_humanoid(state, direction, f, num_frames, colors, hat_type, cape_color, accessory))
             entity_assets[name][state][direction] = frames_list
 
+def _generate_entities() -> None:
+    """Pre-computes all frames for characters, unique story NPCs, and monsters."""
+    
+    # 1. PLAYER RENDER (Remodeled Heroic Champion)
+    p_colors = {
+        "skin": (250, 205, 170),
+        "hair": (250, 195, 35),      # Bright golden hero hair
+        "body": (35, 90, 215),       # Royal blue hero tunic
+        "legs": (60, 50, 45),        # Dark adventurer trousers
+        "boots": (110, 65, 30),      # Sturdy leather boots
+        "weapon": (240, 245, 255),   # Shining hero steel blade
+        "shield": (220, 170, 40)     # Gold-edged hero shield
+    }
+    _cache_humanoid_entity("player", p_colors, hat_type="hero_circlet", cape_color=(200, 35, 45), accessory="hero_crest")
+
+    # 2. UNIQUE STORY NPCS
+    _cache_humanoid_entity("npc_eldrin", {
+        "skin": (235, 190, 150), "hair": (210, 215, 220), "body": (25, 40, 80), "legs": (20, 25, 45), "boots": (40, 35, 30)
+    }, hat_type="crown_band", accessory="staff_sapphire")
+
+    _cache_humanoid_entity("npc_silas", {
+        "skin": (240, 195, 155), "hair": (70, 45, 25), "body": (110, 30, 120), "legs": (60, 20, 70), "boots": (80, 50, 30)
+    }, hat_type="feathered", accessory="gold_pouch")
+
+    _cache_humanoid_entity("npc_dennis", {
+        "skin": (230, 175, 135), "hair": (50, 35, 20), "body": (140, 80, 40), "legs": (80, 55, 35), "boots": (50, 35, 25)
+    }, accessory="apron")
+
+    _cache_humanoid_entity("npc_faye", {
+        "skin": (245, 200, 160), "hair": (180, 100, 40), "body": (35, 90, 50), "legs": (50, 70, 40), "boots": (40, 30, 20)
+    }, hat_type="hood", cape_color=(20, 60, 35), accessory="bow_quiver")
+
+    _cache_humanoid_entity("npc_mira", {
+        "skin": (250, 210, 175), "hair": (220, 220, 230), "body": (30, 110, 120), "legs": (20, 60, 70), "boots": (40, 35, 40)
+    }, accessory="grimoire")
+
+    _cache_humanoid_entity("npc_garth", {
+        "skin": (210, 165, 130), "hair": (80, 70, 60), "body": (100, 80, 60), "legs": (60, 50, 40), "boots": (40, 30, 25)
+    }, hat_type="lantern", accessory="pickaxe")
+
+    _cache_humanoid_entity("npc_kai", {
+        "skin": (235, 195, 155), "hair": (40, 40, 40), "body": (70, 130, 210), "legs": (50, 70, 120), "boots": (60, 65, 75)
+    }, hat_type="knight_helm", cape_color=(30, 70, 160), accessory="lion_shield")
+
+    _cache_humanoid_entity("npc_finn", {
+        "skin": (245, 205, 165), "hair": (200, 140, 40), "body": (190, 35, 45), "legs": (180, 140, 40), "boots": (70, 40, 30)
+    }, hat_type="feathered", accessory="lute")
+
+    _cache_humanoid_entity("npc_spirit", {
+        "skin": (160, 240, 255), "hair": (200, 250, 255), "body": (100, 210, 240), "legs": (80, 180, 220), "boots": (60, 150, 200)
+    }, accessory="star_halo")
+
+    # 3. GENERIC BACKGROUND VILLAGER VARIANTS
+    _cache_humanoid_entity("villager_male", {
+        "skin": (240, 195, 155), "hair": (90, 60, 35), "body": (120, 80, 50), "legs": (70, 50, 35), "boots": (50, 35, 25)
+    }, hat_type="straw")
+
+    _cache_humanoid_entity("villager_female", {
+        "skin": (250, 205, 165), "hair": (160, 80, 40), "body": (40, 120, 130), "legs": (30, 80, 90), "boots": (50, 35, 25)
+    })
+
+    _cache_humanoid_entity("guard_village", {
+        "skin": (230, 185, 145), "hair": (50, 40, 30), "body": (120, 125, 135), "legs": (70, 75, 85), "boots": (50, 52, 60)
+    }, hat_type="knight_helm")
+
+    _cache_humanoid_entity("hunter_forest", {
+        "skin": (235, 190, 150), "hair": (80, 50, 30), "body": (40, 80, 45), "legs": (50, 65, 40), "boots": (40, 30, 20)
+    }, hat_type="hood", accessory="bow_quiver")
+
+    # 4. MONSTERS / ENEMIES (REMODELED BADASS MONSTERS)
+    # A. Skeleton Executioner (Glowing red eyes, spiked horned helm, dark cape, bone scythe)
+    sk_colors = {
+        "skin": (230, 230, 235), "hair": COLOR_TRANSPARENT, "body": (35, 30, 40), "legs": (50, 45, 55), "boots": (25, 20, 30), "weapon": (200, 205, 215), "shield": COLOR_TRANSPARENT, "eye": (255, 30, 30)
+    }
+    _cache_humanoid_entity("skeleton", sk_colors, hat_type="horned_sk_helm", cape_color=(25, 20, 30), accessory="sk_scythe")
+
+    # B. Demonic Goblin Berserker (Fiendish green skin, glowing yellow eyes, bone war helm, toxic cleavers)
+    gob_colors = {
+        "skin": (65, 145, 55), "hair": (40, 30, 20), "body": (70, 40, 30), "legs": (90, 50, 30), "boots": (40, 25, 20), "weapon": (160, 165, 175), "shield": COLOR_TRANSPARENT, "eye": (255, 220, 0)
+    }
+    _cache_humanoid_entity("goblin", gob_colors, hat_type="goblin_war_helm", accessory="goblin_cleavers")
+
+    # C. Void Cultist Sorcerer (Shadow void hood, glowing cyan void eyes, dark purple robes, skull staff)
+    mage_colors = {
+        "skin": (25, 20, 35), "hair": COLOR_TRANSPARENT, "body": (30, 15, 50), "legs": (20, 10, 35), "boots": (15, 10, 25), "weapon": (180, 50, 240), "shield": COLOR_TRANSPARENT, "eye": (0, 240, 255)
+    }
+    _cache_humanoid_entity("mage", mage_colors, hat_type="void_hood", cape_color=(15, 10, 30), accessory="void_staff")
+
+    # D. Abyssal Death Knight (Spiked doom plate, glowing crimson visor slit, blood cape, doom shield)
+    knight_colors = {
+        "skin": (30, 32, 40), "hair": COLOR_TRANSPARENT, "body": (40, 42, 52), "legs": (35, 37, 45), "boots": (25, 27, 35), "weapon": (230, 235, 245), "shield": (30, 32, 40), "eye": (255, 40, 40)
+    }
+    _cache_humanoid_entity("knight", knight_colors, hat_type="doom_helm", cape_color=(140, 20, 30), accessory="doom_shield")
+
+    # 5. SLIME, WOLF & BOSS
+    _cache_slime_entity("slime", COLOR_GREEN)
+    _cache_slime_entity("slime_blue", COLOR_BLUE)
+    _cache_slime_entity("slime_red", COLOR_RED)
+    _cache_wolf_entity("wolf", (40, 42, 50))
+    _cache_boss_entity()
+
 def _cache_slime_entity(name: str, color: Tuple[int, int, int]) -> None:
-    """Generates bouncy slimes."""
+    """Generates corrupted badass elemental slimes with dark cores & glowing demonic eyes."""
     entity_assets[name] = {}
     sz = 48
     
@@ -730,16 +910,13 @@ def _cache_slime_entity(name: str, color: Tuple[int, int, int]) -> None:
             for f in range(num_frames):
                 surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
                 
-                # Squash and stretch based on state & frame
                 w_offset = 0
                 h_offset = 0
                 
                 if state == "idle":
-                    # Slow breathe
                     w_offset = int(math.sin(f * math.pi) * 3)
                     h_offset = -w_offset
                 elif state in ["walk", "attack"]:
-                    # Jump bounce
                     prog = f / num_frames
                     w_offset = -int(math.sin(prog * math.pi) * 4)
                     h_offset = int(math.sin(prog * math.pi) * 5)
@@ -751,34 +928,41 @@ def _cache_slime_entity(name: str, color: Tuple[int, int, int]) -> None:
                 rx, ry = 14 + w_offset, 10 + h_offset
                 
                 if state == "dead":
-                    # Puddle
                     rx, ry = 18, 4
                     cy = sz // 2 + 12
                     
-                # Body
+                # Corrupted Ooze Body
                 pygame.draw.ellipse(surf, color, (cx - rx, cy - ry, rx * 2, ry * 2))
-                # Inner highlight
-                light_color = tuple(min(255, c + 60) for c in color)
-                pygame.draw.ellipse(surf, light_color, (cx - rx + 4, cy - ry + 2, rx * 1.3, ry * 1.2))
                 
-                # Eyes (except from back)
+                # Dark Inner Core
+                dark_core = tuple(max(0, c - 60) for c in color)
+                pygame.draw.ellipse(surf, dark_core, (cx - rx + 5, cy - ry + 4, rx * 1.2, ry * 1.0))
+
+                # Floating Bone Core Fragment
+                pygame.draw.circle(surf, (220, 225, 230), (cx, cy + 2), 3)
+
+                # Glowing Demonic Slit Eyes
                 if direction != DIR_UP and state != "dead":
                     eye_x = cx
                     if direction == DIR_LEFT: eye_x -= 4
                     elif direction == DIR_RIGHT: eye_x += 4
                     
-                    pygame.draw.circle(surf, COLOR_BLACK, (eye_x - 3, cy - 2), 2)
-                    pygame.draw.circle(surf, COLOR_BLACK, (eye_x + 3, cy - 2), 2)
-                    pygame.draw.circle(surf, COLOR_WHITE, (eye_x - 4, cy - 3), 1)
-                    pygame.draw.circle(surf, COLOR_WHITE, (eye_x + 2, cy - 3), 1)
+                    eye_c = (255, 30, 30) if name == "slime_red" else ((0, 240, 255) if name == "slime_blue" else (255, 220, 0))
+                    pygame.draw.circle(surf, COLOR_BLACK, (eye_x - 3, cy - 2), 3)
+                    pygame.draw.circle(surf, COLOR_BLACK, (eye_x + 3, cy - 2), 3)
+                    pygame.draw.circle(surf, eye_c, (eye_x - 3, cy - 2), 2)
+                    pygame.draw.circle(surf, eye_c, (eye_x + 3, cy - 2), 2)
                     
                 frames_list.append(_create_outline(surf))
             entity_assets[name][state][direction] = frames_list
 
 def _cache_wolf_entity(name: str, color: Tuple[int, int, int]) -> None:
-    """Generates animated quadruped wolf sprites."""
+    """Generates animated Shadow Fenrir Dire Wolf with dark fur, spiked ridge & glowing blood-red eyes."""
     entity_assets[name] = {}
     sz = 48
+    
+    wolf_color = (40, 42, 50)
+    ridge_color = (180, 40, 40)
     
     states_frames = {
         "idle": 2,
@@ -794,58 +978,56 @@ def _cache_wolf_entity(name: str, color: Tuple[int, int, int]) -> None:
             frames_list = []
             for f in range(num_frames):
                 surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
-                
-                # Center coordinates
                 cx, cy = sz // 2, sz // 2 + 2
                 
-                # Animate body bounce
                 bounce = int(abs(math.sin(f * (math.pi / 2))) * 2) if state == "walk" else 0
-                
-                # Tail wag
                 tail_wag = int(math.sin(f * math.pi) * 3)
                 
-                # Render sideways vs frontways
                 if direction in [DIR_LEFT, DIR_RIGHT]:
                     flip = (direction == DIR_LEFT)
+                    # Spiked fur back ridge
+                    pygame.draw.polygon(surf, ridge_color, [(cx - 10, cy - 4 - bounce), (cx - 4, cy - 9 - bounce), (cx + 2, cy - 4 - bounce)])
                     # Body
-                    pygame.draw.rect(surf, color, (cx - 14, cy - 4 - bounce, 24, 10), border_radius=2)
+                    pygame.draw.rect(surf, wolf_color, (cx - 14, cy - 4 - bounce, 24, 10), border_radius=2)
                     # Head
-                    pygame.draw.circle(surf, color, (cx + 10 if not flip else cx - 10, cy - 6 - bounce), 6)
-                    # Snout
-                    pygame.draw.rect(surf, color, (cx + 14 if not flip else cx - 20, cy - 6 - bounce, 6, 4))
-                    # Ears
-                    pygame.draw.polygon(surf, color, [(cx + 8 if not flip else cx - 8, cy - 12 - bounce),
+                    pygame.draw.circle(surf, wolf_color, (cx + 10 if not flip else cx - 10, cy - 6 - bounce), 6)
+                    # Snout with sharp white fangs
+                    pygame.draw.rect(surf, wolf_color, (cx + 14 if not flip else cx - 20, cy - 6 - bounce, 6, 4))
+                    pygame.draw.polygon(surf, COLOR_WHITE, [(cx + 16 if not flip else cx - 18, cy - 2 - bounce), (cx + 18 if not flip else cx - 16, cy + 2 - bounce), (cx + 17 if not flip else cx - 17, cy - 2 - bounce)])
+                    # Spiked Ears
+                    pygame.draw.polygon(surf, ridge_color, [(cx + 8 if not flip else cx - 8, cy - 12 - bounce),
                                                       (cx + 11 if not flip else cx - 11, cy - 12 - bounce),
-                                                      (cx + 9 if not flip else cx - 9, cy - 17 - bounce)])
+                                                      (cx + 9 if not flip else cx - 9, cy - 18 - bounce)])
                     # Tail
-                    pygame.draw.line(surf, color, (cx - 14 if not flip else cx + 10, cy - 4 - bounce),
+                    pygame.draw.line(surf, wolf_color, (cx - 14 if not flip else cx + 10, cy - 4 - bounce),
                                      (cx - 20 if not flip else cx + 16, cy - 8 - bounce + tail_wag), 3)
                     # Legs
                     leg_offset = 4 if (f % 2 == 0) else -4
-                    # Front leg & back leg
-                    pygame.draw.line(surf, color, (cx + 8 if not flip else cx - 8, cy + 6 - bounce), (cx + 8 + leg_offset if not flip else cx - 8 - leg_offset, cy + 12), 3)
-                    pygame.draw.line(surf, color, (cx - 8 if not flip else cx + 8, cy + 6 - bounce), (cx - 8 - leg_offset if not flip else cx + 8 + leg_offset, cy + 12), 3)
+                    pygame.draw.line(surf, wolf_color, (cx + 8 if not flip else cx - 8, cy + 6 - bounce), (cx + 8 + leg_offset if not flip else cx - 8 - leg_offset, cy + 12), 3)
+                    pygame.draw.line(surf, wolf_color, (cx - 8 if not flip else cx + 8, cy + 6 - bounce), (cx - 8 - leg_offset if not flip else cx + 8 + leg_offset, cy + 12), 3)
                     
-                    # Eyes
+                    # Glowing Blood-Red Demon Eyes
                     eye_x = cx + 11 if not flip else cx - 11
-                    pygame.draw.rect(surf, COLOR_YELLOW, (eye_x, cy - 8 - bounce, 2, 2))
-                else: # DIR_UP or DIR_DOWN
+                    pygame.draw.rect(surf, (255, 30, 30), (eye_x, cy - 8 - bounce, 3, 2))
+                else:
                     # Body front facing
-                    pygame.draw.rect(surf, color, (cx - 8, cy - 2 - bounce, 16, 12), border_radius=2)
-                    pygame.draw.circle(surf, color, (cx, cy - 6 - bounce), 6)
-                    # Ears
-                    pygame.draw.polygon(surf, color, [(cx - 6, cy - 10 - bounce), (cx - 3, cy - 10 - bounce), (cx - 5, cy - 15 - bounce)])
-                    pygame.draw.polygon(surf, color, [(cx + 3, cy - 10 - bounce), (cx + 6, cy - 10 - bounce), (cx + 5, cy - 15 - bounce)])
+                    pygame.draw.rect(surf, wolf_color, (cx - 8, cy - 2 - bounce, 16, 12), border_radius=2)
+                    pygame.draw.circle(surf, wolf_color, (cx, cy - 6 - bounce), 6)
+                    # Spiked Ears
+                    pygame.draw.polygon(surf, ridge_color, [(cx - 6, cy - 10 - bounce), (cx - 3, cy - 10 - bounce), (cx - 5, cy - 16 - bounce)])
+                    pygame.draw.polygon(surf, ridge_color, [(cx + 3, cy - 10 - bounce), (cx + 6, cy - 10 - bounce), (cx + 5, cy - 16 - bounce)])
                     
                     # Legs
                     leg_offset = 3 if (f % 2 == 0) else -3
-                    pygame.draw.line(surf, color, (cx - 5, cy + 10 - bounce), (cx - 5, cy + 14 - bounce + leg_offset), 3)
-                    pygame.draw.line(surf, color, (cx + 5, cy + 10 - bounce), (cx + 5, cy + 14 - bounce - leg_offset), 3)
+                    pygame.draw.line(surf, wolf_color, (cx - 5, cy + 10 - bounce), (cx - 5, cy + 14 - bounce + leg_offset), 3)
+                    pygame.draw.line(surf, wolf_color, (cx + 5, cy + 10 - bounce), (cx + 5, cy + 14 - bounce - leg_offset), 3)
                     
                     if direction == DIR_DOWN:
-                        # Yellow wolf eyes
-                        pygame.draw.circle(surf, COLOR_YELLOW, (cx - 2, cy - 7 - bounce), 1)
-                        pygame.draw.circle(surf, COLOR_YELLOW, (cx + 2, cy - 7 - bounce), 1)
+                        # Glowing Blood-Red Demon Eyes & Fangs
+                        pygame.draw.circle(surf, (255, 30, 30), (cx - 3, cy - 7 - bounce), 2)
+                        pygame.draw.circle(surf, (255, 30, 30), (cx + 3, cy - 7 - bounce), 2)
+                        pygame.draw.line(surf, COLOR_WHITE, (cx - 2, cy - 3 - bounce), (cx - 2, cy - 1 - bounce), 2)
+                        pygame.draw.line(surf, COLOR_WHITE, (cx + 2, cy - 3 - bounce), (cx + 2, cy - 1 - bounce), 2)
 
                 if state == "hurt":
                     surf.fill((255, 100, 100, 100), special_flags=pygame.BLEND_RGBA_MULT)

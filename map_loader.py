@@ -109,6 +109,9 @@ class MapGenerator:
             npcs.append({"type": "eldrin", "pos": (6.5 * TILE_SIZE, 10 * TILE_SIZE)})
             npcs.append({"type": "dennis", "pos": ((w - 7) * TILE_SIZE, 10 * TILE_SIZE)})
             npcs.append({"type": "silas", "pos": (6.5 * TILE_SIZE, (h - 11) * TILE_SIZE)})
+            npcs.append({"type": "villager_male", "pos": (12 * TILE_SIZE, 14 * TILE_SIZE)})
+            npcs.append({"type": "villager_female", "pos": (14 * TILE_SIZE, 14 * TILE_SIZE)})
+            npcs.append({"type": "guard_village", "pos": ((w // 2) * TILE_SIZE, 4 * TILE_SIZE)})
 
             # Chest
             chests.append({"pos": (12 * TILE_SIZE, 5 * TILE_SIZE), "loot": [("Baked Bread", 2), ("Red Potion", 1)]})
@@ -191,6 +194,8 @@ class MapGenerator:
                 enemies.append({"type": "slime", "pos": _rand_pixel_pos(w, h, "grass", grid)})
             for _ in range(3):
                 enemies.append({"type": "wolf", "pos": _rand_pixel_pos(w, h, "grass", grid)})
+            # Mini-boss: Forest Guardian (required for MAP_CAVE unlock)
+            enemies.append({"type": "forest_guardian", "pos": ((w - 5) * TILE_SIZE, (h - 5) * TILE_SIZE)})
 
             # Apples chest (rebalanced quantity)
             chests.append({"pos": (5 * TILE_SIZE, 6 * TILE_SIZE), "loot": [("Forest Apple", 3)]})
@@ -252,6 +257,8 @@ class MapGenerator:
                 enemies.append({"type": "skeleton", "pos": _rand_pixel_pos(w, h, "dirt", grid)})
             for _ in range(3):
                 enemies.append({"type": "goblin", "pos": _rand_pixel_pos(w, h, "dirt", grid)})
+            # Mini-boss: Bandit Warlord (required for MAP_RUINS unlock)
+            enemies.append({"type": "bandit_leader", "pos": ((w - 6) * TILE_SIZE, (h // 2) * TILE_SIZE)})
 
             # Chest with scroll/shield
             chests.append({"pos": (w // 3 * TILE_SIZE, h // 4 * TILE_SIZE), "loot": [("Ancient Scroll", 1), ("Iron Ore", 3)]})

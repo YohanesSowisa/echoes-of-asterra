@@ -83,6 +83,9 @@ class UIManager:
         self.settings_select_idx = 0
         self.settings_options = ["Music Volume", "SFX Volume", "Display Mode", "Target FPS", "Back to Menu"]
 
+        # Progression / Exploration log selection index
+        self.progression_select_idx = 0
+
         # Tooltip item hovering cache
         self.hovered_item: Optional[Any] = None
         self.hovered_rect: Optional[pygame.Rect] = None
@@ -162,6 +165,48 @@ class UIManager:
             "large": pygame.font.SysFont("Arial", 28, bold=True),
             "title": pygame.font.SysFont("Arial", 48, bold=True)
         }
+
+    def _render_wrapped_text(
+        self,
+        surface: pygame.Surface,
+        text: str,
+        font: pygame.font.Font,
+        color: Tuple[int, int, int],
+        x: int,
+        y: int,
+        max_width: int,
+        line_spacing: int = 18
+    ) -> int:
+        """Renders multi-line wrapped text with clean newline support without ballooning blank line height."""
+        paragraphs = text.split("\n")
+        curr_y = y
+        
+        for para in paragraphs:
+            para_str = para.strip()
+            if not para_str:
+                curr_y += 6
+                continue
+                
+            words = para_str.split(" ")
+            current_line = []
+            for word in words:
+                test_line = " ".join(current_line + [word])
+                if font.size(test_line)[0] <= max_width:
+                    current_line.append(word)
+                else:
+                    if current_line:
+                        line_txt = " ".join(current_line)
+                        surf = font.render(line_txt, True, color)
+                        surface.blit(surf, (x, curr_y))
+                        curr_y += line_spacing
+                    current_line = [word]
+            if current_line:
+                line_txt = " ".join(current_line)
+                surf = font.render(line_txt, True, color)
+                surface.blit(surf, (x, curr_y))
+                curr_y += line_spacing
+                
+        return curr_y
 
     def toggle_panel(self, panel_name: str) -> None:
         """Toggles visibility of an RPG panel (inventory, character, quests, crafting, progression). Enforces exclusive single active panel."""
@@ -997,7 +1042,7 @@ class UIManager:
     # --- CHARACTER PANEL ---
 
     def draw_character_panel(self, surface: pygame.Surface, player: Any) -> None:
-        """Renders equipment gear sockets, stats listings, and tabbed faction/NPC standings."""
+        """Renders equipment gear sockets, stats listings, and tabbed faction/NPC standings/town dashboard."""
         # Panel Coordinates (Centered)
         cw, ch = 680, 460
         cx = (SCREEN_WIDTH - cw) // 2
@@ -1014,7 +1059,7 @@ class UIManager:
         surface.blit(hdr, (cx + 16, cy + 16))
 
         # Close label & Nav hint
-        cls = self.fonts["small"].render("[A/D/Tab] Switch Tabs | [C] Close", True, COLOR_GRAY)
+        cls = self.fonts["small"].render("[1/2/3/Tab] Tabs | [C] Close", True, COLOR_GRAY)
         surface.blit(cls, (cx + cw - cls.get_width() - 16, cy + 18))
 
         # Draw Equipment Slots
@@ -1084,37 +1129,44 @@ class UIManager:
         
         active_tab = getattr(self, "active_char_tab", "factions")
         
-        # Tab Buttons
-        tab1_rect = pygame.Rect(tab_x, tab_y, 120, 28)
-        tab2_rect = pygame.Rect(tab_x + 130, tab_y, 120, 28)
+        # 3 Tab Buttons (Factions, Social, Town)
+        tab1_rect = pygame.Rect(tab_x, tab_y, 85, 26)
+        tab2_rect = pygame.Rect(tab_x + 90, tab_y, 85, 26)
+        tab3_rect = pygame.Rect(tab_x + 180, tab_y, 85, 26)
         
-        t1_bg = COLOR_UI_HIGHLIGHT if active_tab == "factions" else (40, 42, 50)
-        t1_fg = COLOR_BLACK if active_tab == "factions" else COLOR_WHITE
-        pygame.draw.rect(surface, t1_bg, tab1_rect, border_radius=4)
-        pygame.draw.rect(surface, COLOR_UI_BORDER, tab1_rect, 1, border_radius=4)
-        lbl1 = self.fonts["small"].render("Factions", True, t1_fg)
-        surface.blit(lbl1, (tab_x + 60 - lbl1.get_width() // 2, tab_y + 6))
+        for t_idx, (t_rect, t_id, t_lbl_str) in enumerate([
+            (tab1_rect, "factions", "Factions"),
+            (tab2_rect, "social", "Social"),
+            (tab3_rect, "town", "Town")
+        ]):
+            t_bg = COLOR_UI_HIGHLIGHT if active_tab == t_id else (40, 42, 50)
+            t_fg = COLOR_BLACK if active_tab == t_id else COLOR_WHITE
+            pygame.draw.rect(surface, t_bg, t_rect, border_radius=4)
+            pygame.draw.rect(surface, COLOR_UI_BORDER, t_rect, 1, border_radius=4)
+            lbl = self.fonts["small"].render(t_lbl_str, True, t_fg)
+            surface.blit(lbl, (t_rect.centerx - lbl.get_width() // 2, t_rect.centery - lbl.get_height() // 2))
         
-        t2_bg = COLOR_UI_HIGHLIGHT if active_tab == "social" else (40, 42, 50)
-        t2_fg = COLOR_BLACK if active_tab == "social" else COLOR_WHITE
-        pygame.draw.rect(surface, t2_bg, tab2_rect, border_radius=4)
-        pygame.draw.rect(surface, COLOR_UI_BORDER, tab2_rect, 1, border_radius=4)
-        lbl2 = self.fonts["small"].render("NPC Social", True, t2_fg)
-        surface.blit(lbl2, (tab_x + 190 - lbl2.get_width() // 2, tab_y + 6))
-        
-        content_y = tab_y + 36
+        content_y = tab_y + 34
 
-        # TAB 1: FACTIONS
+        # TAB 1: FACTIONS & PERKS
         if active_tab == "factions":
             if hasattr(player, "game") and hasattr(player.game, "factions"):
                 fm = player.game.factions
+                perk_descriptions = {
+                    "knights": "Perk: Road Safety + Patrol Escorts",
+                    "mages": "Perk: Mana Regeneration + Arcane Items",
+                    "hunters": "Perk: Beast Drops x2 + Alpine Pass",
+                    "merchants": "Perk: Trade Discount (up to -20%)",
+                    "bandits": "Perk: Black Market Gear",
+                    "cultists": "Perk: Dark Alchemy Ingredients"
+                }
                 for idx, (f_id, fac_data) in enumerate(fm.factions.items()):
-                    y_pos = content_y + idx * 56
+                    y_pos = content_y + idx * 58
                     fn_lbl = self.fonts["small"].render(fac_data.name, True, COLOR_WHITE)
                     surface.blit(fn_lbl, (tab_x, y_pos))
                     
-                    bar_w, bar_h = 260, 10
-                    bx, by = tab_x, y_pos + 18
+                    bar_w, bar_h = 260, 8
+                    bx, by = tab_x, y_pos + 16
                     pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
                     pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
                     
@@ -1122,8 +1174,9 @@ class UIManager:
                     bar_color = (60, 200, 80) if fac_data.reputation >= 0 else (220, 60, 60)
                     pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
                     
-                    st_lbl = self.fonts["small"].render(f"{fac_data.standing.title()} ({fac_data.reputation})", True, COLOR_GRAY)
-                    surface.blit(st_lbl, (tab_x, by + 12))
+                    perk_txt = perk_descriptions.get(f_id, "")
+                    st_lbl = self.fonts["small"].render(f"{fac_data.standing.title()} ({fac_data.reputation:+d}) - {perk_txt}", True, COLOR_GRAY)
+                    surface.blit(st_lbl, (tab_x, by + 10))
 
         # TAB 2: NPC SOCIAL DIRECTORY
         elif active_tab == "social":
@@ -1149,9 +1202,45 @@ class UIManager:
                     pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
                     pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
 
-                    norm_ratio = max(0.0, min(1.0, (rel_val + 100) / 200.0))
-                    bar_color = (100, 200, 255) if rel_val >= 0 else (250, 100, 100)
-                    pygame.draw.rect(surface, bar_color, (bx, by, int(bar_w * norm_ratio), bar_h), border_radius=2)
+        # TAB 3: TOWN INFRASTRUCTURE DASHBOARD
+        elif active_tab == "town":
+            if hasattr(player, "game") and hasattr(player.game, "living_world"):
+                st = player.game.living_world.settlement
+                
+                # Prosperity Header Card
+                prosp_lbl = self.fonts["medium"].render(f"Village Prosperity: {st.prosperity:.1f} / 100", True, COLOR_UI_HIGHLIGHT)
+                tier_lbl = self.fonts["small"].render(f"Settlement Growth: Tier {st.growth_tier}", True, COLOR_WHITE)
+                surface.blit(prosp_lbl, (tab_x, content_y))
+                surface.blit(tier_lbl, (tab_x, content_y + 20))
+                
+                # Prosperity Bar
+                bar_w, bar_h = 260, 10
+                bx, by = tab_x, content_y + 38
+                pygame.draw.rect(surface, (30, 32, 40), (bx, by, bar_w, bar_h), border_radius=2)
+                pygame.draw.rect(surface, COLOR_UI_BORDER, (bx, by, bar_w, bar_h), 1, border_radius=2)
+                p_ratio = min(1.0, max(0.0, st.prosperity / 100.0))
+                pygame.draw.rect(surface, (240, 200, 40), (bx, by, int(bar_w * p_ratio), bar_h), border_radius=2)
+
+                # Funded Investments List
+                inv_hdr = self.fonts["small"].render("Infrastructure & Investments:", True, COLOR_LIGHT_GRAY)
+                surface.blit(inv_hdr, (tab_x, content_y + 56))
+
+                all_investments = [
+                    ("silas_market", "Silas Royal Market (-20% Shop Tax)"),
+                    ("watchtower", "Village Watchtower (Raid Shield)"),
+                    ("master_forge", "Dennis Master Forge (Tier 2 Gear)"),
+                    ("bridge_rebuilt", "Northern Stone Bridge (Lake Access)"),
+                    ("watchtower_built", "Road Watchtower (Cavern Access)")
+                ]
+
+                for idx, (inv_id, inv_name) in enumerate(all_investments):
+                    iy = content_y + 76 + idx * 24
+                    is_done = st.is_investment_completed(inv_id) or st.upgrades.get(inv_id, False)
+                    status_str = "[ACTIVE]" if is_done else "[NOT BUILT]"
+                    status_c = (60, 200, 80) if is_done else COLOR_GRAY
+                    
+                    lbl = self.fonts["small"].render(f"{status_str} {inv_name}", True, status_c)
+                    surface.blit(lbl, (tab_x, iy))
 
     # --- QUEST LOG PANEL ---
 
@@ -1508,14 +1597,40 @@ class UIManager:
     # --- DIALOGUE WINDOW ---
 
     def draw_dialogue_box(self, surface: pygame.Surface, dialogue_manager: Any) -> None:
-        """Typing dialogue node panel at screen bottom with dynamic height and vertical choices list."""
+        """Typing dialogue node panel at screen bottom with dynamic height, sprite portrait, and collision-free choices list."""
         node = dialogue_manager.current_node
         if not node:
             return
-            
-        n_choices = len(node.choices) if (dialogue_manager.typing_finished and node.choices) else 0
+
         dw = SCREEN_WIDTH - 80
-        dh = 160 + max(0, n_choices * 36)
+        max_txt_w = dw - 180
+        
+        # Word wrap visible dialogue text with clean paragraph newline handling
+        raw_paragraphs = dialogue_manager.visible_text.split("\n")
+        lines = []
+        for para in raw_paragraphs:
+            p_str = para.strip()
+            if not p_str:
+                continue
+            words = p_str.split(" ")
+            curr_line = []
+            for w in words:
+                test_line = " ".join(curr_line + [w])
+                if self.fonts["small"].size(test_line)[0] <= max_txt_w:
+                    curr_line.append(w)
+                else:
+                    if curr_line:
+                        lines.append(" ".join(curr_line))
+                    curr_line = [w]
+            if curr_line:
+                lines.append(" ".join(curr_line))
+
+        n_choices = len(node.choices) if (dialogue_manager.typing_finished and node.choices) else 0
+        text_h = len(lines) * 20
+        choices_h = n_choices * 34 + (10 if n_choices > 0 else 0)
+        
+        # Dynamic panel height calculation to guarantee zero text/choice overlap
+        dh = max(160, 48 + text_h + 16 + choices_h + 16)
         dx = 40
         dy = SCREEN_HEIGHT - dh - 20
         
@@ -1523,64 +1638,70 @@ class UIManager:
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
 
-        # Draw speaker portrait socket (Procedural avatar shape)
+        # ESC Leave hint badge at top-right of dialogue box
+        esc_lbl = self.fonts["small"].render("[ESC] Leave", True, COLOR_GRAY)
+        surface.blit(esc_lbl, (dx + dw - esc_lbl.get_width() - 16, dy + 16))
+
+        # Speaker portrait socket
         px, py = dx + 20, dy + 20
         pw, ph = 120, 120
         pygame.draw.rect(surface, COLOR_DARK_GRAY, (px, py, pw, ph), border_radius=4)
         pygame.draw.rect(surface, COLOR_UI_BORDER, (px, py, pw, ph), 1, border_radius=4)
         
-        # Simple face avatar
-        pygame.draw.circle(surface, (230, 180, 140), (px + 60, py + 60), 30)
-        pygame.draw.circle(surface, (120, 80, 40), (px + 60, py + 52), 34, 4) # Hair
-        pygame.draw.circle(surface, COLOR_BLACK, (px + 50, py + 56), 3) # Eyes
-        pygame.draw.circle(surface, COLOR_BLACK, (px + 70, py + 56), 3)
-        pygame.draw.circle(surface, COLOR_RED, (px + 60, py + 72), 6, 2) # Mouth
+        # Draw actual NPC sprite portrait if available
+        name_str = node.speaker_name
+        short_id = name_str.split()[-1].lower()
+        asset_map = {
+            "eldrin": "npc_eldrin", "silas": "npc_silas", "dennis": "npc_dennis",
+            "faye": "npc_faye", "mira": "npc_mira", "garth": "npc_garth",
+            "kai": "npc_kai", "finn": "npc_finn", "spirit": "npc_spirit"
+        }
+        key = asset_map.get(short_id)
+        npc_img = None
+        if key:
+            from rpg.animation import entity_assets
+            from rpg.constants import DIR_DOWN
+            frames = entity_assets.get(key, {}).get("idle", {}).get(DIR_DOWN)
+            if frames:
+                npc_img = frames[0]
+
+        if npc_img:
+            scaled = pygame.transform.smoothscale(npc_img, (96, 96))
+            surface.blit(scaled, (px + 12, py + 12))
+        else:
+            # Stylized avatar fallback
+            pygame.draw.circle(surface, (230, 180, 140), (px + 60, py + 60), 30)
+            pygame.draw.circle(surface, (120, 80, 40), (px + 60, py + 52), 34, 4)
+            pygame.draw.circle(surface, COLOR_BLACK, (px + 50, py + 56), 3)
+            pygame.draw.circle(surface, COLOR_BLACK, (px + 70, py + 56), 3)
+            pygame.draw.circle(surface, COLOR_RED, (px + 60, py + 72), 6, 2)
 
         # Speaker Name & Relationship Standing Badge
-        name_str = node.speaker_name
         rel_suffix = ""
         if hasattr(dialogue_manager, "game") and hasattr(dialogue_manager.game, "npc_memory"):
-            short_id = name_str.split()[-1]
-            mem = dialogue_manager.game.npc_memory.get_memory(short_id)
+            mem = dialogue_manager.game.npc_memory.get_memory(short_id.title())
             rel_level = mem.friendship_level.replace("_", " ").title()
             rel_suffix = f" [{rel_level}]"
             
         name_lbl = self.fonts["medium"].render(name_str + rel_suffix, True, COLOR_UI_HIGHLIGHT)
         surface.blit(name_lbl, (dx + 160, dy + 18))
 
-        # Dialogue text spelling with clean newline & word-wrap support
+        # Render ALL wrapped text lines dynamically
         txt_y = dy + 44
-        raw_paragraphs = dialogue_manager.visible_text.split("\n")
-        lines = []
-        
-        for para in raw_paragraphs:
-            words = para.split(" ")
-            curr_line = ""
-            for w in words:
-                test_line = curr_line + w + " "
-                if self.fonts["small"].size(test_line)[0] < dw - 180:
-                    curr_line = test_line
-                else:
-                    if curr_line.strip():
-                        lines.append(curr_line.strip())
-                    curr_line = w + " "
-            if curr_line.strip():
-                lines.append(curr_line.strip())
-        
-        for idx, line in enumerate(lines[:3]):
+        for idx, line in enumerate(lines):
             lbl = self.fonts["small"].render(line, True, COLOR_WHITE)
             surface.blit(lbl, (dx + 160, txt_y + idx * 20))
 
-        # Render choices in a clean VERTICAL STACKED LIST
+        # Choices list starts cleanly BELOW the last line of text
         if dialogue_manager.typing_finished and node.choices:
             choice_x = dx + 160
             choice_w = dw - 180
-            choice_start_y = dy + 92
+            choice_start_y = txt_y + text_h + 12
             m_pos = pygame.mouse.get_pos()
             
-            for idx, choice in enumerate(node.choices[:4]):
-                cy = choice_start_y + idx * 36
-                choice_rect = pygame.Rect(choice_x, cy, choice_w, 32)
+            for idx, choice in enumerate(node.choices):
+                cy = choice_start_y + idx * 34
+                choice_rect = pygame.Rect(choice_x, cy, choice_w, 30)
                 
                 if choice_rect.collidepoint(m_pos):
                     dialogue_manager.selected_choice_idx = idx
@@ -1593,7 +1714,7 @@ class UIManager:
                 pygame.draw.rect(surface, COLOR_UI_BORDER, choice_rect, 1, border_radius=4)
                 
                 lbl = self.fonts["small"].render(choice.text, True, text_c)
-                surface.blit(lbl, (choice_x + 12, cy + 16 - lbl.get_height() // 2))
+                surface.blit(lbl, (choice_x + 12, cy + 15 - lbl.get_height() // 2))
         elif dialogue_manager.typing_finished:
             hint = self.fonts["small"].render("[Space/Enter] Continue", True, COLOR_GRAY)
             surface.blit(hint, (dx + dw - hint.get_width() - 20, dy + dh - 24))
@@ -1975,23 +2096,21 @@ class UIManager:
                 self.pause_select_idx = self.selected_slot_idx
 
     def draw_exploration_log_panel(self, surface: pygame.Surface, game: Any) -> None:
-        """
-        Renders the Region Exploration Log & Progression Journal panel ('R' key toggle).
-        Displays region states, rumors, narrative unlock paths, region identities, and mastery trackers.
-        """
-        lw = getattr(game, "living_world", None)
-        prog_mgr = getattr(lw, "progression", None) if lw else None
-        
-        if not prog_mgr or not hasattr(prog_mgr, "regions"):
+        """Renders Region Exploration Log & Progression Panel [R]."""
+        if "progression" not in self.open_panels or not game:
+            return
+            
+        prog_mgr = getattr(getattr(game, "living_world", None), "progression", None) if hasattr(game, "living_world") else None
+        if not prog_mgr:
             return
 
-        w, h = 740, 500
+        w, h = 740, 490
         x = (SCREEN_WIDTH - w) // 2
         y = (SCREEN_HEIGHT - h) // 2
-
-        # 1. Dark translucent backdrop
+        
+        # 1. Overlay & Panel Frame
         overlay = pygame.Surface((w, h), pygame.SRCALPHA)
-        overlay.fill((16, 20, 30, 240))
+        overlay.fill((16, 20, 30, 245))
         surface.blit(overlay, (x, y))
         
         # Outer Border
@@ -2001,19 +2120,19 @@ class UIManager:
         pygame.draw.rect(surface, (25, 38, 56), (x, y, w, 38), border_top_left_radius=6, border_top_right_radius=6)
         pygame.draw.line(surface, (0, 180, 216), (x, y + 38), (x + w, y + 38), width=1)
         
-        title_surf = self.fonts["large"].render("[R] REGION EXPLORATION LOG & WORLD PROGRESSION", True, (255, 215, 0))
-        surface.blit(title_surf, (x + 16, y + 6))
+        title_surf = self.fonts["medium"].render("[R] REGION EXPLORATION LOG & WORLD PROGRESSION", True, (255, 215, 0))
+        surface.blit(title_surf, (x + 14, y + 9))
         
-        close_txt = self.fonts["small"].render("Press [R] or [ESC] to Close", True, (160, 200, 220))
-        surface.blit(close_txt, (x + w - close_txt.get_width() - 16, y + 12))
+        close_txt = self.fonts["small"].render("[R] / [ESC] Close", True, (160, 200, 220))
+        surface.blit(close_txt, (x + w - close_txt.get_width() - 14, y + 12))
 
         # 2. Left Column: Region List Selection
         regions_list = list(prog_mgr.regions.values())
         if self.progression_select_idx >= len(regions_list):
             self.progression_select_idx = 0
             
-        list_x = x + 16
-        list_y = y + 50
+        list_x = x + 14
+        list_y = y + 48
         list_w = 210
         
         state_badge_colors = {
@@ -2054,10 +2173,10 @@ class UIManager:
             surface.blit(badge_surf, (list_x + 10, list_y + idx * 68 + 34))
 
         # 3. Right Column: Detailed Exploration Log Card
-        detail_x = x + 236
-        detail_y = y + 50
-        detail_w = 488
-        detail_h = 434
+        detail_x = x + 234
+        detail_y = y + 48
+        detail_w = 492
+        detail_h = 432
         
         sel_reg = regions_list[self.progression_select_idx]
         
@@ -2066,7 +2185,7 @@ class UIManager:
         surface.blit(card_bg, (detail_x, detail_y))
         pygame.draw.rect(surface, (0, 180, 216), (detail_x, detail_y, detail_w, detail_h), width=1, border_radius=4)
 
-        curr_y = detail_y + 14
+        curr_y = detail_y + 12
         
         if sel_reg.state.value == "unknown":
             # Secret / Unrevealed region
@@ -2085,25 +2204,23 @@ class UIManager:
         st_col = state_badge_colors.get(sel_reg.state.value, (180, 180, 180))
         st_surf = self.fonts["medium"].render(f"[{st_val}]", True, st_col)
         surface.blit(st_surf, (detail_x + detail_w - st_surf.get_width() - 16, curr_y + 4))
-        curr_y += 34
+        curr_y += 32
         
         pygame.draw.line(surface, (50, 70, 95), (detail_x + 16, curr_y), (detail_x + detail_w - 16, curr_y), 1)
-        curr_y += 10
+        curr_y += 8
 
-        # Lore / Description
-        lore_lbl = self.fonts["small"].render(f"Lore: {sel_reg.narrative_lore}", True, (200, 220, 240))
-        surface.blit(lore_lbl, (detail_x + 16, curr_y))
-        curr_y += 22
+        # Lore / Description (Wrapped)
+        curr_y = self._render_wrapped_text(surface, f"Lore: {sel_reg.narrative_lore}", self.fonts["small"], (200, 220, 240), detail_x + 16, curr_y, detail_w - 32, 16)
+        curr_y += 4
 
-        # Known Rumor
-        rumor_lbl = self.fonts["small"].render(f"Rumor: \"{sel_reg.rumor}\"", True, (240, 200, 40))
-        surface.blit(rumor_lbl, (detail_x + 16, curr_y))
-        curr_y += 26
+        # Known Rumor (Wrapped)
+        curr_y = self._render_wrapped_text(surface, f"Rumor: \"{sel_reg.rumor}\"", self.fonts["small"], (240, 200, 40), detail_x + 16, curr_y, detail_w - 32, 16)
+        curr_y += 8
 
         # Region Identity Metadata Box
         ident_hdr = self.fonts["medium"].render("Region Identity & Atmosphere:", True, (0, 180, 216))
         surface.blit(ident_hdr, (detail_x + 16, curr_y))
-        curr_y += 20
+        curr_y += 18
         
         ident = sel_reg.identity
         ident_lines = [
@@ -2112,63 +2229,62 @@ class UIManager:
             f" • Dominant Fauna/Enemies: {', '.join(ident.enemies[:3])}"
         ]
         for il in ident_lines:
-            il_surf = self.fonts["small"].render(il, True, (170, 190, 210))
-            surface.blit(il_surf, (detail_x + 20, curr_y))
-            curr_y += 18
+            curr_y = self._render_wrapped_text(surface, il, self.fonts["small"], (170, 190, 210), detail_x + 20, curr_y, detail_w - 40, 16)
             
-        curr_y += 10
+        curr_y += 8
         
         # Narrative Progress & Unlock Vectors Box
         req_hdr = self.fonts["medium"].render("Narrative Unlock Requirements & Progress:", True, (0, 180, 216))
         surface.blit(req_hdr, (detail_x + 16, curr_y))
-        curr_y += 22
+        curr_y += 18
 
         from rpg.progression import RegionState
         if sel_reg.state in [RegionState.UNLOCKED, RegionState.MASTERED] or getattr(sel_reg.state, "value", sel_reg.state) in ["unlocked", "mastered"]:
             unl_lbl = self.fonts["medium"].render("✓ Region path is fully open and accessible!", True, (60, 200, 80))
             surface.blit(unl_lbl, (detail_x + 20, curr_y))
-            curr_y += 26
+            curr_y += 22
         else:
             for grp in sel_reg.requirement_groups:
                 grp_desc = f"Path Vector ({grp.description}):"
                 g_surf = self.fonts["small"].render(grp_desc, True, (255, 215, 0))
                 surface.blit(g_surf, (detail_x + 20, curr_y))
-                curr_y += 18
+                curr_y += 16
                 for req in grp.requirements:
                     req_met = prog_mgr.evaluate_requirement(req, game)
                     icon_str = "[✓]" if req_met else "[✗]"
                     col = (60, 200, 80) if req_met else (230, 120, 30)
                     r_text = f"  {icon_str} {req.narrative_clue}"
-                    r_surf = self.fonts["small"].render(r_text, True, col)
-                    surface.blit(r_surf, (detail_x + 24, curr_y))
-                    curr_y += 18
+                    curr_y = self._render_wrapped_text(surface, r_text, self.fonts["small"], col, detail_x + 24, curr_y, detail_w - 48, 16)
             curr_y += 6
 
         # Region Mastery Progress Box
         m_hdr = self.fonts["medium"].render("Region Exploration Mastery:", True, (255, 215, 0))
         surface.blit(m_hdr, (detail_x + 16, curr_y))
-        curr_y += 20
+        curr_y += 18
         
         mastery = sel_reg.mastery
         
-        # Draw Progress Bar
-        bar_w = 400
-        bar_h = 14
+        # Text details above progress bar
+        m_details = f"Landmarks: {mastery.landmarks_found}/{mastery.max_landmarks}  |  Elites: {mastery.elites_culled}/{mastery.max_elites}  |  Secrets: {mastery.secrets_found}/{mastery.max_secrets}"
+        md_surf = self.fonts["small"].render(m_details, True, (180, 200, 220))
+        surface.blit(md_surf, (detail_x + 20, curr_y))
+        curr_y += 16
+
+        # Draw Progress Bar below text
+        bar_w = 440
+        bar_h = 10
         bar_x = detail_x + 20
         pygame.draw.rect(surface, (30, 40, 55), (bar_x, curr_y, bar_w, bar_h), border_radius=3)
         fill_w = int(bar_w * (mastery.exploration_percent / 100.0))
         if fill_w > 0:
             pygame.draw.rect(surface, (255, 215, 0), (bar_x, curr_y, fill_w, bar_h), border_radius=3)
         pygame.draw.rect(surface, (0, 180, 216), (bar_x, curr_y, bar_w, bar_h), width=1, border_radius=3)
-        
-        m_details = f"Landmarks: {mastery.landmarks_found}/{mastery.max_landmarks}  |  Elites Culled: {mastery.elites_culled}/{mastery.max_elites}  |  Secrets: {mastery.secrets_found}/{mastery.max_secrets}"
-        md_surf = self.fonts["small"].render(m_details, True, (180, 200, 220))
-        surface.blit(md_surf, (detail_x + 20, curr_y))
-        curr_y += 24
+        curr_y += 16
 
         # Fast Travel Button if Waypoint Activated
-        if hasattr(game, "world_manager") and sel_reg.id in game.world_manager.activated_waypoints:
-            ft_rect = pygame.Rect(detail_x + detail_w - 150, detail_y + detail_h - 38, 134, 26)
+        reg_id = getattr(sel_reg, "region_id", getattr(sel_reg, "id", ""))
+        if hasattr(game, "world_manager") and reg_id in game.world_manager.activated_waypoints:
+            ft_rect = pygame.Rect(detail_x + detail_w - 150, detail_y + detail_h - 34, 134, 26)
             is_ft_hover = ft_rect.collidepoint(pygame.mouse.get_pos())
             pygame.draw.rect(surface, (0, 140, 180) if is_ft_hover else (0, 80, 110), ft_rect, border_radius=4)
             pygame.draw.rect(surface, (0, 220, 255), ft_rect, width=1, border_radius=4)
@@ -2176,12 +2292,12 @@ class UIManager:
             surface.blit(ft_lbl, (ft_rect.centerx - ft_lbl.get_width() // 2, ft_rect.centery - ft_lbl.get_height() // 2))
 
             if pygame.mouse.get_pressed()[0] and is_ft_hover:
-                can_ft, reason = game.world_manager.can_fast_travel(sel_reg.id, game)
+                can_ft, reason = game.world_manager.can_fast_travel(reg_id, game)
                 if can_ft:
                     self.close_all_panels()
                     game.sound_manager.play_sound("magic")
                     game.effects_manager.trigger_flash((255, 255, 255), 300)
-                    game.world_manager.load_map(sel_reg.id, game.player, portal_spawn=False)
+                    game.world_manager.load_map(reg_id, game.player, portal_spawn=False)
                 else:
                     from rpg.notification import NotificationPriority
                     self.notifications.push_toast(reason, NotificationPriority.MEDIUM, color=(240, 120, 30))

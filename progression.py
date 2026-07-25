@@ -125,6 +125,11 @@ class RegionProfile:
     is_soft_gated: bool = False
     soft_gate_warning: str = ""
 
+    @property
+    def id(self) -> str:
+        """Alias property for region_id for backwards compatibility."""
+        return self.region_id
+
 class ProgressionManager:
     """
     Centralized World Progression Evaluator & State Engine.
@@ -374,9 +379,10 @@ class ProgressionManager:
             return False
             
         elif cat == RequirementType.FACTION_REP:
-            rep_mgr = getattr(game_context, "reputation_manager", None)
-            if rep_mgr and hasattr(rep_mgr, "faction_reputations"):
-                val = rep_mgr.faction_reputations.get(req.target_id, 0.0)
+            # Query FactionManager (game.factions) - the Single Source of Truth for faction standings
+            fac_mgr = getattr(game_context, "factions", None)
+            if fac_mgr and hasattr(fac_mgr, "get_reputation"):
+                val = fac_mgr.get_reputation(req.target_id)
                 return val >= float(req.target_value)
             return False
             
@@ -387,19 +393,24 @@ class ProgressionManager:
         elif cat == RequirementType.CONSTRUCTION_COMPLETE:
             lw = getattr(game_context, "living_world", None)
             settlement = getattr(lw, "settlement", None) if lw else getattr(game_context, "settlement", None)
-            if settlement and hasattr(settlement, "upgrades"):
-                return bool(settlement.upgrades.get(req.target_id, False))
+            if settlement and hasattr(settlement, "upgrades") and settlement.upgrades.get(req.target_id, False):
+                return True
             ws = getattr(game_context, "world_state", None)
             if ws and hasattr(ws, "completed_event_ids"):
                 return req.target_id in ws.completed_event_ids
             return False
             
         elif cat == RequirementType.BOSS_DEFEATED:
-            wm = getattr(game_context, "world_manager", None)
-            if wm and req.target_id == "bandit_leader":
-                return getattr(wm, "boss_defeated", False)
+            # Check world_state.completed_event_ids for boss defeat flags (e.g. "forest_guardian" or "boss_forest_guardian")
             ws = getattr(game_context, "world_state", None)
-            return req.target_id in getattr(ws, "completed_event_ids", set()) if ws else False
+            if ws and hasattr(ws, "completed_event_ids"):
+                boss_key = req.target_id if req.target_id.startswith("boss_") else f"boss_{req.target_id}"
+                return req.target_id in ws.completed_event_ids or boss_key in ws.completed_event_ids
+            # Fallback: check legacy world_manager.boss_defeated for Shadow Overlord
+            wm = getattr(game_context, "world_manager", None)
+            if wm and req.target_id == "shadow_overlord":
+                return getattr(wm, "boss_defeated", False)
+            return False
             
         elif cat == RequirementType.ITEM_OWNED:
             player = getattr(game_context, "player", None)

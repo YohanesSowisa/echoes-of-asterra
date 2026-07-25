@@ -58,7 +58,7 @@ class DialogueManager:
         self.set_node(node_id)
 
     def set_node(self, node_id: str) -> None:
-        """Sets the active node and resets scroll parameters."""
+        """Sets the active node, resets scroll parameters, and guarantees a neutral exit choice."""
         node = self.nodes.get(node_id)
         if node:
             self.current_node = node
@@ -66,6 +66,16 @@ class DialogueManager:
             self.char_index = 0.0
             self.typing_finished = False
             self.selected_choice_idx = 0
+
+            # Guarantee at least one neutral "Leave / Back" choice for any dialogue with options
+            if node.choices:
+                has_neutral_exit = any(
+                    (c.callback is None and c.next_node_id is None) or
+                    any(kw in c.text.lower() for kw in ["leave", "back", "close", "goodbye", "later", "not now", "keluar", "kembali", "tutup"])
+                    for c in node.choices
+                )
+                if not has_neutral_exit:
+                    node.choices.append(DialogueChoice("Leave / Back", None))
         else:
             self.close()
 

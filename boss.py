@@ -191,9 +191,21 @@ class Boss(Enemy):
 
             if self.cutscene_timer <= 0:
                 self.die()
-                # Trigger victory game state
-                from rpg.constants import STATE_VICTORY
-                self.game.game_state = STATE_VICTORY
+                self.game.world_manager.boss_defeated = True
+                if hasattr(self.game, "world_state"):
+                    self.game.world_state.completed_event_ids.add("boss_shadow_overlord")
+                if hasattr(self.game, "event_bus"):
+                    self.game.event_bus.emit("boss_defeated", boss_id="shadow_overlord", boss_name=self.name)
+                
+                # Trigger LEGENDARY celebration banner instead of forcing main menu kick
+                if hasattr(self.game, "ui_manager") and hasattr(self.game.ui_manager, "celebration"):
+                    from rpg.celebration import CelebrationTier
+                    self.game.ui_manager.celebration.trigger_celebration(
+                        CelebrationTier.LEGENDARY,
+                        "SHADOW OVERLORD VANQUISHED!",
+                        "The corruption lifts from Asterra! Return to Elder Eldrin to claim your victory.",
+                        event_bus=getattr(self.game, "event_bus", None)
+                    )
             return
 
         # 2. Standard enemy updates (AI, collisions, moves)
