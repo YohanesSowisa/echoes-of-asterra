@@ -3,7 +3,7 @@ Echoes of Asterra - Procedural Sound & Music Synthesizer
 Generates rich, multi-layered adaptive background music and sound effects at runtime.
 Uses 2-channel stereo interleaved 16-bit PCM synthesis with ADSR envelopes, modular presets,
 phase-offset stereo width (zero frequency beating), soft-limiting headroom compression,
-and equal-power boundary crossfading.
+equal-power boundary crossfading, band-limited square wave harmonics, and hash-based noise.
 Requires zero external audio assets or dependencies.
 """
 import io
@@ -17,10 +17,37 @@ import pygame
 
 logger = logging.getLogger("SoundManager")
 
+# Cache Versioning Constant (Increments trigger automatic audio re-synthesis on startup)
+ASSET_VERSION = "v2"
+
 
 # =============================================================================
 # SYNTHESIS BUILDING BLOCKS & DSP PRIMITIVES
 # =============================================================================
+
+def hash_noise(t_note: float) -> float:
+    """Deterministic integer hash-based white noise (eliminates aliased sinusoidal noise tones)."""
+    n = int(t_note * 96000.0) & 0x7fffffff
+    n = (n << 13) ^ n
+    n = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff
+    return (n / 1073741824.0) - 1.0
+
+
+def band_limited_square(t: float, freq: float, samplerate: int = 44100, max_harmonics: int = 6) -> float:
+    """Fourier band-limited square wave synthesis preventing harmonic foldback & aliasing."""
+    nyquist = samplerate * 0.5
+    val = 0.0
+    n = 1
+    harmonics_used = 0
+    while n * freq < nyquist and harmonics_used < max_harmonics:
+        val += math.sin(2.0 * math.pi * freq * n * t) / n
+        n += 2
+        harmonics_used += 1
+    if harmonics_used == 0:
+        return math.sin(2.0 * math.pi * freq * t)
+    return val * (4.0 / math.pi)
+
+
 
 def adsr(t_note: float, duration: float, attack: float = 0.02, decay: float = 0.08, sustain: float = 0.7, release: float = 0.08) -> float:
     """Calculates Attack-Decay-Sustain-Release envelope amplitude (0.0 to 1.0)."""
@@ -130,9 +157,9 @@ def synth_bass(t_note: float, duration: float, freq: float, pan: float = 0.0) ->
 
 
 def synth_brushed_noise(t_note: float, duration: float, pan: float = 0.0) -> Tuple[float, float]:
-    """Soft brushed noise burst for acoustic percussion rhythm."""
+    """Soft brushed noise burst for acoustic percussion rhythm using deterministic hash_noise."""
     env = math.exp(-35.0 * t_note) if t_note < duration else 0.0
-    noise = (math.sin(t_note * 98765.4) * 4321.0) % 2.0 - 1.0
+    noise = hash_noise(t_note)
     return stereo_pan(noise * 0.15 * env, pan)
 
 
@@ -149,12 +176,12 @@ class SoundManager:
         self.sounds: Dict[str, pygame.mixer.Sound] = {}
         self.music_channels: Dict[str, pygame.mixer.Channel] = {}
         self.current_music: Union[str, None] = None
-        self.samplerate = 22050
+        self.samplerate = 44100  # Upgraded to 44.1 kHz for wide Nyquist headroom (22.05 kHz)
         self.enabled = False
         self.music_volume = 1.0
         self.sfx_volume = 1.0
 
-        # Initialize mixer in 2-channel stereo
+        # Initialize mixer in 2-channel 44.1 kHz stereo
         try:
             pygame.mixer.init(frequency=self.samplerate, size=-16, channels=2, buffer=1024)
             self.enabled = True
@@ -167,7 +194,7 @@ class SoundManager:
 
     def _generate_wav(self, filename: str, wave_func: Callable[[float], Union[float, Tuple[float, float]]], duration: float, volume: float = 0.5) -> pygame.mixer.Sound:
         """
-        Generates a 2-channel stereo WAV file on disk (or loads cached version) and returns a Sound object.
+        Generates a 2-channel stereo WAV file on disk (or loads versioned cached version) and returns a Sound object.
         """
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         ASSETS_DIR = os.path.join(BASE_DIR, "assets")
@@ -176,9 +203,10 @@ class SoundManager:
         dest_folder = os.path.join(ASSETS_DIR, subfolder)
         os.makedirs(dest_folder, exist_ok=True)
 
-        file_path = os.path.join(dest_folder, filename + ".wav")
+        # Versioned cache path ensures updated synthesis logic automatically regenerates audio files
+        file_path = os.path.join(dest_folder, f"{filename}_{ASSET_VERSION}.wav")
 
-        # Fast disk cache check: load existing WAV instantly without re-synthesizing
+        # Fast versioned disk cache check: load existing WAV instantly without re-synthesizing
         if os.path.exists(file_path):
             try:
                 return pygame.mixer.Sound(file_path)
@@ -218,7 +246,7 @@ class SoundManager:
                 val_r = int(max(-1.0, min(1.0, r_lim)) * 32767 * volume)
                 wav_file.writeframesraw(struct.pack('<hh', val_l, val_r))
 
-        # Cache WAV to disk
+        # Cache versioned WAV to disk
         try:
             with open(file_path, 'wb') as f:
                 f.write(buffer.getvalue())
@@ -280,8 +308,7 @@ class SoundManager:
             notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]
             note_idx = min(int(t * 8.5), len(notes) - 1)
             freq = notes[note_idx]
-            sin_val = math.sin(2.0 * math.pi * freq * t)
-            sq_val = 1.0 if sin_val > 0 else -1.0
+            sq_val = band_limited_square(t, freq, self.samplerate)
             val = sq_val * 0.4 * math.exp(-2.5 * t)
             return stereo_pan(val, 0.0)
         self.sounds["levelup"] = self._generate_wav("levelup", levelup_wave, 0.8, 0.4)
@@ -290,7 +317,7 @@ class SoundManager:
             melody = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50]
             idx = min(int(t * 4), len(melody) - 1)
             freq = melody[idx]
-            lead = 1.0 if math.sin(2.0 * math.pi * freq * t) > 0 else -1.0
+            lead = band_limited_square(t, freq, self.samplerate)
             bass = math.sin(2.0 * math.pi * (freq / 4.0) * t) * 0.5
             val = (lead * 0.4 + bass * 0.3) * math.exp(-1.0 * t)
             return stereo_pan(val, 0.0)
@@ -488,29 +515,28 @@ class SoundManager:
             bar_t = t % 4.0
             chord = chords[bar_idx]
 
-            # Voice 1: Driving 16th-Note Square Bass
+            # Voice 1: Driving 16th-Note Square Bass (Band-limited harmonics)
             bass_pulse = int(bar_t * 8) % 2
             bass_env = adsr(bar_t % 0.125, 0.125, attack=0.002, decay=0.04, sustain=0.6, release=0.02)
-            bass_sq = 1.0 if math.sin(2.0 * math.pi * chord["root"] * t) > 0 else -1.0
+            bass_sq = band_limited_square(t, chord["root"], self.samplerate)
             bass_l, bass_r = stereo_pan(bass_sq * bass_env * bass_pulse * 0.35, pan=0.0)
 
-            # Voice 2: Octave-Stacked Chiptune Lead Melody
+            # Voice 2: Octave-Stacked Chiptune Lead Melody (Band-limited harmonics)
             lead_notes = chord["lead"]
             lead_idx = int(bar_t * 6) % len(lead_notes)
             lead_freq = lead_notes[lead_idx]
             lead_env = adsr(bar_t % 0.166, 0.166, attack=0.005, decay=0.05, sustain=0.7, release=0.04)
-            lead_sq = (1.0 if math.sin(2.0 * math.pi * lead_freq * t) > 0 else -1.0) * 0.3
+            lead_sq = band_limited_square(t, lead_freq, self.samplerate) * 0.3
             lead_l, lead_r = stereo_pan(lead_sq * lead_env, pan=0.15)
 
-            # Voice 3: Accent Staccato Chords
+            # Voice 3: Accent Staccato Chords (Band-limited harmonics)
             accent_l, accent_r = 0.0, 0.0
             if int(bar_t * 4) % 2 == 1:
                 acc_env = adsr(bar_t % 0.25, 0.25, attack=0.005, decay=0.08, sustain=0.3, release=0.05)
-                acc_sq = (1.0 if math.sin(2.0 * math.pi * chord["lead"][1] * t) > 0 else -1.0) * 0.18
+                acc_sq = band_limited_square(t, chord["lead"][1], self.samplerate) * 0.18
                 accent_l, accent_r = stereo_pan(acc_sq * acc_env, pan=-0.2)
 
             # Voice 4: Soft High-Frequency Percussive Click
-            hihat_env = math.exp(-60.0 * (bar_t % 0.25))
             hihat_l, hihat_r = synth_brushed_noise(bar_t % 0.25, 0.04, pan=0.05)
 
             total_l = bass_l + lead_l + accent_l + hihat_l * 0.5
@@ -561,7 +587,6 @@ class SoundManager:
             return (total_l, total_r)
 
         self.sounds["menu_music"] = self._generate_wav("menu_music", menu_music_wave, 16.0, 0.35)
-
 
         # Priority Table
         self.music_priorities: Dict[str, int] = {

@@ -29,3 +29,13 @@ scratch/
 # User Save Files & Generated Map Cache
 saves/
 assets/maps/*.json
+
+# Procedurally Generated Audio & Visual Cache
+assets/music/*.wav
+assets/sounds/*.wav
+assets/sprites/*.png
+assets/tiles/*.png
+assets/ui/*.png
+
+# Runtime Telemetry & Profiling Logs
+profiling_export.json
