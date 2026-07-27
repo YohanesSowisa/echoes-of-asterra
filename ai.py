@@ -106,9 +106,26 @@ class EnemyAI:
                 enemy.move_dir = to_patrol.normalize()
                 
         elif self.state == AI_STATE_CHASE:
-            # Run towards player
-            enemy.move_dir = to_player.normalize()
+            # Run towards player via NavigationService A* pathing if available
+            nav_service = getattr(getattr(getattr(enemy, "game", None), "services", None), "navigation", None)
+            if nav_service:
+                waypoints = nav_service.find_path(
+                    (enemy.pos.x, enemy.pos.y),
+                    (player.pos.x, player.pos.y)
+                )
+                if waypoints:
+                    next_wp = pygame.math.Vector2(waypoints[0])
+                    to_wp = next_wp - enemy.pos
+                    if to_wp.length_squared() > 4.0:
+                        enemy.move_dir = to_wp.normalize()
+                    else:
+                        enemy.move_dir = to_player.normalize() if to_player.length_squared() > 0 else pygame.math.Vector2(0, 0)
+                else:
+                    enemy.move_dir = to_player.normalize() if to_player.length_squared() > 0 else pygame.math.Vector2(0, 0)
+            else:
+                enemy.move_dir = to_player.normalize() if to_player.length_squared() > 0 else pygame.math.Vector2(0, 0)
             enemy.is_running = True
+
             
         elif self.state == AI_STATE_ATTACK:
             # Stand and attack

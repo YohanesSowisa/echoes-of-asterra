@@ -178,6 +178,8 @@ class WorldManager:
             self.current_map_data = MapGenerator.generate(map_name)
 
         self.current_map_grid = self.current_map_data["grid"]
+        if hasattr(game, "services") and hasattr(game.services, "navigation"):
+            game.services.navigation.set_grid(self.current_map_grid)
         
         # 3. Position the player
         if portal_spawn and portal_coord:

@@ -10,6 +10,9 @@ from rpg.services.tween import TweenService
 from rpg.services.admin_ui import AdminUIService
 
 
+from rpg.services.data import DataService
+
+
 class ServiceContainer:
     """
     Dependency Injection container holding instances of all system services.
@@ -24,6 +27,8 @@ class ServiceContainer:
         self.navigation = NavigationService(self.config.navigation, event_bus=self.event_bus)
         self.tween = TweenService(self.config.tween)
         self.admin_ui = AdminUIService(self.config.admin_ui)
+        self.data = DataService()
+
 
     def reset_services(self) -> None:
         """Flushes caches and resets service states upon new game or load."""

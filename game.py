@@ -47,9 +47,14 @@ class Game:
         
         # Initialize Core Subsystems
         self.event_bus = EventBus()
+        from rpg.config import game_config
+        from rpg.services import ServiceContainer
+        self.services = ServiceContainer(game_config, self.event_bus)
+        
         self.living_world = LivingWorldManager(self.event_bus)
         self.living_world.game_reference = self
         self.debug_overlay = DebugOverlay()
+
         
         # Accessor aliases for backward compatibility
         self.world_state = self.living_world.world_state

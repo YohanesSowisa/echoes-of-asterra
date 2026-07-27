@@ -116,11 +116,16 @@ class NotificationManager:
         for idx, toast in enumerate(self.active_toasts):
             y = start_y + idx * (card_h + gap)
             
-            # Fade alpha
-            alpha = 230
+            # Fade alpha using TweenService easeOutCubic curve if available
             if toast.timer < 0.5:
-                alpha = int(230 * (toast.timer / 0.5))
+                t_ratio = max(0.0, min(1.0, toast.timer / 0.5))
+                tween_service = getattr(getattr(getattr(self, "game", None), "services", None), "tween", None)
+                fade_progress = tween_service.evaluate("easeOutCubic", t_ratio) if tween_service else t_ratio
+                alpha = int(230 * fade_progress)
+            else:
+                alpha = 230
             alpha = max(0, min(230, alpha))
+
             
             if alpha <= 0:
                 continue
