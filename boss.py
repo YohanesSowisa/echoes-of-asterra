@@ -257,7 +257,10 @@ class Boss(Enemy):
             pygame.draw.rect(surface, (255, 120, 120), (bx, by, int(bar_w * ratio), 3), border_radius=1)
 
         # Text Overlay
-        font = pygame.font.SysFont("Arial", 12, bold=True)
+        try:
+            font = pygame.font.Font("assets/fonts/game_font.ttf", 14)
+        except Exception:
+            font = pygame.font.SysFont("Arial", 12, bold=True)
         name_txt = font.render(f"{self.name} (PHASE {self.phase})", True, COLOR_WHITE)
         hp_txt = font.render(f"{self.hp} / {self.max_hp}", True, COLOR_WHITE)
 

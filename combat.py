@@ -16,7 +16,10 @@ class DamageNumber(BaseSprite):
         super().__init__(pos, groups, layer=3)  # High layer to draw above characters
         self.text = text
         self.color = color
-        self.font = pygame.font.SysFont("Arial", size, bold=True)
+        try:
+            self.font = pygame.font.Font("assets/fonts/game_font.ttf", size)
+        except Exception:
+            self.font = pygame.font.SysFont("Arial", size, bold=True)
         self.alpha = 255
         self.lifetime = 0.6  # seconds
         self.timer = self.lifetime

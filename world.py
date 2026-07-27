@@ -395,7 +395,10 @@ class WorldManager:
                 pygame.draw.polygon(marker_surf, arrow_color, [(cx, marker_h - 4), (cx - 8, marker_h - 16), (cx + 8, marker_h - 16)])
 
             # Render text label (e.g. "To Village" or "To Forest")
-            lbl_font = pygame.font.SysFont("Arial", 11, bold=True)
+            try:
+                lbl_font = pygame.font.Font("assets/fonts/game_font.ttf", 11)
+            except Exception:
+                lbl_font = pygame.font.SysFont("Arial", 11, bold=True)
             lbl_str = f"To {target_title}"
             lbl_surf = lbl_font.render(lbl_str, True, (255, 255, 240))
             
@@ -433,7 +436,11 @@ class WorldManager:
                 wt_surf = pygame.Surface((TILE_SIZE * 2, TILE_SIZE * 3), pygame.SRCALPHA)
                 pygame.draw.rect(wt_surf, (80, 85, 95), (4, 16, TILE_SIZE * 2 - 8, TILE_SIZE * 3 - 16), border_radius=4)
                 pygame.draw.rect(wt_surf, (180, 50, 50), (12, 0, TILE_SIZE * 2 - 24, 20), border_radius=3)
-                wt_lbl = pygame.font.SysFont("Arial", 10, bold=True).render("WATCHTOWER", True, (255, 240, 200))
+                try:
+                    wt_font = pygame.font.Font("assets/fonts/game_font.ttf", 10)
+                except Exception:
+                    wt_font = pygame.font.SysFont("Arial", 10, bold=True)
+                wt_lbl = wt_font.render("WATCHTOWER", True, (255, 240, 200))
                 wt_surf.blit(wt_lbl, (8, TILE_SIZE * 2))
                 wt_sprite = BaseSprite(wt_pos, [game.visible_sprites], layer=1)
                 wt_sprite.image = wt_surf
@@ -443,8 +450,13 @@ class WorldManager:
                 mkt_pos = (TILE_SIZE * 18, TILE_SIZE * 6)
                 mkt_surf = pygame.Surface((TILE_SIZE * 4, TILE_SIZE * 2), pygame.SRCALPHA)
                 pygame.draw.rect(mkt_surf, (210, 170, 50), (0, 0, TILE_SIZE * 4, 24), border_radius=4)
-                mkt_lbl = pygame.font.SysFont("Arial", 11, bold=True).render("ROYAL MARKET EXCHANGE", True, (25, 20, 10))
+                try:
+                    mkt_font = pygame.font.Font("assets/fonts/game_font.ttf", 11)
+                except Exception:
+                    mkt_font = pygame.font.SysFont("Arial", 11, bold=True)
+                mkt_lbl = mkt_font.render("ROYAL MARKET EXCHANGE", True, (25, 20, 10))
                 mkt_surf.blit(mkt_lbl, (12, 4))
+
                 mkt_sprite = BaseSprite(mkt_pos, [game.visible_sprites], layer=1)
                 mkt_sprite.image = mkt_surf
                 mkt_sprite.rect = mkt_surf.get_rect(center=mkt_pos)

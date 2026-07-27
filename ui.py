@@ -1630,23 +1630,26 @@ class UIManager:
         choices_h = n_choices * 34 + (10 if n_choices > 0 else 0)
         
         # Dynamic panel height calculation to guarantee zero text/choice overlap
-        dh = max(160, 48 + text_h + 16 + choices_h + 16)
+        dh = max(160, 52 + text_h + 16 + choices_h + 16)
         dx = 40
         dy = SCREEN_HEIGHT - dh - 20
         
+        # Warm RPG Dialogue Box (Harvest Moon Parchment Style)
         box = pygame.Rect(dx, dy, dw, dh)
-        pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
-        pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
+        pygame.draw.rect(surface, (252, 246, 222), box, border_radius=8)
+        pygame.draw.rect(surface, (255, 252, 240), box.inflate(-4, -4), border_radius=6)
+        pygame.draw.rect(surface, (130, 95, 45), box, 3, border_radius=8)
+        pygame.draw.rect(surface, (190, 155, 95), box, 1, border_radius=8)
 
         # ESC Leave hint badge at top-right of dialogue box
-        esc_lbl = self.fonts["small"].render("[ESC] Leave", True, COLOR_GRAY)
-        surface.blit(esc_lbl, (dx + dw - esc_lbl.get_width() - 16, dy + 16))
+        esc_lbl = self.fonts["small"].render("[ESC] Leave", True, (130, 100, 70))
+        surface.blit(esc_lbl, (dx + dw - esc_lbl.get_width() - 18, dy + 14))
 
         # Speaker portrait socket
-        px, py = dx + 20, dy + 20
+        px, py = dx + 18, dy + 18
         pw, ph = 120, 120
-        pygame.draw.rect(surface, COLOR_DARK_GRAY, (px, py, pw, ph), border_radius=4)
-        pygame.draw.rect(surface, COLOR_UI_BORDER, (px, py, pw, ph), 1, border_radius=4)
+        pygame.draw.rect(surface, (235, 225, 195), (px, py, pw, ph), border_radius=6)
+        pygame.draw.rect(surface, (130, 95, 45), (px, py, pw, ph), 2, border_radius=6)
         
         # Draw actual NPC sprite portrait if available
         name_str = node.speaker_name
@@ -1676,21 +1679,30 @@ class UIManager:
             pygame.draw.circle(surface, COLOR_BLACK, (px + 70, py + 56), 3)
             pygame.draw.circle(surface, COLOR_RED, (px + 60, py + 72), 6, 2)
 
-        # Speaker Name & Relationship Standing Badge
+        # Floating Speaker Name Badge (Harvest Moon Style Nameplate)
         rel_suffix = ""
         if hasattr(dialogue_manager, "game") and hasattr(dialogue_manager.game, "npc_memory"):
             mem = dialogue_manager.game.npc_memory.get_memory(short_id.title())
             rel_level = mem.friendship_level.replace("_", " ").title()
             rel_suffix = f" [{rel_level}]"
             
-        name_lbl = self.fonts["medium"].render(name_str + rel_suffix, True, COLOR_UI_HIGHLIGHT)
-        surface.blit(name_lbl, (dx + 160, dy + 18))
+        full_name_text = name_str + rel_suffix
+        name_lbl = self.fonts["medium"].render(full_name_text, True, COLOR_WHITE)
+        badge_w = name_lbl.get_width() + 24
+        badge_h = 30
+        badge_rect = pygame.Rect(dx + 160, dy - 14, badge_w, badge_h)
+        
+        # Nameplate shadow & blue gradient body
+        pygame.draw.rect(surface, (20, 30, 50), badge_rect.move(2, 2), border_radius=4)
+        pygame.draw.rect(surface, (25, 75, 170), badge_rect, border_radius=4)
+        pygame.draw.rect(surface, (255, 215, 0), badge_rect, 2, border_radius=4)
+        surface.blit(name_lbl, (badge_rect.x + 12, badge_rect.y + 15 - name_lbl.get_height() // 2))
 
-        # Render ALL wrapped text lines dynamically
-        txt_y = dy + 44
+        # Render dialogue text lines in dark brown pixel text on parchment
+        txt_y = dy + 32
         for idx, line in enumerate(lines):
-            lbl = self.fonts["small"].render(line, True, COLOR_WHITE)
-            surface.blit(lbl, (dx + 160, txt_y + idx * 20))
+            lbl = self.fonts["small"].render(line, True, (50, 35, 25))
+            surface.blit(lbl, (dx + 160, txt_y + idx * 22))
 
         # Choices list starts cleanly BELOW the last line of text
         if dialogue_manager.typing_finished and node.choices:
@@ -1707,17 +1719,19 @@ class UIManager:
                     dialogue_manager.selected_choice_idx = idx
                 
                 is_selected = (idx == dialogue_manager.selected_choice_idx)
-                bg_c = COLOR_UI_HIGHLIGHT if is_selected else (45, 48, 55)
-                text_c = COLOR_BLACK if is_selected else COLOR_WHITE
+                bg_c = (255, 220, 100) if is_selected else (235, 225, 195)
+                border_c = (180, 130, 40) if is_selected else (160, 130, 90)
+                text_c = (40, 20, 10) if is_selected else (70, 50, 30)
                 
                 pygame.draw.rect(surface, bg_c, choice_rect, border_radius=4)
-                pygame.draw.rect(surface, COLOR_UI_BORDER, choice_rect, 1, border_radius=4)
+                pygame.draw.rect(surface, border_c, choice_rect, 2, border_radius=4)
                 
                 lbl = self.fonts["small"].render(choice.text, True, text_c)
                 surface.blit(lbl, (choice_x + 12, cy + 15 - lbl.get_height() // 2))
         elif dialogue_manager.typing_finished:
-            hint = self.fonts["small"].render("[Space/Enter] Continue", True, COLOR_GRAY)
+            hint = self.fonts["small"].render("[Space/Enter] Continue", True, (130, 100, 70))
             surface.blit(hint, (dx + dw - hint.get_width() - 20, dy + dh - 24))
+
 
     # --- GAME OVER SCREEN ---
 

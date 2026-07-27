@@ -182,7 +182,10 @@ class NPC(BaseSprite):
         y = self.rect.top - 20 - camera_offset.y
         
         # Indicator box
-        font = pygame.font.SysFont("Arial", 12, bold=True)
+        try:
+            font = pygame.font.Font("assets/fonts/game_font.ttf", 12)
+        except Exception:
+            font = pygame.font.SysFont("Arial", 12, bold=True)
         lbl = font.render("[E]", True, COLOR_YELLOW)
         
         bg_rect = pygame.Rect(x - 10, y, 20, 16)
@@ -706,7 +709,11 @@ class TownNoticeboard(NPC):
         self.image = pygame.Surface((44, 44), pygame.SRCALPHA)
         pygame.draw.rect(self.image, (100, 70, 40), (0, 0, 44, 44), border_radius=4)
         pygame.draw.rect(self.image, (210, 170, 60), (2, 2, 40, 40), 2, border_radius=3)
-        lbl = pygame.font.SysFont("Arial", 10, bold=True).render("NOTICE", True, (255, 240, 200))
+        try:
+            font = pygame.font.Font("assets/fonts/game_font.ttf", 10)
+        except Exception:
+            font = pygame.font.SysFont("Arial", 10, bold=True)
+        lbl = font.render("NOTICE", True, (255, 240, 200))
         self.image.blit(lbl, (4, 14))
 
     def interact(self) -> None:
