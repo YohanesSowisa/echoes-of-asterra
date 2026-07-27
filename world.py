@@ -9,16 +9,19 @@ from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 from rpg.map_loader import MapGenerator
 from rpg.combat import DamageNumber
 
-class ChestSprite(pygame.sprite.Sprite):
+from rpg.sprite import BaseSprite
+
+class ChestSprite(BaseSprite):
     """
     Interactable chest representation containing item loot stacks.
+    Supports Y-sorting depth and solid physical ground collisions.
     """
     def __init__(self, pos: Tuple[int, int], loot: List[Tuple[str, int]], is_open: bool, groups: List[pygame.sprite.Group]) -> None:
-        self._layer = 1
-        super().__init__(groups)
+        super().__init__((float(pos[0] + TILE_SIZE / 2), float(pos[1] + TILE_SIZE / 2)), groups, layer=1)
         self.grid_pos = pos
         self.loot = loot
         self.is_open = is_open
+
         
         # Load procedural frame textures
         from rpg.animation import tile_assets
@@ -26,7 +29,9 @@ class ChestSprite(pygame.sprite.Sprite):
         self._update_image()
         
         self.rect = self.image.get_rect(topleft=(pos[0], pos[1]))
-        self.hitbox = self.rect.copy()
+        # Hitbox represents physical ground base (bottom 20px of 32x32 chest)
+        self.hitbox = pygame.Rect(pos[0], pos[1] + 12, TILE_SIZE, 20)
+
 
     def _update_image(self) -> None:
         """Sets texture sheet frame based on open state."""

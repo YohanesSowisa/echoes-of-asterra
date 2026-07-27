@@ -74,7 +74,25 @@ class DroppedItem(BaseSprite):
             # Keep resting position
             self.rect.center = (int(self.pos.x), int(self.pos.y) + int(y_offset))
 
+
+_ENEMY_UI_FONT_SMALL = None
+
+_ENEMY_UI_FONT_TINY = None
+
+def get_enemy_ui_fonts() -> Tuple[pygame.font.Font, pygame.font.Font]:
+    global _ENEMY_UI_FONT_SMALL, _ENEMY_UI_FONT_TINY
+    if _ENEMY_UI_FONT_SMALL is None:
+        try:
+            _ENEMY_UI_FONT_SMALL = pygame.font.Font("assets/fonts/game_font.ttf", 11)
+            _ENEMY_UI_FONT_TINY = pygame.font.Font("assets/fonts/game_font.ttf", 9)
+        except Exception:
+            _ENEMY_UI_FONT_SMALL = pygame.font.SysFont("Arial", 11, bold=True)
+            _ENEMY_UI_FONT_TINY = pygame.font.SysFont("Arial", 9, bold=True)
+    return _ENEMY_UI_FONT_SMALL, _ENEMY_UI_FONT_TINY
+
+
 class Enemy(BaseSprite):
+
     """
     Base enemy class containing core stats, combat loops, FSM tickers,
     and loot dropping methods.
@@ -124,10 +142,13 @@ class Enemy(BaseSprite):
         self.enemy_key = "slime"
         self.unlocked_abilities: List[str] = []
         
-        # --- ANIMATIONS ---
+        # --- ANIMATIONS & INJURY TRACKING ---
         self.frame_index = 0.0
         self.prev_state = "idle"
         self.prev_direction = DIR_DOWN
+        self.has_been_hit = False
+        self.hp_bar_timer = 0.0
+
 
     def setup_balance(self, enemy_key: str, map_name: str = "village", player_level: int = 1, floor_depth: int = 1) -> None:
         """Applies data-driven balance curves, level scaling, and archetype AI unlocks."""
@@ -163,13 +184,16 @@ class Enemy(BaseSprite):
         self.slow_timer = duration
 
     def take_damage(self, amount: int) -> None:
-        """Deducts health, checks for death."""
+        """Deducts health, activates conditional floating HP bar, and checks for death."""
         self.hp = max(0, self.hp - amount)
         self.hit_flash_timer = 0.15
+        self.has_been_hit = True
+        self.hp_bar_timer = 5.0
         if self.hp <= 0:
             self.state = "dead"
             self.action_timer = 0.8  # Wait for death animation
             self.sound_manager.play_sound("hit")
+
 
     def perform_attack(self) -> None:
         """Melee strike towards the player."""
@@ -334,6 +358,12 @@ class Enemy(BaseSprite):
         self.frame_index += anim_speed * dt
         self.image = frames[int(self.frame_index) % len(frames)]
         
+        # Apply visceral procedural injury / mutilation surface variant
+        from rpg.sprite import get_injured_surface
+        ratio = max(0.0, self.hp / max(1, self.max_hp))
+        is_boss = self.asset_key in ["boss", "demon_lord", "dragon"] or "boss" in self.name.lower()
+        self.image = get_injured_surface(self.image, ratio, is_boss=is_boss)
+
         # Red flashing if hurt and invincible
         if self.is_invincible:
             if int(pygame.time.get_ticks() / 50) % 2 == 0:
@@ -346,7 +376,68 @@ class Enemy(BaseSprite):
             mask = pygame.mask.from_surface(self.image)
             self.image = mask.to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(0, 0, 0, 0))
 
+    def draw_hp_bar(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+
+        """
+        Renders floating mini HP bar, Level badge, Name, and XP reward above enemy head ONLY if enemy has been struck.
+        Features smooth HP fill, dark border, color gradient, and XP reward scaling display.
+        """
+        if not self.has_been_hit or self.hp <= 0:
+            return
+
+        font_small, font_tiny = get_enemy_ui_fonts()
+        bar_w, bar_h = 44, 5
+        offset_pos = self.rect.topleft - camera_offset
+        center_x = int(offset_pos.x + self.rect.width / 2)
+        bar_y = int(offset_pos.y - 10)
+
+        # 1. Level & Name Header (e.g. "Lv.3 Goblin")
+        player_level = self.game.player.level if self.game and hasattr(self.game, "player") else 1
+        level_color = (240, 240, 240)
+        if self.level > player_level + 2:
+            level_color = (255, 80, 80)  # Red warning for high level
+        elif "boss" in self.name.lower() or self.asset_key == "boss":
+            level_color = (255, 215, 0)  # Gold for Bosses
+
+        name_text = f"Lv.{self.level} {self.name}"
+        name_surf = font_small.render(name_text, True, level_color)
+        name_rect = name_surf.get_rect(center=(center_x, bar_y - 8))
+
+        # Text dark drop shadow for high contrast readability
+        shadow_surf = font_small.render(name_text, True, (10, 10, 10))
+        surface.blit(shadow_surf, (name_rect.x + 1, name_rect.y + 1))
+        surface.blit(name_surf, name_rect)
+
+        # 2. HP Bar Container & Fill
+        bar_x = int(center_x - bar_w / 2)
+        bg_rect = pygame.Rect(bar_x, bar_y, bar_w, bar_h)
+        pygame.draw.rect(surface, (20, 20, 20), bg_rect)
+        pygame.draw.rect(surface, (0, 0, 0), bg_rect, 1)
+
+        ratio = max(0.0, min(1.0, self.hp / max(1, self.max_hp)))
+        fill_w = int(bar_w * ratio)
+        if fill_w > 0:
+            if ratio > 0.66:
+                col = (60, 220, 80)
+            elif ratio > 0.33:
+                col = (230, 200, 40)
+            else:
+                col = (230, 40, 40)
+            fill_rect = pygame.Rect(bar_x, bar_y, fill_w, bar_h)
+            pygame.draw.rect(surface, col, fill_rect)
+
+        # 3. XP Reward Footer Badge (e.g. "+25 XP")
+        xp_text = f"+{self.xp_reward} XP"
+        xp_surf = font_tiny.render(xp_text, True, (120, 220, 255))
+        xp_rect = xp_surf.get_rect(center=(center_x, bar_y + bar_h + 7))
+
+        xp_shadow = font_tiny.render(xp_text, True, (10, 10, 10))
+        surface.blit(xp_shadow, (xp_rect.x + 1, xp_rect.y + 1))
+        surface.blit(xp_surf, xp_rect)
+
+
 # --- ENEMY SUBCLASSES ---
+
 
 class Slime(Enemy):
     """Bouncing soft forest slimes. Sluggish speed, common drops."""

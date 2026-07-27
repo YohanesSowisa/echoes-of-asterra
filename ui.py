@@ -1532,6 +1532,36 @@ class UIManager:
                         pygame.draw.rect(surface, (0, 180, 216), (bx, by, bg_w, bg_h), width=1, border_radius=4)
                         surface.blit(lbl, (bx + 8, by + 3))
 
+        # Check nearby Chests
+        if hasattr(game, "chests"):
+            for chest in game.chests:
+                if hasattr(chest, "rect"):
+                    chest_center = pygame.math.Vector2(chest.rect.center)
+                    dist = (chest_center - p_pos).length()
+                    if dist <= 58.0:
+                        screen_p = chest_center - cam_offset
+                        if chest.is_open:
+                            prompt_txt = "[Opened Chest]"
+                            txt_col = (160, 160, 160)
+                            border_col = (80, 80, 80)
+                        else:
+                            prompt_txt = "[E] Open Chest"
+                            txt_col = (255, 215, 0)
+                            border_col = (255, 180, 0)
+
+                        lbl = font.render(prompt_txt, True, txt_col)
+                        bg_w = lbl.get_width() + 16
+                        bg_h = 24
+                        bx = screen_p.x - bg_w // 2
+                        by = screen_p.y - 42
+
+                        bg = pygame.Surface((bg_w, bg_h), pygame.SRCALPHA)
+                        bg.fill((16, 22, 34, 220))
+                        surface.blit(bg, (bx, by))
+                        pygame.draw.rect(surface, border_col, (bx, by, bg_w, bg_h), width=1, border_radius=4)
+                        surface.blit(lbl, (bx + 8, by + 3))
+
+
     def draw_tooltip(self, surface: pygame.Surface, item: Any, mouse_pos: Tuple[int, int], player: Any = None) -> None:
         """Floating tooltip showing description, stats, rarity colors, and side-by-side equipped gear comparison."""
         tw, th = 240, 136

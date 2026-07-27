@@ -19,6 +19,7 @@ from rpg.equipment import Equipment
 from rpg.skills import SkillManager
 from rpg.animation import entity_assets
 from rpg.combat import DamageNumber
+from rpg.collision import CollisionSystem
 
 class Player(BaseSprite):
     """
@@ -289,8 +290,10 @@ class Player(BaseSprite):
         # Grant invincibility frames during roll
         self.trigger_invincibility(PLAYER_ROLL_DURATION)
         
-        # Play footstep/swoosh sound
-        self.sound_manager.play_sound("footstep")
+        # Trigger wind shockwaves & cyan motion ghost afterimage
+        self.particles.create_dash_trail(self.rect.topleft, self.direction, self.image)
+        self.sound_manager.play_sound("sword")
+
 
     def handle_skill_casts(self, input_handler: Any) -> None:
         """Maps quick skill casting keys (1-4) to skill effects."""
@@ -326,9 +329,10 @@ class Player(BaseSprite):
             self.action_timer = 0.3
             self.trigger_invincibility(350)
             
-            # Spawn wind trail
-            self.particles.create_dash_trail(self.hitbox.center, self.direction)
+            # Spawn wind trail & cyan motion ghost afterimage
+            self.particles.create_dash_trail(self.rect.topleft, self.direction, self.image)
             self.sound_manager.play_sound("magic")
+
             
         elif name == SKILL_HEALING:
             # Healing recovery
@@ -448,8 +452,15 @@ class Player(BaseSprite):
             elif self.game.input_handler.consume_action("roll"):
                 self.perform_roll()
 
+        # Emit continuous aerodynamic wind streams and motion ghosts while dashing
+        if self.state == "roll":
+            self.particles.create_wind_stream(self.rect.center, self.direction)
+            if int(pygame.time.get_ticks() / 50) % 2 == 0:
+                self.particles.create_ghost_afterimage(self.rect.topleft, self.image)
+
         # 1. Update timers
         if self.action_timer > 0:
+
             self.action_timer -= dt
             if self.action_timer <= 0:
                 if self.state == "dead":
@@ -496,8 +507,11 @@ class Player(BaseSprite):
 
         # 4. Process movement and collisions
         if self.velocity.length_squared() > 0 or self.knockback_duration > 0:
-            from rpg.collision import CollisionSystem
             solid_rects = CollisionSystem.get_nearby_solids(self.hitbox, self.game.world_manager.current_map_grid, TILE_SIZE)
+            # Include chest hitboxes in solid collisions
+            if hasattr(self.game, "chests"):
+                solid_rects.extend([c.hitbox for c in self.game.chests if hasattr(c, "hitbox")])
+
             
             # Move & resolve horizontal
             if self.state == "roll" and self.knockback_duration <= 0:
