@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "textures": {
+    "player_idle": "assets/sprites/player_idle.png",
+    "player_walk": "assets/sprites/player_walk.png",
+    "player_attack": "assets/sprites/player_attack.png",
+    "enemy_slime": "assets/sprites/enemy_slime.png",
+    "enemy_wolf": "assets/sprites/enemy_wolf.png",
+    "enemy_skeleton": "assets/sprites/enemy_skeleton.png",
+    "village_tiles": "assets/tiles/village_tiles.png",
+    "dungeon_tiles": "assets/tiles/dungeon_tiles.png",
+    "ui_atlas": "assets/ui/ui_atlas.png"
+  },
+  "fonts": {
+    "default": "assets/fonts/Inter-Regular.ttf",
+    "heading": "assets/fonts/Inter-Bold.ttf"
+  },
+  "sounds": {
+    "sword_swing": "assets/sounds/sword_swing.wav",
+    "hit_impact": "assets/sounds/hit_impact.wav",
+    "spell_fireball": "assets/sounds/spell_fireball.wav",
+    "chest_open": "assets/sounds/chest_open.wav",
+    "quest_complete": "assets/sounds/quest_complete.wav"
+  },
+  "tilesets": {
+    "village": "assets/maps/village.tmx",
+    "dungeon_level_1": "assets/maps/dungeon_level_1.tmx"
+  }
+}

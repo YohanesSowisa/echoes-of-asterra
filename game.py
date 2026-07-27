@@ -109,8 +109,10 @@ class Game:
         self.telemetry = EventTelemetry()
         self.telemetry.register_event_bus(self.event_bus)
         
-        # Load initial village map for menu background
+        # Load initial village map for menu background and start Main Menu BGM
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
+        self.sound_manager.play_music("menu_music")
+
 
     def toggle_fullscreen(self) -> None:
         """Toggles between Fullscreen and Windowed display mode cleanly with SCALED mouse mapping."""
@@ -159,7 +161,11 @@ class Game:
         
         # Load map and switch state to PLAYING
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
+        self.services.reset_services()
+        self.sound_manager.play_music("village_music", force=True)
         self.game_state = STATE_PLAYING
+
+
 
     def process_events(self) -> None:
         """Captures window clicks, quick menu key toggles, and interactions."""
@@ -463,15 +469,23 @@ class Game:
 
     def update(self) -> None:
         """Ticks recovery pools, triggers camera positioning, and checks portal collisions."""
+        self.services.profiling.start_sample("update")
         # Limit frame rate
         self.dt = self.clock.tick(self.target_fps) / 1000.0
         
         # Process inputs
         self.process_events()
         
+        # Play main menu music when in menu state
+        if self.game_state in [STATE_MENU, STATE_TUTORIAL]:
+            self.sound_manager.play_music("menu_music")
+
         # Skip updates if in menu, paused, or victory splash
         if self.game_state in [STATE_MENU, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY]:
+            self.services.profiling.end_sample("update")
             return
+
+
 
         # Visual Flash overlays updates
         self.effects_manager.update(self.dt)
@@ -576,7 +590,9 @@ class Game:
                 
                 # Load Map
                 self.world_manager.load_map(target, self.player, portal_spawn=True, portal_coord=spawn_coords)
+                self.services.reset_services()
                 break
+
 
         # 7. Check Boss Defeat condition to sync registry
         for enemy in self.enemies:
@@ -585,11 +601,14 @@ class Game:
 
         # 8. Focus camera tracking on player
         self.camera.update(self.player.pos, self.dt)
+        self.services.profiling.end_sample("update")
 
     def draw(self) -> None:
         """Draws background tiles, sorted sprites, dynamic lights and interfaces overlays."""
+        self.services.profiling.start_sample("draw")
         # 1. Clear display
         self.screen.fill(COLOR_BLACK)
+
         
         # Draw game world when playing, paused, dialogue, shop, menu or tutorial
         if self.game_state in [STATE_PLAYING, STATE_PAUSED, STATE_DIALOGUE, STATE_SHOP, STATE_MENU, STATE_TUTORIAL]:
@@ -662,8 +681,10 @@ class Game:
         # 9. Render Developer Debug Overlay (F9, F10, F11)
         self.debug_overlay.draw(self.screen, self)
         
+        self.services.profiling.end_sample("draw")
         # Flip display buffer
         pygame.display.flip()
+
 
     @property
     def enemies(self) -> List[Any]:

@@ -1,10 +1,13 @@
 """
 Echoes of Asterra - Data & Save Schema Service
-Provides Pydantic-based data validation and backward-compatible save schema migrations.
-Features dict fallback if pydantic is not installed.
+Provides Pydantic-based data validation, static data schema verification,
+and backward-compatible save schema migrations.
 """
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Type
 import time
+import logging
+
+logger = logging.getLogger("DataService")
 
 # Optional third-party pydantic import
 try:
@@ -40,10 +43,17 @@ if PYDANTIC_AVAILABLE:
         reputation: Dict[str, Any] = Field(default_factory=dict)
         settlement: Dict[str, Any] = Field(default_factory=dict)
 
+    class StaticItemModel(BaseModel):
+        item_id: str
+        name: str
+        item_type: str = "misc"
+        value: int = 0
+        description: str = ""
+
 
 class DataService:
     """
-    Service wrapper for data validation and save schema migrations.
+    Service wrapper for data validation, static schema verification, and save schema migrations.
     """
     def __init__(self) -> None:
         self.version = 2
@@ -72,10 +82,22 @@ class DataService:
                 model = SaveFileModel.model_validate(migrated)
                 return model.model_dump()
             except Exception as e:
-                # Log warning and return migrated dict directly
-                pass
+                logger.warning("Pydantic validation warning during save migration: %s", e)
 
         return migrated
+
+    def parse_model(self, model_class: Any, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Public API: Validates static data dictionary against a Pydantic schema class.
+        Falls back to raw dictionary if Pydantic is uninstalled or validation warning occurs.
+        """
+        if PYDANTIC_AVAILABLE and issubclass(model_class, BaseModel):
+            try:
+                validated = model_class.model_validate(raw_data)
+                return validated.model_dump()
+            except Exception as e:
+                logger.warning("Data validation warning for schema %s: %s", model_class.__name__, e)
+        return raw_data
 
     def _default_save_dict(self) -> Dict[str, Any]:
         return {

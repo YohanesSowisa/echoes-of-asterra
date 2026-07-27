@@ -48,9 +48,18 @@ class NavigationService:
         self.grid_width = len(grid_matrix[0]) if self.grid_height > 0 else 0
         self.invalidate_cache()
 
+    def update_grid(self, grid_matrix: List[List[int]]) -> None:
+        """Stable Public API alias for set_grid."""
+        self.set_grid(grid_matrix)
+
+    def is_walkable(self, tile_x: int, tile_y: int) -> bool:
+        """Public API: Checks if tile coordinate (x, y) is inside grid and walkable."""
+        return not self._is_tile_solid(tile_x, tile_y)
+
     def invalidate_cache(self, *args: Any, **kwargs: Any) -> None:
         """Flushes path cache when world state or obstacle layout changes."""
         self._path_cache.clear()
+
 
     def find_path(
         self,

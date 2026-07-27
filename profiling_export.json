@@ -1,0 +1,11 @@
+{
+  "window_size": 60,
+  "services": {
+    "test_service": {
+      "avg_ms": 5.788,
+      "min_ms": 5.788,
+      "max_ms": 5.788,
+      "last_ms": 5.788
+    }
+  }
+}

@@ -56,7 +56,11 @@ def main() -> None:
         print(f"Game Crash: An unexpected error occurred: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        if 'game_engine' in locals() and hasattr(game_engine, "services"):
+            game_engine.services.shutdown()
         pygame.quit()
+
 
 if __name__ == "__main__":
     main()
