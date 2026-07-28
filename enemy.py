@@ -20,41 +20,59 @@ class DroppedItem(BaseSprite):
     An item floating on the ground. Magnetizes towards the player
     when they get close and adds itself to the inventory on contact.
     """
-    def __init__(self, pos: Tuple[float, float], item: Item, groups: List[pygame.sprite.Group]) -> None:
+    def __init__(self, pos: Tuple[float, float], item: Item, groups: List[pygame.sprite.Group], despawn_time: float = 300.0) -> None:
         super().__init__(pos, groups, layer=0)
         self.item = item
         self.game = None  # Bound on spawning
-        
+        self.despawn_timer = despawn_time
+
         # Procedural icon representation
-        self.image = pygame.transform.scale(item.icon, (24, 24))
+        self.base_image = pygame.transform.scale(item.icon, (24, 24))
+        self.image = self.base_image.copy()
         self.rect = self.image.get_rect(center=pos)
         self.hitbox = self.rect.copy()
-        
+
         self.bounce_timer = random.uniform(0.0, 6.28)
         self.pickup_radius = 90.0
         self.magnet_speed = 220.0
 
     def update(self, dt: float) -> None:
-        """Applies hover bounce and pulls towards player if nearby."""
+        """Applies hover bounce, despawn timer, and pulls towards player if nearby."""
+        if self.despawn_timer > 0:
+            self.despawn_timer -= dt
+            if self.despawn_timer <= 0:
+                self.kill()
+                return
+
         if not self.game:
             return
-            
+
         # Float bounce
         self.bounce_timer += 4 * dt
         y_offset = math_sin(self.bounce_timer) * 3
-        
+
+        # Despawn warning blink when < 30 seconds remain
+        if self.despawn_timer < 30.0:
+            if int(self.despawn_timer * 8) % 2 == 0:
+                self.image.set_alpha(80)
+            else:
+                self.image.set_alpha(255)
+        else:
+            self.image.set_alpha(255)
+
         # Magnetize to player check
         player = self.game.player
         to_player = player.pos - self.pos
         dist = to_player.length()
-        
+
+
         if dist < self.pickup_radius:
             # Pull towards player
             dir_vec = to_player.normalize()
             self.pos += dir_vec * self.magnet_speed * dt
             self.rect.center = (int(self.pos.x), int(self.pos.y) + int(y_offset))
             self.hitbox.center = self.rect.center
-            
+
             # Collide to pick up
             if self.hitbox.colliderect(player.hitbox):
                 if player.inventory.add_item(self.item):
@@ -102,7 +120,7 @@ class Enemy(BaseSprite):
         self.name = name
         self.asset_key = asset_key
         self.game = None  # bound during map spawn
-        
+
         # --- BASE STATS (subclasses override these) ---
         self.hp = 20
         self.max_hp = 20
@@ -113,7 +131,7 @@ class Enemy(BaseSprite):
         self.xp_reward = 15
         self.gold_reward = 10
         self.loot_table: Dict[str, float] = {}  # item_name -> drop_chance (0.0 to 1.0)
-        
+
         # --- PHYSICALS & MOVEMENT ---
         self.velocity = pygame.math.Vector2(0, 0)
         self.hitbox = pygame.Rect(0, 0, 24, 20)
@@ -121,27 +139,27 @@ class Enemy(BaseSprite):
         self.direction = DIR_DOWN
         self.state = "idle"
         self.is_running = False
-        
+
         self.knockback_vector = pygame.math.Vector2(0, 0)
         self.knockback_duration = 0.0
-        
+
         # --- COMBAT COOLDOWNS ---
         self.attack_timer = 0.0
         self.attack_cooldown = 1.5  # seconds
         self.i_frames_timer = 0.0
         self.is_invincible = False
-        
+
         # Slow debuff tracker
         self.slow_timer = 0.0
         self.slow_multiplier = 0.5
         self.hit_flash_timer = 0.0
-        
+
         # --- AI CONTROLLER & UNLOCKED ABILITIES ---
         self.ai = EnemyAI(self.pos)
         self.level = 1
         self.enemy_key = "slime"
         self.unlocked_abilities: List[str] = []
-        
+
         # --- ANIMATIONS & INJURY TRACKING ---
         self.frame_index = 0.0
         self.prev_state = "idle"
@@ -153,24 +171,24 @@ class Enemy(BaseSprite):
     def setup_balance(self, enemy_key: str, map_name: str = "village", player_level: int = 1, floor_depth: int = 1) -> None:
         """Applies data-driven balance curves, level scaling, and archetype AI unlocks."""
         from rpg.balance import compute_enemy_level, ENEMY_BALANCES, GrowthCurve, compute_reward_multiplier
-        
+
         self.enemy_key = enemy_key
         self.level = compute_enemy_level(enemy_key, map_name, player_level, floor_depth)
-        
+
         bal = ENEMY_BALANCES.get(enemy_key, ENEMY_BALANCES.get("slime"))
         if bal:
             self.max_hp = GrowthCurve.calculate_hp(bal.hp_base, self.level)
             self.hp = self.max_hp
             self.atk = GrowthCurve.calculate_atk(bal.atk_base, self.level)
             self.defense = bal.def_base
-            
+
             # Level delta reward scaling
             reward_mult = compute_reward_multiplier(self.level, player_level)
             base_xp = GrowthCurve.calculate_xp(bal.xp_base, self.level)
             base_gold = GrowthCurve.calculate_gold(bal.gold_base, self.level)
             self.xp_reward = max(1, int(base_xp * reward_mult))
             self.gold_reward = max(1, int(base_gold * reward_mult))
-            
+
             # Archetype AI Abilities unlock
             self.unlocked_abilities = [ability for lvl, ability in bal.abilities_by_level.items() if self.level >= lvl]
 
@@ -200,22 +218,24 @@ class Enemy(BaseSprite):
         self.state = "attack"
         self.frame_index = 0.0
         self.attack_timer = self.attack_cooldown
-        
-        # Check hit on player
+
+        # Check hit on player with expanded melee reach box
         player = self.game.player
-        if player.hp > 0 and self.hitbox.colliderect(player.hitbox):
-            # Phase 3 Greed Curse ATK boost
-            if getattr(player, "greed_curse_active", False):
-                self.atk = int(self.atk * 1.5)
-            CombatSystem.execute_hit(self, player, [self.game.ui_sprites])
+        if player and hasattr(player, "pos"):
+            attack_box = self.hitbox.inflate(36, 36)
+            if player.hp > 0 and attack_box.colliderect(player.hitbox):
+                if getattr(player, "greed_curse_active", False):
+                    self.atk = int(self.atk * 1.5)
+                CombatSystem.execute_hit(self, player, [self.game.ui_sprites])
+
 
     def die(self) -> None:
         """Gives rewards, registers quest kills, and spawns loot items."""
         player = self.game.player
-        
+
         # Check Greed Curse & Faction Drop Multipliers
         greed_mult = 2.0 if getattr(player, "greed_curse_active", False) else 1.0
-        
+
         # Faction Hunters vs Knights Loot Multiplier
         hunter_mult = 1.0
         if hasattr(self.game, "factions"):
@@ -227,15 +247,15 @@ class Enemy(BaseSprite):
 
         player.gain_xp(int(self.xp_reward * greed_mult))
         player.gold += int(self.gold_reward * greed_mult)
-        
+
         # Trigger quest kill progression
         kill_type = getattr(self, "kill_type", self.asset_key)
         self.game.quest_manager.handle_kill(kill_type)
-        
+
         # Emit event bus notification
         if hasattr(self.game, "event_bus"):
             self.game.event_bus.emit("enemy_killed", enemy_type=kill_type, enemy_name=self.name, pos=self.rect.center)
-        
+
         # Process drops
         for item_name, base_chance in self.loot_table.items():
             final_chance = min(1.0, base_chance * hunter_mult * greed_mult)
@@ -246,7 +266,7 @@ class Enemy(BaseSprite):
                     dropped.game = self.game
                     dropped.pos.x += random.uniform(-15, 15)
                     dropped.pos.y += random.uniform(-15, 15)
-                    
+
         # Visual particles splash
         self.game.particles.create_kill_splash(self.rect.center)
         self.kill()
@@ -256,17 +276,17 @@ class Enemy(BaseSprite):
         # 1. Update timers
         if self.attack_timer > 0:
             self.attack_timer -= dt
-            
+
         if self.i_frames_timer > 0:
             self.i_frames_timer -= dt
             if self.i_frames_timer <= 0:
                 self.is_invincible = False
                 if self.state == "hurt":
                     self.state = "idle"
-                    
+
         if self.slow_timer > 0:
             self.slow_timer -= dt
-            
+
         if self.hit_flash_timer > 0:
             self.hit_flash_timer -= dt
 
@@ -278,7 +298,7 @@ class Enemy(BaseSprite):
                 self.pos += self.knockback_vector * dt
                 self.hitbox.center = (int(self.pos.x), int(self.pos.y))
                 self.rect.center = self.hitbox.center
-            
+
             self.frame_index += 4 * dt
             # If death anim finishes, trigger cleanup
             from rpg.animation import entity_assets
@@ -303,9 +323,9 @@ class Enemy(BaseSprite):
             curr_speed = self.speed
             if self.slow_timer > 0:
                 curr_speed *= self.slow_multiplier
-                
+
             self.velocity = self.move_dir * curr_speed
-            
+
         if self.velocity.length_squared() > 0 or self.knockback_duration > 0:
             # Align facing direction based on movement
             if self.knockback_duration <= 0:
@@ -316,20 +336,20 @@ class Enemy(BaseSprite):
                     self.direction = DIR_DOWN if self.velocity.y > 0 else DIR_UP
             else:
                 self.state = "hurt"
-                
+
             from rpg.collision import CollisionSystem
             solid_rects = CollisionSystem.get_nearby_solids(self.hitbox, self.game.world_manager.current_map_grid, TILE_SIZE)
-            
+
             # Resolve X
             self.pos.x += self.velocity.x * 60.0 * dt
             self.hitbox.centerx = int(self.pos.x)
             CollisionSystem.resolve_movement(self, solid_rects, 'x')
-            
+
             # Resolve Y
             self.pos.y += self.velocity.y * 60.0 * dt
             self.hitbox.centery = int(self.pos.y)
             CollisionSystem.resolve_movement(self, solid_rects, 'y')
-            
+
             self.rect.center = self.hitbox.center
         else:
             if self.state not in ["attack", "hurt"]:
@@ -345,19 +365,19 @@ class Enemy(BaseSprite):
             self.frame_index = 0.0
             self.prev_state = current_key
             self.prev_direction = self.direction
-            
+
         from rpg.animation import entity_assets
         frames = entity_assets[self.asset_key][current_key][self.direction]
-        
+
         anim_speed = 6.0
         if self.state == "walk":
             anim_speed = 10.0 if self.is_running else 6.0
         elif self.state == "attack":
             anim_speed = 12.0
-            
+
         self.frame_index += anim_speed * dt
         self.image = frames[int(self.frame_index) % len(frames)]
-        
+
         # Apply visceral procedural injury / mutilation surface variant
         from rpg.sprite import get_injured_surface
         ratio = max(0.0, self.hp / max(1, self.max_hp))
@@ -370,7 +390,7 @@ class Enemy(BaseSprite):
                 temp = self.image.copy()
                 temp.fill((255, 100, 100, 130), special_flags=pygame.BLEND_RGBA_MULT)
                 self.image = temp
-                
+
         # Solid white hit flash
         if self.hit_flash_timer > 0:
             mask = pygame.mask.from_surface(self.image)
@@ -443,112 +463,108 @@ class Slime(Enemy):
     """Bouncing soft forest slimes. Sluggish speed, common drops."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
         super().__init__(pos, groups, "Slime", "slime")
-        self.hp = 25
-        self.max_hp = 25
-        self.atk = 5
+        self.hp = 30
+        self.max_hp = 30
+        self.atk = 9
         self.defense = 1
-        self.speed = 1.4
-        self.xp_reward = 12
-        self.gold_reward = 6
-        self.attack_cooldown = 1.8
-        
+        self.speed = 1.8
+        self.xp_reward = 8
+        self.gold_reward = 3
+        self.attack_cooldown = 0.9
+
         # Loot drop chances
         self.loot_table = {
-            "Forest Apple": 0.40,
-            "Red Potion": 0.15
+            "Forest Apple": 0.35,
+            "Red Potion": 0.12
         }
-        
+
         # Custom smaller hitbox
         self.hitbox = pygame.Rect(0, 0, 28, 16)
         self.hitbox.center = self.rect.center
-        self.ai = EnemyAI(self.pos, vision_radius=280.0, attack_radius=38.0)
+        self.ai = EnemyAI(self.pos, vision_radius=300.0, attack_radius=48.0)
 
 class Wolf(Enemy):
     """Agile forest canine. Fast speed, pounces, medium stats."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
         super().__init__(pos, groups, "Wolf", "wolf")
-        self.hp = 40
-        self.max_hp = 40
-        self.atk = 9
+        self.hp = 55
+        self.max_hp = 55
+        self.atk = 12
         self.defense = 2
-        self.speed = 2.6
-        self.xp_reward = 25
-        self.gold_reward = 12
-        self.attack_cooldown = 1.3
-        
+        self.speed = 3.2
+        self.xp_reward = 16
+        self.gold_reward = 6
+        self.attack_cooldown = 1.2
+
         self.loot_table = {
             "Oak Wood": 0.35,
-            "Baked Bread": 0.20
+            "Baked Bread": 0.15
         }
-        self.ai = EnemyAI(self.pos, vision_radius=350.0, attack_radius=44.0)
+        self.ai = EnemyAI(self.pos, vision_radius=380.0, attack_radius=54.0)
+
 
 class Skeleton(Enemy):
     """Armored undead warrior. Medium health and damage."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
         super().__init__(pos, groups, "Skeleton", "skeleton")
-        self.hp = 60
-        self.max_hp = 60
-        self.atk = 12
-        self.defense = 3
-        self.speed = 1.8
+        self.hp = 95
+        self.max_hp = 95
+        self.atk = 26
+        self.defense = 5
+        self.speed = 2.4
         self.xp_reward = 35
-        self.gold_reward = 18
-        self.attack_cooldown = 1.6
-        
+        self.gold_reward = 12
+        self.attack_cooldown = 1.0
+
         self.loot_table = {
-            "Iron Ore": 0.45,
+            "Iron Ore": 0.40,
             "Steel Blade": 0.05
         }
-        self.ai = EnemyAI(self.pos, vision_radius=320.0, attack_radius=48.0)
+        self.ai = EnemyAI(self.pos, vision_radius=340.0, attack_radius=56.0)
 
 class Mage(Enemy):
     """Ranged spellcaster. Spawns dark bolt magic projectiles."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
         super().__init__(pos, groups, "Shadow Mage", "mage")
-        self.hp = 45
-        self.max_hp = 45
-        self.atk = 6
-        self.defense = 1
-        self.magic = 12
-        self.speed = 1.6
-        self.xp_reward = 45
-        self.gold_reward = 25
-        self.attack_cooldown = 2.2
-        
+        self.hp = 60
+        self.max_hp = 60
+        self.atk = 10
+        self.defense = 2
+        self.magic = 24
+        self.speed = 2.2
+        self.xp_reward = 40
+        self.gold_reward = 15
+        self.attack_cooldown = 1.2
+
         self.loot_table = {
-            "Blue Potion": 0.40,
+            "Blue Potion": 0.35,
             "Glow Amulet": 0.06
         }
-        # Mage keeps range away from player, vision is wide, attacks from distance
-        self.ai = EnemyAI(self.pos, vision_radius=400.0, attack_radius=200.0)
+        self.ai = EnemyAI(self.pos, vision_radius=420.0, attack_radius=220.0)
 
     def perform_attack(self) -> None:
         """Casts a dark bolt spell projectile towards the player."""
         self.state = "attack"
         self.frame_index = 0.0
         self.attack_timer = self.attack_cooldown
-        
-        # Play magic sound
+
         self.sound_manager.play_sound("magic")
-        
-        # Calculate direction towards player
+
         to_player = self.game.player.pos - self.pos
         if to_player.length_squared() > 0:
             to_player = to_player.normalize()
-            
-        # Determine facing
+
         if abs(to_player.x) > abs(to_player.y):
             self.direction = "right" if to_player.x > 0 else "left"
         else:
             self.direction = "down" if to_player.y > 0 else "up"
 
-        # Spawn Projectile
         from rpg.combat import Projectile
         Projectile(
             pos=self.rect.center,
             direction=self.direction,
-            speed=200.0,
-            damage=12 + self.magic,
+            speed=320.0,
+            damage=14 + self.magic,
             is_magic=True,
             proj_type="dark_bolt",
             groups=[self.game.visible_sprites, self.game.projectiles],
@@ -559,15 +575,16 @@ class Goblin(Enemy):
     """Small fast scavenger. Steals items and flees quickly."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
         super().__init__(pos, groups, "Goblin", "goblin")
-        self.hp = 35
-        self.max_hp = 35
-        self.atk = 8
-        self.defense = 0
-        self.speed = 2.3
-        self.xp_reward = 20
-        self.gold_reward = 15
-        self.attack_cooldown = 1.1
-        
+        self.hp = 45
+        self.max_hp = 45
+        self.atk = 14
+        self.defense = 1
+        self.speed = 3.0
+        self.xp_reward = 18
+        self.gold_reward = 7
+        self.attack_cooldown = 0.7
+
+
         self.loot_table = {
             "Iron Ore": 0.25,
             "Forest Apple": 0.30,
@@ -587,7 +604,7 @@ class Knight(Enemy):
         self.xp_reward = 60
         self.gold_reward = 35
         self.attack_cooldown = 1.8
-        
+
         self.loot_table = {
             "Iron Ore": 0.50,
             "Iron Aegis": 0.08,

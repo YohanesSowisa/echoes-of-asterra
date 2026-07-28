@@ -19,6 +19,46 @@ class Inventory:
         self.dragged_slot_idx: Optional[int] = None
         self.dragged_item: Optional[Item] = None
 
+        # Quick-use hotbar shortcut bindings (Keys 1..4 -> item_name)
+        self.quick_slots: dict[int, Optional[str]] = {
+            1: "Red Potion",
+            2: "Blue Potion",
+            3: "Baked Bread",
+            4: "Forest Apple"
+        }
+
+    def assign_quick_slot(self, slot_num: int, item_obj_or_name: Any) -> bool:
+        """
+        Binds a usable/equipable item to quick-slot 1..4.
+        Returns False if the item is a material or quest item that cannot be used.
+        """
+        if not (1 <= slot_num <= 4):
+            return False
+
+        if isinstance(item_obj_or_name, str):
+            item_name = item_obj_or_name
+        else:
+            if hasattr(item_obj_or_name, "item_type") and item_obj_or_name.item_type in ["material", "quest"]:
+                return False
+            item_name = getattr(item_obj_or_name, "name", str(item_obj_or_name))
+
+        self.quick_slots[slot_num] = item_name
+        return True
+
+
+    def use_quick_slot(self, slot_num: int, player: Any) -> bool:
+        """Finds item matching bound name in quick-slot 1..4 and consumes/uses it."""
+        item_name = self.quick_slots.get(slot_num)
+        if not item_name:
+            return False
+
+        for idx, item in enumerate(self.slots):
+            if item and item.name == item_name:
+                return self.use_item(idx, player)
+
+        return False
+
+
     def add_item(self, item: Item) -> bool:
         """
         Tries to add an item to the inventory.
@@ -191,8 +231,13 @@ class Inventory:
         if item is None:
             return False
 
-        # 1. Consumable Potions / Food
+        # 1. Consumable Potions / Food (3.0s Potion Cooldown)
         if item.item_type in [ITEM_POTION, ITEM_FOOD]:
+            if getattr(player, "potion_cooldown_timer", 0.0) > 0.0:
+                from rpg.combat import DamageNumber
+                DamageNumber(player.rect.center, f"Potion Cooldown ({player.potion_cooldown_timer:.1f}s)", (230, 80, 80), [player.game.ui_sprites], size=14)
+                return False
+
             used = False
             
             # Apply HP recovery
@@ -214,8 +259,9 @@ class Inventory:
                     used = True
             
             if used:
-                # Play heal sound
+                player.potion_cooldown_timer = 3.0
                 player.sound_manager.play_sound("heal")
+
                 
                 # Particle splash
                 player.particles.create_heal_sparkles(player.hitbox.center)

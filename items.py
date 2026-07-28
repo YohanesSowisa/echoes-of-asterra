@@ -54,8 +54,9 @@ class Item:
             return item_assets.get("material_iron")
         elif "Wood" in self.name or "Plank" in self.name:
             return item_assets.get("material_wood")
-        elif "Heart" in self.name or "Amulet" in self.name:
+        elif "Heart" in self.name or "Amulet" in self.name or "Gold" in self.name or "Coin" in self.name:
             return item_assets.get("artifact")
+
         elif "Scroll" in self.name or "Key" in self.name:
             return item_assets.get("quest")
             
@@ -275,7 +276,15 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
     },
 
     # Materials
+    "Gold Coins": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 9999,
+        "stats": {},
+        "description": "A shiny pouch of Asterra gold currency."
+    },
     "Iron Ore": {
+
         "item_type": ITEM_MATERIAL,
         "rarity": RARITY_COMMON,
         "max_stack": 99,

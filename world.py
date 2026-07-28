@@ -99,6 +99,8 @@ class WorldManager:
         self.boss_defeated = False
         self.dungeon_depth = 1
         self.activated_waypoints = set(["village"])
+        self.persistent_dropped_items: Dict[str, List[Dict[str, Any]]] = {}
+
 
     def activate_waypoint(self, region_id: str, game: Any) -> bool:
         """Activates an Ancient Waypoint Stone, enabling fast travel."""
@@ -462,13 +464,23 @@ class WorldManager:
                 except Exception:
                     mkt_font = pygame.font.SysFont("Arial", 11, bold=True)
                 mkt_lbl = mkt_font.render("ROYAL MARKET EXCHANGE", True, (25, 20, 10))
-                mkt_surf.blit(mkt_lbl, (12, 4))
-
                 mkt_sprite = BaseSprite(mkt_pos, [game.visible_sprites], layer=1)
                 mkt_sprite.image = mkt_surf
                 mkt_sprite.rect = mkt_surf.get_rect(center=mkt_pos)
 
+        # 10c. Re-spawn persistent dropped items for target map (Minecraft-style death loot)
+        if hasattr(self, "persistent_dropped_items") and map_name in self.persistent_dropped_items:
+            active_drops = []
+            for d_info in self.persistent_dropped_items[map_name]:
+                if d_info.get("despawn_timer", 0) > 0:
+                    from rpg.enemy import DroppedItem
+                    drop = DroppedItem(d_info["pos"], d_info["item"], [game.visible_sprites, game.dropped_items], despawn_time=d_info["despawn_timer"])
+                    drop.game = game
+                    active_drops.append(d_info)
+            self.persistent_dropped_items[map_name] = active_drops
+
         # 11. Trigger background theme
+
         if map_name == MAP_VILLAGE:
             game.sound_manager.play_music("village_music", force=True)
         elif map_name == MAP_FOREST:

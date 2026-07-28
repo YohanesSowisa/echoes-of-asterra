@@ -236,10 +236,18 @@ class SaveSystem:
             # Recalculate stats dynamically based on equipment
             player.equipment.recalculate_player_stats(player)
             
-            # Clamp HP, Mana and Stamina to loaded amounts
-            player.hp = min(player.max_hp, player_data["hp"])
-            player.mana = min(player.max_mana, player_data["mana"])
-            player.stamina = min(player.max_stamina, player_data["stamina"])
+            # Clamp HP, Mana and Stamina to loaded amounts (restore HP if saved while dead)
+            loaded_hp = player_data.get("hp", player.max_hp)
+            player.hp = player.max_hp if loaded_hp <= 0 else min(player.max_hp, loaded_hp)
+            player.mana = min(player.max_mana, player_data.get("mana", player.max_mana))
+            player.stamina = min(player.max_stamina, player_data.get("stamina", player.max_stamina))
+
+            # Reset animation state machine back to living idle state
+            player.state = "idle"
+            player.action_timer = 0.0
+            player.frame_index = 0.0
+            player.is_invincible = False
+
 
             # --- Unlock Skills ---
             for name, skill in player.skill_manager.skills.items():

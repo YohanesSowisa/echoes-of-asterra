@@ -128,19 +128,25 @@ class EnemyAI:
 
             
         elif self.state == AI_STATE_ATTACK:
-            # Stand and attack
-            enemy.move_dir = pygame.math.Vector2(0, 0)
-            enemy.is_running = False
-            
-            # Align face direction with player
+            # Align facing direction with player
             if abs(to_player.x) > abs(to_player.y):
                 enemy.direction = "right" if to_player.x > 0 else "left"
             else:
                 enemy.direction = "down" if to_player.y > 0 else "up"
+
+            # Continuously press forward until touching contact distance (18px)
+            if dist_to_player > 18.0:
+                enemy.move_dir = to_player.normalize() if to_player.length_squared() > 0 else pygame.math.Vector2(0, 0)
+                enemy.is_running = True
+            else:
+                enemy.move_dir = pygame.math.Vector2(0, 0)
+                enemy.is_running = False
                 
             # Perform attack if off cooldown
             if enemy.attack_timer <= 0:
                 enemy.perform_attack()
+
+
                 
         elif self.state == AI_STATE_RETREAT:
             # Run back to home spawn point

@@ -135,14 +135,19 @@ class Game:
         self.world_manager.boss_defeated = False
         self.world_manager.chests_opened.clear()
         
-        # Reset player variables
+        # Reset player variables and state
         self.player.level = 1
         self.player.xp = 0
-        self.player.xp_needed = 100
-        self.player.gold = 50
+        self.player.xp_needed = 180
+        self.player.gold = 10
         self.player.hp = self.player.base_max_hp
         self.player.mana = self.player.base_max_mana
         self.player.stamina = self.player.base_max_stamina
+        self.player.state = "idle"
+        self.player.action_timer = 0.0
+        self.player.frame_index = 0.0
+        self.player.is_invincible = False
+
         
         # Equip defaults
         self.player.inventory.slots = [None] * self.player.inventory.size
@@ -164,6 +169,83 @@ class Game:
         self.services.reset_services()
         self.sound_manager.play_music("village_music", force=True)
         self.game_state = STATE_PLAYING
+
+    def respawn_player(self) -> None:
+        """
+        Respawns the player at the Village safe zone with death penalties while maintaining full world state:
+        1. Player ALWAYS respawns at MAP_VILLAGE.
+        2. Un-equipped inventory items drop at the death location (death_pos in death_map)
+           with a 300s (5-minute) despawn timer (Minecraft-style).
+        3. XP Penalty: -25% of current level XP requirement (minimum 0).
+        4. Gold Penalty: -30% of current Gold (dropped on floor at death_pos).
+        5. Equipped gear, quests, map exploration, chests, boss kills, and world simulation stay intact.
+        """
+        import random
+        player = self.player
+        death_map = getattr(self.world_manager, "current_map_name", MAP_VILLAGE)
+        death_pos = (player.pos.x, player.pos.y)
+
+        if not hasattr(self.world_manager, "persistent_dropped_items"):
+            self.world_manager.persistent_dropped_items = {}
+
+        if death_map not in self.world_manager.persistent_dropped_items:
+            self.world_manager.persistent_dropped_items[death_map] = []
+
+        # 1. Store un-equipped inventory items to persistent dropped items for death_map
+        for idx in range(len(player.inventory.slots)):
+            item = player.inventory.slots[idx]
+            if item is not None:
+                scatter_offset = (
+                    death_pos[0] + random.uniform(-20.0, 20.0),
+                    death_pos[1] + random.uniform(-20.0, 20.0)
+                )
+                self.world_manager.persistent_dropped_items[death_map].append({
+                    "pos": scatter_offset,
+                    "item": item,
+                    "despawn_timer": 300.0
+                })
+                player.inventory.slots[idx] = None
+
+        # 2. Apply XP and Gold penalties
+        xp_loss = int(player.xp_needed * 0.25)
+        gold_loss = int(player.gold * 0.30)
+        
+        player.xp = max(0, player.xp - xp_loss)
+        player.gold = max(0, player.gold - gold_loss)
+
+        # Store gold coins stack on ground if gold was lost
+        if gold_loss > 0:
+            from rpg.items import create_item, Item
+            gold_item = create_item("Gold Coins", gold_loss)
+            if not gold_item:
+                gold_item = Item("Gold Coins", "material", quantity=gold_loss)
+            scatter_offset = (death_pos[0] + random.uniform(-14.0, 14.0), death_pos[1] + random.uniform(-14.0, 14.0))
+            self.world_manager.persistent_dropped_items[death_map].append({
+                "pos": scatter_offset,
+                "item": gold_item,
+                "despawn_timer": 300.0
+            })
+
+        # 3. Restore Player Vitals & State Machine
+        player.state = "idle"
+        player.action_timer = 0.0
+        player.frame_index = 0.0
+        player.is_invincible = False
+        player.hp = player.max_hp
+        player.mana = player.max_mana
+        player.stamina = player.max_stamina
+
+        # 4. ALWAYS respawn player at MAP_VILLAGE (Village safe town)
+        self.world_manager.load_map(MAP_VILLAGE, player, portal_spawn=False)
+
+
+        self.game_state = STATE_PLAYING
+        self.sound_manager.play_sound("levelup")
+        from rpg.combat import DamageNumber
+        DamageNumber(player.rect.center, f"RESPAWNED IN VILLAGE! (-{xp_loss} XP, -{gold_loss} Gold)", (255, 215, 0), [self.ui_sprites], size=18)
+
+
+
 
 
 
@@ -204,6 +286,46 @@ class Game:
                             self.sound_manager.play_sound("click")
                             continue
 
+                    # Keyboard WASD / Arrow / Enter / 1-4 navigation when Inventory Panel is open
+                    if "inventory" in self.ui_manager.open_panels:
+                        sel_idx = self.ui_manager.selected_inventory_slot
+                        cols, rows = 6, 4
+                        total_slots = self.player.inventory.size
+                        
+                        if event.key in [pygame.K_w, pygame.K_UP]:
+                            self.ui_manager.selected_inventory_slot = (sel_idx - cols) % total_slots
+                            self.sound_manager.play_sound("click")
+                            continue
+                        elif event.key in [pygame.K_s, pygame.K_DOWN]:
+                            self.ui_manager.selected_inventory_slot = (sel_idx + cols) % total_slots
+                            self.sound_manager.play_sound("click")
+                            continue
+                        elif event.key in [pygame.K_a, pygame.K_LEFT]:
+                            self.ui_manager.selected_inventory_slot = (sel_idx - 1) % total_slots
+                            self.sound_manager.play_sound("click")
+                            continue
+                        elif event.key in [pygame.K_d, pygame.K_RIGHT]:
+                            self.ui_manager.selected_inventory_slot = (sel_idx + 1) % total_slots
+                            self.sound_manager.play_sound("click")
+                            continue
+                        elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                            # Use / Equip item in currently selected slot!
+                            self.player.inventory.use_item(self.ui_manager.selected_inventory_slot, self.player)
+                            continue
+                        elif event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
+                            slot_num = event.key - pygame.K_1 + 1
+                            item = self.player.inventory.slots[self.ui_manager.selected_inventory_slot]
+                            if item:
+                                if item.item_type in ["material", "quest"]:
+                                    self.ui_manager.show_banner("CANNOT ASSIGN KEY", f"{item.name} is a material and cannot be bound to hotbar.", (240, 90, 80), duration=2.5)
+                                    self.sound_manager.play_sound("hit")
+                                else:
+                                    self.player.inventory.assign_quick_slot(slot_num, item)
+                                    self.ui_manager.show_banner(f"BOUND TO KEY [{slot_num}]", f"{item.name} assigned to Quick-Slot {slot_num}", (60, 220, 100), duration=2.5)
+                                    self.sound_manager.play_sound("levelup")
+                            continue
+
+
                     # Keyboard W/S / Up/Down navigation when Exploration Log (progression) Panel is open
                     if "progression" in self.ui_manager.open_panels:
                         if event.key in [pygame.K_w, pygame.K_s, pygame.K_UP, pygame.K_DOWN]:
@@ -214,6 +336,16 @@ class Game:
                                 self.ui_manager.progression_select_idx = (self.ui_manager.progression_select_idx + 1) % max(1, num_regions)
                             self.sound_manager.play_sound("click")
                             continue
+
+                    # Quick-Use Hotbar Item Keys (1-4) during gameplay when no panel is open
+                    if not self.ui_manager.open_panels and event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
+                        slot_num = event.key - pygame.K_1 + 1
+                        if self.player.inventory.use_quick_slot(slot_num, self.player):
+                            item_name = self.player.inventory.quick_slots.get(slot_num, "Item")
+                            from rpg.combat import DamageNumber
+                            DamageNumber(self.player.rect.center, f"Used {item_name} [{slot_num}]", (100, 220, 255), [self.ui_sprites], size=16)
+                            continue
+
 
                     # Key panel quick toggles
                     if event.key == pygame.K_i:
@@ -405,14 +537,26 @@ class Game:
                         self.sound_manager.play_sound("click")
                         
                 elif self.game_state == STATE_GAME_OVER:
-                    if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
-                        # Load last save
+                    if event.key == pygame.K_r:
+                        self.respawn_player()
+                    elif event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                        # Load last save or restart
                         from rpg.save import SaveSystem
                         if not SaveSystem.load_game(self.player, self.quest_manager, self.world_manager):
-                            # Default back to start
                             self.start_new_game()
+                        else:
+                            self.game_state = STATE_PLAYING
+
+                        # Ensure player state is alive and responsive
+                        self.player.state = "idle"
+                        self.player.action_timer = 0.0
+                        self.player.frame_index = 0.0
+                        self.player.is_invincible = False
+                        if self.player.hp <= 0:
+                            self.player.hp = self.player.max_hp
                     elif event.key == pygame.K_ESCAPE:
                         self.game_state = STATE_MENU
+
 
                 elif self.game_state == STATE_VICTORY:
                     if event.key in [pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN]:

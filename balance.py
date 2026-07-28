@@ -92,7 +92,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "slime": EnemyBalance(
         base_level=1,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=25, atk_base=6, def_base=1, xp_base=15, gold_base=8,
+        hp_base=30, atk_base=9, def_base=1, xp_base=8, gold_base=3,
         hp_profile_key="early_fast", atk_profile_key="slow",
         behaviors=[BehaviorTag.RETREAT_LOW_HP],
         abilities_by_level={5: "Split Slime", 10: "Acid Splash"}
@@ -100,15 +100,16 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "wolf": EnemyBalance(
         base_level=3,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=45, atk_base=10, def_base=2, xp_base=25, gold_base=12,
+        hp_base=55, atk_base=12, def_base=2, xp_base=16, gold_base=6,
         hp_profile_key="medium", atk_profile_key="medium",
         behaviors=[BehaviorTag.PACK_TACTICS, BehaviorTag.BERSERK],
         abilities_by_level={5: "Pounce Dash", 10: "Pack Howl", 15: "Bleeding Strike"}
     ),
+
     "bandit": EnemyBalance(
         base_level=5,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=65, atk_base=14, def_base=4, xp_base=40, gold_base=25,
+        hp_base=80, atk_base=22, def_base=4, xp_base=25, gold_base=10,
         hp_profile_key="medium", atk_profile_key="medium",
         behaviors=[BehaviorTag.DEFENSIVE_PARRY, BehaviorTag.RETREAT_LOW_HP],
         abilities_by_level={5: "Parry Stance", 10: "Smoke Bomb", 15: "Execute Strike"}
@@ -116,7 +117,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "skeleton": EnemyBalance(
         base_level=8,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=75, atk_base=16, def_base=5, xp_base=50, gold_base=20,
+        hp_base=95, atk_base=26, def_base=5, xp_base=35, gold_base=12,
         hp_profile_key="medium", atk_profile_key="medium",
         behaviors=[BehaviorTag.DEFENSIVE_PARRY],
         abilities_by_level={5: "Shield Wall", 10: "Whirlwind"}
@@ -124,7 +125,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "mage": EnemyBalance(
         base_level=10,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=50, atk_base=20, def_base=2, xp_base=60, gold_base=35,
+        hp_base=60, atk_base=28, def_base=2, xp_base=40, gold_base=15,
         hp_profile_key="slow", atk_profile_key="medium",
         behaviors=[BehaviorTag.RANGED_KITE],
         abilities_by_level={5: "Mana Shield", 10: "Teleport", 15: "Chain Lightning"}
@@ -132,7 +133,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "boss": EnemyBalance(
         base_level=15,
         policy=ScalingPolicy.FULL_SCALE,
-        hp_base=350, atk_base=35, def_base=10, xp_base=300, gold_base=200,
+        hp_base=450, atk_base=48, def_base=10, xp_base=250, gold_base=100,
         hp_profile_key="boss", atk_profile_key="boss",
         behaviors=[BehaviorTag.BERSERK, BehaviorTag.DEFENSIVE_PARRY],
         abilities_by_level={5: "Ground Slam", 10: "Enrage", 15: "Cataclysm"}
@@ -140,7 +141,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "forest_guardian": EnemyBalance(
         base_level=6,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=200, atk_base=16, def_base=5, xp_base=150, gold_base=80,
+        hp_base=250, atk_base=22, def_base=5, xp_base=100, gold_base=40,
         hp_profile_key="medium", atk_profile_key="medium",
         behaviors=[BehaviorTag.BERSERK, BehaviorTag.PACK_TACTICS],
         abilities_by_level={3: "Nature Roar", 6: "Thorn Charge", 10: "Root Snare"}
@@ -148,7 +149,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
     "bandit_leader": EnemyBalance(
         base_level=10,
         policy=ScalingPolicy.SOFT_SCALE,
-        hp_base=280, atk_base=20, def_base=6, xp_base=200, gold_base=120,
+        hp_base=320, atk_base=28, def_base=6, xp_base=140, gold_base=60,
         hp_profile_key="medium", atk_profile_key="medium",
         behaviors=[BehaviorTag.DEFENSIVE_PARRY, BehaviorTag.BERSERK],
         abilities_by_level={5: "Parry Riposte", 8: "Smoke Bomb", 12: "Execute Strike"}
@@ -162,6 +163,7 @@ ENEMY_BALANCES: Dict[str, EnemyBalance] = {
         abilities_by_level={}
     )
 }
+
 
 # --- TUNABLE GROWTH CURVES ENGINE ---
 class GrowthCurve:

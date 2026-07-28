@@ -32,11 +32,15 @@ class Player(BaseSprite):
         self.particles = particles
         self.game = None  # Bound during game engine startup
         
-        # --- BASE STATS (Level 1) ---
+        # --- BASE STATS (Level 1 - Re-balanced Difficulty) ---
         self.level = 1
         self.xp = 0
-        self.xp_needed = 100
-        self.gold = 50
+        self.xp_needed = 180
+        self.gold = 10
+        self.stamina_regen_rate = 14.0
+        self.mana_regen_rate = 3.5
+        self.potion_cooldown_timer = 0.0
+
         
         self.base_max_hp = 100
         self.base_max_mana = 50
@@ -146,7 +150,7 @@ class Player(BaseSprite):
     def level_up(self) -> None:
         """Triggers player stat growth and skill unlocks on level up."""
         self.level += 1
-        self.xp_needed = int(self.xp_needed * 1.5)
+        self.xp_needed = int(180 * (self.level ** 1.5))
         
         # Grow base stats
         self.base_max_hp += 12
@@ -159,10 +163,11 @@ class Player(BaseSprite):
         # Recalculate stats with equipment modifiers
         self.equipment.recalculate_player_stats(self)
         
-        # Heal completely on level up
-        self.hp = self.max_hp
-        self.mana = self.max_mana
+        # Partially restore HP/Mana (50% max recovery for realistic survival tension)
+        self.hp = min(self.max_hp, self.hp + self.max_hp // 2)
+        self.mana = min(self.max_mana, self.mana + self.max_mana // 2)
         self.stamina = self.max_stamina
+
         
         # Play Levelup sound and spark particles
         self.sound_manager.play_sound("levelup")
@@ -181,8 +186,12 @@ class Player(BaseSprite):
         self.hp = max(0, self.hp - amount)
         if self.hp <= 0:
             self.state = "dead"
+            self.velocity = pygame.math.Vector2(0, 0)
+            self.knockback_duration = 0.0
+            self.knockback_vector = pygame.math.Vector2(0, 0)
             self.action_timer = 2.0  # dead animation duration before game over
             self.sound_manager.play_sound("gameover")
+
 
     def perform_attack(self) -> None:
         """Triggers weapon combo strikes and finishers."""
@@ -433,6 +442,11 @@ class Player(BaseSprite):
 
     def update(self, dt: float) -> None:
         """Ticks recovery pools, updates animation frames, and resolves collisions."""
+        if self.state == "dead":
+            self.velocity.x = 0
+            self.velocity.y = 0
+            self.knockback_duration = 0.0
+
         # Freeze all player movement and actions when UI window or dialogue is active (Harvest Moon-like freeze)
         if self.is_ui_active():
             self.velocity.x = 0
@@ -442,6 +456,7 @@ class Player(BaseSprite):
             if self.state not in ["attack", "roll", "dead"]:
                 self.state = "idle"
         elif self.state != "dead":
+
             self.handle_movement_input(self.game.input_handler)
             self.handle_skill_casts(self.game.input_handler)
             
@@ -477,7 +492,11 @@ class Player(BaseSprite):
         if self.attack_cooldown_timer > 0:
             self.attack_cooldown_timer -= dt
             
+        if self.potion_cooldown_timer > 0:
+            self.potion_cooldown_timer -= dt
+
         if self.i_frames_timer > 0:
+
             self.i_frames_timer -= dt
             if self.i_frames_timer <= 0:
                 self.is_invincible = False
