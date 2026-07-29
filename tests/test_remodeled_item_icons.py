@@ -1,7 +1,18 @@
+import os
+import sys
 import unittest
 import pygame
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+os.environ["SDL_VIDEODRIVER"] = "dummy"
+os.environ["SDL_AUDIODRIVER"] = "dummy"
+
 from rpg.items import create_item
 from rpg.animation import init_assets, item_assets
+
 
 class TestRemodeledItemIcons(unittest.TestCase):
     @classmethod

@@ -1,9 +1,19 @@
+import os
+import sys
 import unittest
 import pygame
-from rpg.constants import MAP_VILLAGE, MAP_FOREST
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+os.environ["SDL_VIDEODRIVER"] = "dummy"
+os.environ["SDL_AUDIODRIVER"] = "dummy"
+
+from rpg.constants import MAP_VILLAGE, MAP_FOREST
 from rpg.game import Game
 from rpg.enemy import Slime
+
 
 class TestSafeZoneSaveRules(unittest.TestCase):
     @classmethod

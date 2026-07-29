@@ -10,12 +10,12 @@
 - **Nama Game**: *Echoes of Asterra*
 - **Genre**: 2D Action RPG / Fantasy Settlement & Living World Simulation
 - **Teknologi**: Python 3.10+, Pygame-ce 2.5+
-- **Direktori Utama**: `/Users/yohanes29/Documents/python-playground/games/rpg`
+- **Direktori Utama**: Root repositori (`echoes-of-asterra/`)
 - **Cara Menjalankan Game**:
   ```bash
-  cd /Users/yohanes29/Documents/python-playground/games/rpg
-  python main.py
+  python3 main.py
   ```
+
 
 ---
 
@@ -86,8 +86,7 @@ rpg/
 Seluruh modul game telah diuji secara otomatis dan terbukti kompilasi 100% bersih:
 
 ```bash
-cd /Users/yohanes29/Documents/python-playground/games/rpg
-python3 -m py_compile *.py
+python3 -m py_compile main.py rpg/*.py rpg/services/*.py
 # Output: ALL rpg modules compiled 100% clean!
 ```
 
@@ -97,9 +96,9 @@ python3 -m py_compile *.py
 
 Bagi AI Agent / Developer yang menerima sesi chat baru:
 
-1. **Baca Berkas Ini (`handover.md`)** dan [update_logs.md](file:///Users/yohanes29/Documents/python-playground/games/rpg/update_logs.md) untuk melihat histori perubahan terkini.
+1. **Baca Berkas Ini (`handover.md`)** dan `update_logs.md` untuk melihat histori perubahan terkini.
 2. **Aturan Penting Pengembangan**:
    - Selalu biarkan pengguna (*User*) melakukan `git commit` sendiri.
    - Jangan menambahkan dependency berat eksternal (sistem dirancang 100% offline & deterministik).
-   - Selalu uji dengan `python3 -m py_compile *.py` setelah mengedit kode.
+   - Selalu uji dengan `python3 -m py_compile main.py rpg/*.py rpg/services/*.py` dan `python3 -m unittest discover -s tests` setelah mengedit kode.
    - Catat setiap penambahan fitur / bug fix baru ke dalam berkas `update_logs.md` dengan format timestamp `[yyyy-mm-dd hh:mm:ss WIB]`.
