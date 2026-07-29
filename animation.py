@@ -113,7 +113,17 @@ def init_assets() -> None:
                 pygame.image.save(tile_assets[k], path)
 
     # 2. Load or Generate Items
-    item_keys = ["weapon", "shield", "helmet", "chest", "legs", "boots", "potion_red", "potion_blue", "food", "quest", "material_iron", "material_wood", "accessory", "artifact"]
+    item_keys = [
+        "weapon", "weapon_axe", "weapon_hammer", "weapon_spear", "weapon_dagger",
+        "shield", "shield_wooden", "shield_iron",
+        "helmet", "chest", "legs", "boots",
+        "potion_red", "potion_blue", "food", "apple", "gold_coins",
+        "quest", "key_dungeon",
+        "material_iron", "material_wood", "log_oak", "material_stone", "material_leather",
+        "accessory", "amulet_glow", "artifact"
+    ]
+
+
     all_items_exist = all(os.path.exists(os.path.join(ASSETS_DIR, "ui", f"item_{k}.png")) for k in item_keys)
     
     if all_items_exist:
@@ -421,6 +431,118 @@ def _generate_items() -> None:
     # Gem glint
     pygame.draw.circle(ruby, COLOR_WHITE, (19, 9), 1)
     item_assets["artifact"] = _create_outline(ruby)
+
+    # 15. Gold Coins Stack (Currency)
+    gcoins = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    # Bottom coin
+    pygame.draw.ellipse(gcoins, (180, 130, 20), (6, 16, 18, 10))
+    pygame.draw.ellipse(gcoins, (255, 215, 0), (7, 16, 16, 8))
+    # Middle coin
+    pygame.draw.ellipse(gcoins, (180, 130, 20), (9, 11, 18, 10))
+    pygame.draw.ellipse(gcoins, (255, 225, 40), (10, 11, 16, 8))
+    # Top coin
+    pygame.draw.ellipse(gcoins, (210, 160, 30), (7, 6, 18, 10))
+    pygame.draw.ellipse(gcoins, (255, 240, 90), (8, 6, 16, 8))
+    # Inner emblem & shine
+    pygame.draw.ellipse(gcoins, (255, 255, 200), (13, 8, 6, 3))
+    item_assets["gold_coins"] = _create_outline(gcoins)
+
+    # 16. Fresh Red Apple
+    apple = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    # Apple fruit body
+    pygame.draw.circle(apple, (220, 35, 35), (12, 18), 7)
+    pygame.draw.circle(apple, (235, 45, 45), (19, 18), 7)
+    pygame.draw.circle(apple, (210, 25, 25), (16, 21), 6)
+    # Stem
+    pygame.draw.line(apple, (110, 70, 30), (16, 7), (16, 12), 2)
+    # Green leaf
+    pygame.draw.polygon(apple, (60, 200, 70), [(16, 9), (22, 5), (20, 11)])
+    # Shiny glint
+    pygame.draw.circle(apple, COLOR_WHITE, (11, 14), 2)
+    item_assets["apple"] = _create_outline(apple)
+
+    # 17. Crafting Material (Stone Chunk)
+    stone = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.polygon(stone, (110, 115, 125), [(6, 20), (10, 8), (22, 6), (26, 16), (18, 26)])
+    pygame.draw.polygon(stone, (150, 155, 165), [(10, 8), (22, 6), (18, 16), (12, 16)]) # Top facet highlight
+    item_assets["material_stone"] = _create_outline(stone)
+
+    # 18. Weapon Subclasses (Axe, Hammer, Spear, Dagger)
+    axe = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.line(axe, (120, 80, 40), (6, 26), (22, 6), 3) # Handle
+    pygame.draw.polygon(axe, (210, 215, 225), [(16, 4), (28, 4), (26, 16), (16, 12)]) # Blade head
+    item_assets["weapon_axe"] = _create_outline(axe)
+
+    hammer = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.line(hammer, (120, 80, 40), (6, 26), (20, 8), 3) # Handle
+    pygame.draw.rect(hammer, (140, 145, 155), (14, 4, 14, 10), border_radius=2) # Head
+    item_assets["weapon_hammer"] = _create_outline(hammer)
+
+    spear = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.line(spear, (140, 95, 50), (4, 28), (24, 8), 2) # Shaft
+    pygame.draw.polygon(spear, (220, 225, 235), [(24, 8), (30, 2), (22, 4)]) # Spearhead
+    item_assets["weapon_spear"] = _create_outline(spear)
+
+    dagger = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.line(dagger, (200, 205, 215), (12, 20), (24, 8), 3) # Short blade
+    pygame.draw.line(dagger, (180, 130, 40), (10, 22), (16, 24), 2) # Guard
+    pygame.draw.line(dagger, (100, 60, 20), (8, 24), (4, 28), 2)  # Hilt
+    item_assets["weapon_dagger"] = _create_outline(dagger)
+
+    # 19. Dedicated Wooden Shield (Round buckler with metal rim)
+    w_shield = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.circle(w_shield, (90, 95, 105), (sz // 2, sz // 2), 12) # Outer iron rim
+    pygame.draw.circle(w_shield, (155, 100, 40), (sz // 2, sz // 2), 10) # Wood face
+    # Wood planks lines
+    pygame.draw.line(w_shield, (105, 65, 25), (6, 12), (26, 12), 1)
+    pygame.draw.line(w_shield, (105, 65, 25), (6, 20), (26, 20), 1)
+    # Center iron boss
+    pygame.draw.circle(w_shield, (210, 215, 225), (sz // 2, sz // 2), 4)
+    item_assets["shield_wooden"] = _create_outline(w_shield)
+
+    # 20. Heavy Iron Aegis Shield (Kite shield)
+    i_shield = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.polygon(i_shield, (215, 175, 40), [(4, 3), (28, 3), (28, 17), (16, 29), (4, 17)]) # Gold border
+    pygame.draw.polygon(i_shield, (130, 135, 145), [(7, 6), (25, 6), (25, 16), (16, 26), (7, 16)]) # Iron body
+    pygame.draw.line(i_shield, (220, 40, 40), (16, 8), (16, 22), 2) # Red cross
+    pygame.draw.line(i_shield, (220, 40, 40), (10, 14), (22, 14), 2)
+    item_assets["shield_iron"] = _create_outline(i_shield)
+
+    # 21. Oak Log Material (Tree trunk segment with bark rings)
+    oak = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    # Bark log body
+    pygame.draw.polygon(oak, (100, 65, 30), [(6, 14), (20, 8), (26, 14), (12, 24)])
+    # Round end face
+    pygame.draw.ellipse(oak, (215, 180, 125), (4, 12, 10, 12))
+    pygame.draw.ellipse(oak, (100, 65, 30), (4, 12, 10, 12), 1) # Bark border
+    pygame.draw.ellipse(oak, (160, 120, 70), (6, 15, 6, 6), 1) # Growth ring
+    item_assets["log_oak"] = _create_outline(oak)
+
+    # 22. Beast Leather Pelt (Tanned hide roll)
+    leather = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.ellipse(leather, (160, 100, 50), (4, 10, 24, 12)) # Rolled hide
+    pygame.draw.ellipse(leather, (120, 70, 30), (4, 10, 8, 12))  # Inner roll edge
+    pygame.draw.line(leather, (230, 210, 160), (14, 8), (14, 24), 2) # Binding cord
+    item_assets["material_leather"] = _create_outline(leather)
+
+    # 23. Glow Amulet (Gold necklace with cyan crystal pendant)
+    amulet = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.ellipse(amulet, (255, 215, 0), (6, 4, 20, 16), 2) # Chain loop
+    pygame.draw.polygon(amulet, (60, 220, 255), [(16, 17), (22, 23), (16, 29), (10, 23)]) # Crystal pendant
+    pygame.draw.circle(amulet, COLOR_WHITE, (16, 22), 1) # Gem glint
+    item_assets["amulet_glow"] = _create_outline(amulet)
+
+    # 24. Dungeon Key (Heavy copper skull key)
+    dkey = pygame.Surface((sz, sz), pygame.SRCALPHA)
+    pygame.draw.line(dkey, (210, 140, 40), (8, 24), (24, 8), 3) # Shaft
+    pygame.draw.line(dkey, (210, 140, 40), (22, 10), (26, 14), 2) # Tooth 1
+    pygame.draw.line(dkey, (210, 140, 40), (18, 14), (22, 18), 2) # Tooth 2
+    pygame.draw.circle(dkey, (230, 160, 50), (8, 24), 5) # Skull key handle
+    pygame.draw.circle(dkey, (40, 30, 20), (7, 23), 1)   # Eye hole 1
+    pygame.draw.circle(dkey, (40, 30, 20), (9, 25), 1)   # Eye hole 2
+    item_assets["key_dungeon"] = _create_outline(dkey)
+
+
 
 def _generate_projectiles() -> None:
     """Generates magic/projectile animations."""

@@ -91,7 +91,9 @@ class Game:
         self.chests = pygame.sprite.Group()
         self.npcs = pygame.sprite.Group()
         self.ui_sprites = YSortedGroup()  # Renders floating combat texts
-        self._enemies_list = []
+        self.enemies = []
+        self._enemies_list = self.enemies
+
 
         # Initialize Player (Spawned at center of Village)
         self.player = Player((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), [self.visible_sprites], self.sound_manager, self.particles)
@@ -129,6 +131,47 @@ class Game:
             self._from_pause_menu = False
         else:
             self.game_state = STATE_MENU
+
+    def is_save_allowed(self) -> Tuple[bool, str]:
+        """
+        Evaluates whether saving is safe and allowed based on region safety,
+        enemy combat aggro, hostile proximity, and player health state.
+        
+        Returns:
+            (allowed: bool, reason: str)
+        """
+        # 1. Player health / death status check
+        if getattr(self.player, "is_dead", False) or getattr(self.player, "hp", 1) <= 0:
+            return False, "Cannot save game while fallen or defeated!"
+
+        current_map = getattr(self.world_manager, "current_map_name", "")
+
+        # 2. Village is ALWAYS a designated safe zone
+        if current_map == MAP_VILLAGE:
+            return True, "Safe Zone (Village)"
+
+        # 3. Wilderness threat checks (Forest, Cave, Crypt, etc.)
+        threat_radius = 280.0  # ~9 tile radius
+
+        enemies = getattr(self, "enemies", [])
+
+        for enemy in enemies:
+            if not getattr(enemy, "alive", True):
+                continue
+
+            # Check if enemy is actively chasing / targeting the player
+            if getattr(enemy, "aggro", False):
+                return False, f"Cannot save! In combat with {enemy.name}!"
+
+            # Check proximity to hostile enemies in wilderness
+            dist = self.player.pos.distance_to(enemy.pos)
+            if dist < threat_radius:
+                return False, f"Unsafe area! {enemy.name} is nearby."
+
+
+
+        return True, "Safe to save"
+
 
     def start_new_game(self) -> None:
         """Resets variables and loads the starting Village map."""

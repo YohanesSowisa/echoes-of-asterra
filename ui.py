@@ -242,7 +242,8 @@ class UIManager:
         elif state == STATE_PAUSED:
             # Draw game behind and draw pause panel on top
             self.draw_gameplay_layers(surface, game)
-            self.draw_pause_menu(surface)
+            self.draw_pause_menu(surface, game)
+
         elif state == STATE_GAME_OVER:
             self.draw_game_over(surface)
         elif state == STATE_VICTORY:
@@ -803,7 +804,7 @@ class UIManager:
 
     # --- PAUSE OVERLAY ---
 
-    def draw_pause_menu(self, surface: pygame.Surface) -> None:
+    def draw_pause_menu(self, surface: pygame.Surface, game: Any = None) -> None:
         """Translucent pause dialogue panel supporting slot selector, management, and renaming."""
         # Tint back layer
         dim = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -825,6 +826,11 @@ class UIManager:
             p_txt = self.fonts["large"].render("GAME PAUSED", True, COLOR_UI_HIGHLIGHT)
             surface.blit(p_txt, (px + 160 - p_txt.get_width() // 2, py + 20))
 
+            can_save = True
+            if game and hasattr(game, "is_save_allowed"):
+                can_save, _ = game.is_save_allowed()
+
+
             for idx, opt in enumerate(self.pause_options):
                 bx = px + 30
                 by = py + 68 + idx * 58
@@ -832,14 +838,23 @@ class UIManager:
                 option_box = pygame.Rect(bx, by, 260, 40)
                 is_hover = (idx == self.pause_select_idx)
 
-                bg_c = COLOR_UI_HIGHLIGHT if is_hover else COLOR_DARK_GRAY
-                text_c = COLOR_BLACK if is_hover else COLOR_WHITE
+                is_disabled_save = (opt == "Save Game" and not can_save)
+
+                if is_disabled_save:
+                    bg_c = (35, 38, 48) if not is_hover else (45, 48, 58)
+                    text_c = COLOR_DARK_GRAY
+                    opt_display = "Save Game [UNSAFE]"
+                else:
+                    bg_c = COLOR_UI_HIGHLIGHT if is_hover else COLOR_DARK_GRAY
+                    text_c = COLOR_BLACK if is_hover else COLOR_WHITE
+                    opt_display = opt
 
                 pygame.draw.rect(surface, bg_c, option_box, border_radius=4)
-                pygame.draw.rect(surface, COLOR_UI_BORDER, option_box, 1, border_radius=4)
+                pygame.draw.rect(surface, COLOR_UI_BORDER if not is_disabled_save else (45, 50, 60), option_box, 1, border_radius=4)
 
-                lbl = self.fonts["medium"].render(opt, True, text_c)
+                lbl = self.fonts["medium"].render(opt_display, True, text_c)
                 surface.blit(lbl, (bx + 130 - lbl.get_width() // 2, by + 20 - lbl.get_height() // 2))
+
 
         # 2. Save / Load Slots Selector State
         elif state in ["save_slots", "load_slots"]:
@@ -2119,11 +2134,18 @@ class UIManager:
                 # Resume
                 game.game_state = STATE_PLAYING
             elif idx == 1:
-                # Save options
+                # Save options safety check
+                can_save, reason = game.is_save_allowed()
+                if not can_save:
+                    game.sound_manager.play_sound("error")
+                    self.show_banner(reason, color=(255, 75, 75), duration=3.5)
+                    return
+
                 self.pause_action_source = "save"
                 self.pause_menu_state = "save_slots"
                 self.pause_select_idx = 0
                 self.refresh_slots_metadata()
+
             elif idx == 2:
                 # Load options
                 self.pause_action_source = "load"
@@ -2184,6 +2206,12 @@ class UIManager:
             action = opts[idx]
 
             if action in ["Create Save", "Overwrite Save"]:
+                can_save, reason = game.is_save_allowed()
+                if not can_save:
+                    game.sound_manager.play_sound("error")
+                    self.show_banner(reason, color=(255, 75, 75), duration=3.5)
+                    return
+
                 from rpg.save import SaveSystem
                 # Save the game
                 SaveSystem.save_game(game.player, game.quest_manager, game.world_manager, slot=self.selected_slot_idx + 1)
@@ -2191,6 +2219,7 @@ class UIManager:
                 self.pause_menu_state = "main"
                 self.pause_select_idx = 1
                 game.game_state = STATE_PLAYING
+
             elif action == "Load Profile":
                 from rpg.save import SaveSystem
                 # Load the game

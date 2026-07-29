@@ -45,22 +45,62 @@ class Item:
 
     def _get_procedural_icon(self) -> pygame.Surface:
         """Retrieves procedural icon matching this item category."""
-        # Check specific names first, then fall back to item type
-        if "Red Potion" in self.name:
-            return item_assets.get("potion_red")
-        elif "Blue Potion" in self.name:
-            return item_assets.get("potion_blue")
+        icon_surf = None
+        # 1. Exact Item Name Matches
+        if "Wooden Shield" in self.name:
+            icon_surf = item_assets.get("shield_wooden")
+        elif "Iron Aegis" in self.name:
+            icon_surf = item_assets.get("shield_iron")
+        elif "Oak Wood" in self.name:
+            icon_surf = item_assets.get("log_oak")
+        elif "Timber" in self.name or "Plank" in self.name:
+            icon_surf = item_assets.get("material_wood")
         elif "Iron Ore" in self.name:
-            return item_assets.get("material_iron")
-        elif "Wood" in self.name or "Plank" in self.name:
-            return item_assets.get("material_wood")
-        elif "Heart" in self.name or "Amulet" in self.name or "Gold" in self.name or "Coin" in self.name:
-            return item_assets.get("artifact")
+            icon_surf = item_assets.get("material_iron")
+        elif "Beast Leather" in self.name:
+            icon_surf = item_assets.get("material_leather")
+        elif "Stone" in self.name or "Rock" in self.name:
+            icon_surf = item_assets.get("material_stone")
+        elif "Red Potion" in self.name:
+            icon_surf = item_assets.get("potion_red")
+        elif "Blue Potion" in self.name:
+            icon_surf = item_assets.get("potion_blue")
+        elif "Apple" in self.name:
+            icon_surf = item_assets.get("apple")
+        elif "Bread" in self.name:
+            icon_surf = item_assets.get("food")
+        elif "Gold Coins" in self.name or "Gold Coin" in self.name:
+            icon_surf = item_assets.get("gold_coins")
+        elif "Amulet" in self.name:
+            icon_surf = item_assets.get("amulet_glow")
+        elif "Dungeon Key" in self.name or "Key" in self.name:
+            icon_surf = item_assets.get("key_dungeon")
+        elif "Scroll" in self.name:
+            icon_surf = item_assets.get("quest")
+        elif "Asterra Heart" in self.name or "Ruby Heart" in self.name:
+            icon_surf = item_assets.get("artifact")
 
-        elif "Scroll" in self.name or "Key" in self.name:
-            return item_assets.get("quest")
-            
-        return item_assets.get(self.item_type, pygame.Surface((32, 32), pygame.SRCALPHA))
+        # 2. Check weapon class subclasses
+        if icon_surf is None and self.item_type == ITEM_WEAPON:
+            wc = getattr(self, "weapon_class", "sword")
+            if f"weapon_{wc}" in item_assets:
+                icon_surf = item_assets[f"weapon_{wc}"]
+            else:
+                icon_surf = item_assets.get("weapon")
+
+        # 3. Fall back to item type asset
+        if icon_surf is None:
+            icon_surf = item_assets.get(self.item_type)
+
+        # 4. Guarantee non-None Surface fallback for test safety
+        if icon_surf is None:
+            icon_surf = pygame.Surface((32, 32), pygame.SRCALPHA)
+            icon_surf.fill((220, 180, 50, 200))
+
+        return icon_surf
+
+
+
 
     def copy(self) -> 'Item':
         """Creates a clone of this item (useful for copying template objects)."""
