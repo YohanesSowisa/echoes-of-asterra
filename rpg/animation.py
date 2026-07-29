@@ -67,7 +67,8 @@ def initialize_font_asset() -> Optional[str]:
                 shutil.copy(path, font_path)
                 print(f"Font: Copied system font {path} to {font_path}")
                 return font_path
-            except Exception:
+            except Exception as e:
+                print(f"Warning: Failed copying system font {path}: {e}")
                 continue
                 
     # Fallback to download a pixel font if online
@@ -177,7 +178,6 @@ def init_assets() -> None:
             if file.endswith(".png") and not file.startswith("proj_"):
                 parts = file[:-4].split("_")
                 if len(parts) >= 4:
-                    frame = int(parts[-1])
                     direction = parts[-2]
                     state = parts[-3]
                     entity = "_".join(parts[:-3])

@@ -5,6 +5,8 @@ JSON-based serialization and deserialization of the game state.
 import os
 import json
 from typing import Any, Dict
+
+
 from rpg.items import create_item
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -38,7 +40,8 @@ class SaveSystem:
                 "map": player_data.get("current_map", "Village").replace("_", " ").title(),
                 "date": player_data.get("save_date", "N/A")
             }
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed reading slot metadata for slot {slot}: {e}")
             return {"exists": False}
 
     @staticmethod
@@ -55,7 +58,8 @@ class SaveSystem:
             with open(filename, 'w') as f:
                 json.dump(data, f, indent=4)
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed renaming save slot {slot}: {e}")
             return False
 
     @staticmethod
@@ -66,12 +70,14 @@ class SaveSystem:
             try:
                 os.remove(filename)
                 return True
-            except Exception:
+            except Exception as e:
+                print(f"Warning: Failed deleting save slot {slot}: {e}")
                 return False
         return False
 
     @staticmethod
     def save_game(player: Any, quest_manager: Any, world_manager: Any, slot: int = 1, slot_name: str = None) -> bool:
+
         """
         Gathers player, quest, and world state, serializes them to JSON,
         and writes them to the save file. Returns True if successful.
@@ -86,8 +92,8 @@ class SaveSystem:
                 with open(filename, 'r') as f:
                     old_data = json.load(f)
                 existing_name = old_data["player"].get("slot_name", existing_name)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Warning: Failed reading existing slot name from {filename}: {e}")
                 
         final_slot_name = slot_name if slot_name is not None else existing_name
         
@@ -293,6 +299,10 @@ class SaveSystem:
                     player.game.tutorial_flags = set(save_payload["tutorial_flags"])
                 if "difficulty_profile" in save_payload and hasattr(player.game, "difficulty_profile"):
                     player.game.difficulty_profile = save_payload["difficulty_profile"]
+                if "achievements" in save_payload and hasattr(player.game, "achievement_manager"):
+                    player.game.achievement_manager.from_dict(save_payload["achievements"])
+                if "bestiary" in save_payload and hasattr(player.game, "bestiary_manager"):
+                    player.game.bestiary_manager.from_dict(save_payload["bestiary"])
 
 
             # --- Map Transition ---

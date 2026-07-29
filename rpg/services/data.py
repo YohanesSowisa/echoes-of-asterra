@@ -3,7 +3,8 @@ Echoes of Asterra - Data & Save Schema Service
 Provides Pydantic-based data validation, static data schema verification,
 and backward-compatible save schema migrations.
 """
-from typing import Dict, Any, Optional, List, Type
+from typing import Dict, Any, List
+
 import time
 import logging
 

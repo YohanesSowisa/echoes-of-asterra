@@ -82,6 +82,8 @@ class Game:
 
         self.weather = WeatherSystem()
         self.lighting = LightingSystem()
+        from rpg.bestiary import BestiaryManager
+
         self.effects_manager = EffectsManager()
         self.quest_manager = QuestManager()
         self.quest_manager.event_bus = self.event_bus
@@ -89,6 +91,7 @@ class Game:
 
         self.dialogue_manager.game = self
         self.world_manager = WorldManager()
+        self.bestiary_manager = BestiaryManager(self.event_bus)
         
         # Sprite groups
         self.visible_sprites = YSortedGroup()
@@ -289,6 +292,25 @@ class Game:
         self.quest_manager = type(self.quest_manager)()
         self.quest_manager.event_bus = self.event_bus
 
+        # Reset achievements, bestiary, factions, and npc_memory for new adventure
+        if hasattr(self, "achievement_manager"):
+            self.achievement_manager.reset()
+        if hasattr(self, "bestiary_manager"):
+            self.bestiary_manager.reset()
+        if hasattr(self, "factions"):
+            self.factions = FactionManager()
+            self.factions.register_event_listeners(self.event_bus)
+        if hasattr(self, "npc_memory"):
+            self.npc_memory = NPCMemoryManager()
+            self.npc_memory.register_event_listeners(self.event_bus)
+        if hasattr(self, "living_world"):
+            from rpg.living_world import LivingWorldManager
+            self.living_world = LivingWorldManager(self.event_bus)
+            self.world_state = self.living_world.world_state
+            self.ecology = self.living_world.ecology
+
+
+
         
         # Reset tutorial flags and push initial onboarding notifications for New Adventure
         self.tutorial_flags.clear()
@@ -419,8 +441,8 @@ class Game:
                 if self.game_state == STATE_PLAYING:
                     # Keyboard WASD / Arrow / Tab / 1-3 tab navigation when Character Panel is open
                     if "character" in self.ui_manager.open_panels:
-                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
-                            tabs = ["factions", "social", "town", "achievements"]
+                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5]:
+                            tabs = ["factions", "social", "town", "achievements", "bestiary"]
                             curr_t = getattr(self.ui_manager, "active_char_tab", "factions")
                             curr_i = tabs.index(curr_t) if curr_t in tabs else 0
                             
@@ -436,8 +458,11 @@ class Game:
                                 self.ui_manager.active_char_tab = "town"
                             elif event.key == pygame.K_4:
                                 self.ui_manager.active_char_tab = "achievements"
+                            elif event.key == pygame.K_5:
+                                self.ui_manager.active_char_tab = "bestiary"
                             self.sound_manager.play_sound("click")
                             continue
+
 
 
                     # Keyboard WASD / Arrow / Enter / 1-4 navigation when Inventory Panel is open
@@ -661,6 +686,9 @@ class Game:
                             opts_len = 2 if not meta["exists"] else 4
                         else:
                             opts_len = 1 if not meta["exists"] else 4
+
+
+
                     else:
                         opts_len = 1
 

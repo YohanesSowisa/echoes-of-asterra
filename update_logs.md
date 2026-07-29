@@ -8,7 +8,17 @@ Format: `[yyyy-mm-dd hh:mm:ss WIB] | [tipe_pekerjaan]: [pekerjaan]`
 
 ## Timeline Log
 
+- **2026-07-29 16:44:00 WIB** | **refactor & system revert**: Mengembalikan sistem save/load ke bentuk semula yang bersih (Save Game, Load Game, Rename Profile, Delete Save) dan menghapus total fungsi Export/Import serta dialog file manager eksternal dari `rpg/save.py`, `rpg/ui.py`, dan `rpg/game.py`.
+- **2026-07-29 16:35:00 WIB** | **bug fix & state lifecycle**: Memperbaiki isu *state leakage* antara sesi permainan (Achievements, Bestiary, Factions, NPC Memory, & Living World). Menambahkan metode `.reset()`, `.to_dict()`, dan `.from_dict()` pada `AchievementManager` & `BestiaryManager`, mengikat progress ke masing-masing berkas save slot (`savegame_X.json`), serta me-reset seluruh manager saat `start_new_game()` dipanggil.
+
+
+- **2026-07-29 16:30:00 WIB** | **full UI audit & enhancements**: Audit komprehensif seluruh UI & menu (Main, Settings, Pause, Shop, Dialogue, & Character Sheet). Penyempurnaan Tab 5 Bestiary Compendium pada Character Panel (rendering UI, mouse click bounds, & shortcut keyboard `5`), serta verifikasi simetri 100% antara rendering visual, mouse collision, dan key bindings.
+
+- **2026-07-29 16:26:00 WIB** | **new feature & ui fix**: Integrasi opsi `Import Backup` langsung ke dalam UI slot save/load (`rpg/ui.py`), perbaikan sinkronisasi indeks tombol pause menu & deteksi presisi tabrakan mouse mouse_pos untuk slot kosong maupun slot terisi.
+- **2026-07-29 16:15:00 WIB** | **code cleanup & new features**: Pembersihan total 10 pyflakes warnings (Tugas A/B/C), penghentian silent `except Exception` di 19 lokasi dengan logging eksplisit, perbaikan bug pathfinding navigation logger, serta penambahan Bestiary Enemy Compendium (`rpg/bestiary.py`) & Save Export/Import API (`rpg/save.py`) beserta test suite (`tests/test_bestiary_and_export.py`).
+
 - **2026-07-29 11:58:00 WIB** | **bug fix & ui overhaul**: Overhaul layout menu Settings (`rpg/ui.py`) untuk menghilangkan penumpukan teks (*overlapping text*) pada tombol `Back to Menu`, re-posisi title/subtitle/box buttons, dan menambahkan styled dark info card untuk deskripsi preset kesulitan & HP regen.
+
 - **2026-07-29 11:55:00 WIB** | **new feature**: Implementasi sistem Out-of-Combat HP Regeneration pada `rpg/player.py` dengan deteksi kedamaian 4.0s, scaling tingkat kesulitan (`hp_regen_mult` di `rpg/balance.py`), serta animasi visual 3 partikel kilau hijau-sian menyala setiap 0.4s.
 - **2026-07-29 11:50:00 WIB** | **bug fix**: Memperbaiki rujukan parameter `self` pada seluruh pemanggilan `toggle_panel` di `rpg/game.py` sehingga memancing notifikasi tutorial kontekstual `first_inventory_open` dan `first_quest_accepted`.
 - **2026-07-29 11:25:00 WIB** | **new feature**: Implementasi Task 3 Engagement Systems: Onboarding Tutorial Tips (`rpg/notification.py`), Quest Marker & Waypoint Overlays pada Minimap (`rpg/minimap.py`), Achievement & Milestone System (`rpg/achievements.py`, TAB 4 UI Karakter), Default Target FPS 60 (`rpg/settings.py`), Real-time Living World Feedback, Mythos Inheritance Summary Card, Gamepad Joystick Input Mapping (`rpg/input.py`), serta Unit Test Suite (`tests/test_engagement_systems.py`).

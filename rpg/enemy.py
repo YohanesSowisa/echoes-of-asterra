@@ -103,9 +103,11 @@ def get_enemy_ui_fonts() -> Tuple[pygame.font.Font, pygame.font.Font]:
         try:
             _ENEMY_UI_FONT_SMALL = pygame.font.Font("assets/fonts/game_font.ttf", 11)
             _ENEMY_UI_FONT_TINY = pygame.font.Font("assets/fonts/game_font.ttf", 9)
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed loading font for Enemy UI: {e}")
             _ENEMY_UI_FONT_SMALL = pygame.font.SysFont("Arial", 11, bold=True)
             _ENEMY_UI_FONT_TINY = pygame.font.SysFont("Arial", 9, bold=True)
+
     return _ENEMY_UI_FONT_SMALL, _ENEMY_UI_FONT_TINY
 
 

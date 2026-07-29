@@ -3,11 +3,14 @@ Echoes of Asterra - Navigation Service
 Encapsulates grid pathfinding (A*) behind an internal abstraction layer.
 Features path caching, moving target recalculation thresholds, and raycast fallback.
 """
-import math
 import time
+import logging
 from typing import Tuple, List, Dict, Optional, Any
 from rpg.config import NavigationConfig, game_config
 from rpg.settings import TILE_SIZE
+
+logger = logging.getLogger("NavigationService")
+
 
 # Optional third-party pathfinding library import
 try:
@@ -140,7 +143,8 @@ class NavigationService:
                 return waypoints
         except Exception as e:
             # Graceful error handling - log warning and proceed to fallback
-            pass
+            logger.warning(f"Pathfinding failed: {e}")
+
         return []
 
     def _compute_fallback_raycast(

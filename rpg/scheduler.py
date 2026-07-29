@@ -148,10 +148,10 @@ class WorldScheduler:
             self._last_minute = int((self.time_accumulator / max(1.0, DAY_LENGTH_SECONDS)) * 24.0 * 60.0)
             self._last_hour = int(self.time_of_day)
             
-            old_day = self.day
             old_week = self.week
             old_season = self.season
             old_year = self.year
+
             
             self.day += 1
             

@@ -184,7 +184,8 @@ class NPC(BaseSprite):
         # Indicator box
         try:
             font = pygame.font.Font("assets/fonts/game_font.ttf", 12)
-        except Exception:
+        except Exception as e:
+            print(f"Debug: Using fallback font for NPC indicator: {e}")
             font = pygame.font.SysFont("Arial", 12, bold=True)
         lbl = font.render("[E]", True, COLOR_YELLOW)
         
@@ -711,7 +712,8 @@ class TownNoticeboard(NPC):
         pygame.draw.rect(self.image, (210, 170, 60), (2, 2, 40, 40), 2, border_radius=3)
         try:
             font = pygame.font.Font("assets/fonts/game_font.ttf", 10)
-        except Exception:
+        except Exception as e:
+            print(f"Debug: Using fallback font for Noticeboard: {e}")
             font = pygame.font.SysFont("Arial", 10, bold=True)
         lbl = font.render("NOTICE", True, (255, 240, 200))
         self.image.blit(lbl, (4, 14))

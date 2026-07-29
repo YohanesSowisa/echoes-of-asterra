@@ -406,7 +406,8 @@ class WorldManager:
             # Render text label (e.g. "To Village" or "To Forest")
             try:
                 lbl_font = pygame.font.Font("assets/fonts/game_font.ttf", 11)
-            except Exception:
+            except Exception as e:
+                print(f"Warning: Failed loading portal marker font, using fallback: {e}")
                 lbl_font = pygame.font.SysFont("Arial", 11, bold=True)
             lbl_str = f"To {target_title}"
             lbl_surf = lbl_font.render(lbl_str, True, (255, 255, 240))
@@ -447,7 +448,8 @@ class WorldManager:
                 pygame.draw.rect(wt_surf, (180, 50, 50), (12, 0, TILE_SIZE * 2 - 24, 20), border_radius=3)
                 try:
                     wt_font = pygame.font.Font("assets/fonts/game_font.ttf", 10)
-                except Exception:
+                except Exception as e:
+                    print(f"Warning: Failed loading watchtower font, using fallback: {e}")
                     wt_font = pygame.font.SysFont("Arial", 10, bold=True)
                 wt_lbl = wt_font.render("WATCHTOWER", True, (255, 240, 200))
                 wt_surf.blit(wt_lbl, (8, TILE_SIZE * 2))

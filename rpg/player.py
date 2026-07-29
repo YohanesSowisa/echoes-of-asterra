@@ -327,8 +327,8 @@ class Player(BaseSprite):
             return
 
         # Map active key triggers
-        casted = False
         skill_name = None
+
 
         if input_handler.consume_action("skill_4"):  # K_4: Dash
             skill_name = SKILL_DASH
@@ -345,9 +345,9 @@ class Player(BaseSprite):
         # Attempt to cast via manager
         if self.skill_manager.cast(skill_name, self):
             self.execute_skill_effect(skill_name)
-            casted = True
             if hasattr(self, "game") and hasattr(self.game, "event_bus"):
                 self.game.event_bus.emit("skill_casted", skill_name=skill_name, player=self)
+
 
 
     def execute_skill_effect(self, name: str) -> None:

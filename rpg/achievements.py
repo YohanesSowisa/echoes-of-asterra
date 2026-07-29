@@ -6,7 +6,8 @@ and persists achievement progress to saves/achievements.json.
 import os
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
+
 from rpg.events import EventBus
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -122,13 +123,27 @@ class AchievementManager:
     def _on_skill_casted(self, **kwargs: Any) -> None:
         self.unlock("spellweaver", game=kwargs.get("game"))
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            aid: {"unlocked": ach.unlocked, "unlocked_at": ach.unlocked_at}
+            for aid, ach in self.achievements.items()
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        for aid, ainfo in data.items():
+            if aid in self.achievements:
+                self.achievements[aid].unlocked = ainfo.get("unlocked", False)
+                self.achievements[aid].unlocked_at = ainfo.get("unlocked_at", None)
+
+    def reset(self) -> None:
+        for ach in self.achievements.values():
+            ach.unlocked = False
+            ach.unlocked_at = None
+
     def save_achievements(self) -> None:
         try:
             os.makedirs(os.path.dirname(ACHIEVEMENTS_SAVE_PATH), exist_ok=True)
-            data = {
-                aid: {"unlocked": ach.unlocked, "unlocked_at": ach.unlocked_at}
-                for aid, ach in self.achievements.items()
-            }
+            data = self.to_dict()
             with open(ACHIEVEMENTS_SAVE_PATH, "w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
@@ -141,10 +156,8 @@ class AchievementManager:
         try:
             with open(ACHIEVEMENTS_SAVE_PATH, "r") as f:
                 data = json.load(f)
-            for aid, ainfo in data.items():
-                if aid in self.achievements:
-                    self.achievements[aid].unlocked = ainfo.get("unlocked", False)
-                    self.achievements[aid].unlocked_at = ainfo.get("unlocked_at", None)
+            self.from_dict(data)
         except Exception as e:
             import logging
             logging.warning(f"Failed to load achievements: {e}")
+

@@ -18,8 +18,10 @@ class DamageNumber(BaseSprite):
         self.color = color
         try:
             self.font = pygame.font.Font("assets/fonts/game_font.ttf", size)
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed loading font for DamageNumber: {e}")
             self.font = pygame.font.SysFont("Arial", size, bold=True)
+
         self.alpha = 255
         self.lifetime = 0.6  # seconds
         self.timer = self.lifetime

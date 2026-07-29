@@ -3,7 +3,9 @@ Echoes of Asterra - User Interface Manager
 Manages all game states overlays: HUD, Menus (Main, Settings, Pause), RPG panels
 (Inventory, Character Stats, Quest Log, Crafting Anvil), Shop trade UI, and Victory / Game Over.
 """
+import os
 import pygame
+
 from typing import Dict, List, Tuple, Set, Optional, Any
 from rpg.constants import (
     COLOR_BLACK, COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_LIGHT_GRAY,
@@ -24,9 +26,9 @@ class UIManager:
     to trigger inventory shifts, crafts, trades, and menu toggles.
     """
     def __init__(self) -> None:
-        import os
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         font_path = os.path.join(BASE_DIR, "assets", "fonts", "game_font.ttf")
+
 
 
         pygame.font.init()
@@ -957,19 +959,19 @@ class UIManager:
         # 3. Actions Panel for selected slot
         elif state == "slot_actions":
             px = SCREEN_WIDTH // 2 - 200
-            py = SCREEN_HEIGHT // 2 - 180
-            pw, ph = 400, 360
+            py = SCREEN_HEIGHT // 2 - 200
+            pw, ph = 400, 400
 
             box = pygame.Rect(px, py, pw, ph)
             pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=8)
             pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=8)
 
             p_txt = self.fonts["large"].render(f"SLOT {self.selected_slot_idx + 1} ACTIONS", True, COLOR_UI_HIGHLIGHT)
-            surface.blit(p_txt, (px + 200 - p_txt.get_width() // 2, py + 24))
+            surface.blit(p_txt, (px + 200 - p_txt.get_width() // 2, py + 20))
 
             # Draw small slot status info box
             sbx = px + 30
-            sby = py + 68
+            sby = py + 60
             sbox = pygame.Rect(sbx, sby, 340, 56)
             pygame.draw.rect(surface, (20, 20, 25), sbox, border_radius=4)
             pygame.draw.rect(surface, COLOR_UI_BORDER, sbox, 1, border_radius=4)
@@ -986,22 +988,21 @@ class UIManager:
 
             # Determine dynamic actions
             if self.pause_action_source == "save":
-                opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"]
+                opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
             else:
-                opts = ["Load Profile", "Rename Profile", "Delete Save", "Back"]
-                if not meta["exists"]:
-                    opts = ["Back"] # Nothing to do on empty slot when loading
+                opts = ["Load Profile", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
+
 
             # Draw action buttons
             for idx, opt in enumerate(opts):
                 bx = px + 30
-                by = py + 144 + idx * 48
+                by = py + 130 + idx * 42
 
-                option_box = pygame.Rect(bx, by, 340, 36)
+                option_box = pygame.Rect(bx, by, 340, 34)
                 is_hover = (idx == self.pause_select_idx)
 
-                # Check for disabled options (Delete/Rename on empty slots)
-                is_disabled = (not meta["exists"] and opt in ["Rename Profile", "Delete Save", "Load Profile"])
+                # Check for disabled options
+                is_disabled = (not meta["exists"] and opt in ["Export Backup", "Rename Profile", "Delete Save", "Load Profile"])
 
                 if is_disabled:
                     bg_c = (25, 25, 25)
@@ -1014,7 +1015,9 @@ class UIManager:
                 pygame.draw.rect(surface, COLOR_UI_BORDER if not is_disabled else (35, 35, 35), option_box, 1, border_radius=4)
 
                 lbl = self.fonts["medium"].render(opt, True, text_c)
-                surface.blit(lbl, (bx + 170 - lbl.get_width() // 2, by + 18 - lbl.get_height() // 2))
+                surface.blit(lbl, (bx + 170 - lbl.get_width() // 2, by + 17 - lbl.get_height() // 2))
+
+
 
         # 4. Text Input field for Renaming
         elif state == "rename_input":
@@ -1242,17 +1245,22 @@ class UIManager:
 
         active_tab = getattr(self, "active_char_tab", "factions")
 
-        # 4 Tab Buttons (Factions, Social, Town, Achievements)
-        tab1_rect = pygame.Rect(tab_x, tab_y, 65, 24)
-        tab2_rect = pygame.Rect(tab_x + 70, tab_y, 65, 24)
-        tab3_rect = pygame.Rect(tab_x + 140, tab_y, 65, 24)
-        tab4_rect = pygame.Rect(tab_x + 210, tab_y, 90, 24)
+        # 5 Tab Buttons (Factions, Social, Town, Achievements, Bestiary)
+        tab_x = cx + 320
+        tab_y = cy + 52
+
+        tab1_rect = pygame.Rect(tab_x, tab_y, 60, 24)
+        tab2_rect = pygame.Rect(tab_x + 64, tab_y, 50, 24)
+        tab3_rect = pygame.Rect(tab_x + 118, tab_y, 45, 24)
+        tab4_rect = pygame.Rect(tab_x + 167, tab_y, 90, 24)
+        tab5_rect = pygame.Rect(tab_x + 261, tab_y, 65, 24)
 
         for t_idx, (t_rect, t_id, t_lbl_str) in enumerate([
             (tab1_rect, "factions", "Factions"),
             (tab2_rect, "social", "Social"),
             (tab3_rect, "town", "Town"),
-            (tab4_rect, "achievements", "Achievements")
+            (tab4_rect, "achievements", "Achievements"),
+            (tab5_rect, "bestiary", "Bestiary")
         ]):
             t_bg = COLOR_UI_HIGHLIGHT if active_tab == t_id else (40, 42, 50)
             t_fg = COLOR_BLACK if active_tab == t_id else COLOR_WHITE
@@ -1380,6 +1388,30 @@ class UIManager:
                     
                     surface.blit(t_lbl, (tab_x, ay))
                     surface.blit(d_lbl, (tab_x + 16, ay + 18))
+
+        # TAB 5: BESTIARY ENEMY COMPENDIUM
+        elif active_tab == "bestiary":
+            if hasattr(player, "game") and hasattr(player.game, "bestiary_manager"):
+                bm = player.game.bestiary_manager
+                b_list = list(bm.entries.values())
+                unlocked_cnt = sum(1 for e in b_list if e.unlocked)
+                
+                header_str = f"Bestiary: {unlocked_cnt}/{len(b_list)} Discovered"
+                h_lbl = self.fonts["small"].render(header_str, True, COLOR_UI_HIGHLIGHT)
+                surface.blit(h_lbl, (tab_x, content_y))
+
+                for idx, entry in enumerate(b_list):
+                    ey = content_y + 22 + idx * 38
+                    status_c = COLOR_WHITE if entry.unlocked else COLOR_GRAY
+                    name_str = f"📖 {entry.name}" if entry.unlocked else "❓ Unknown Creature"
+                    meta_str = f"Kills: {entry.kills} • Element: {entry.element} • Weakness: {entry.weakness}" if entry.unlocked else "Defeat this enemy to unlock lore & weaknesses"
+                    
+                    e_lbl = self.fonts["small"].render(name_str, True, status_c)
+                    d_lbl = self.fonts["tiny"].render(meta_str, True, COLOR_LIGHT_GRAY if entry.unlocked else (100, 105, 115))
+                    
+                    surface.blit(e_lbl, (tab_x, ey))
+                    surface.blit(d_lbl, (tab_x + 12, ey + 16))
+
 
 
     # --- QUEST LOG PANEL ---
@@ -2010,13 +2042,47 @@ class UIManager:
 
         # 2. Pause Menu click checks
         elif state == STATE_PAUSED:
-            for idx in range(len(self.pause_options)):
-                bx = SCREEN_WIDTH // 2 - 160
-                by = SCREEN_HEIGHT // 2 - 200 + 68 + idx * 58
-                rect = pygame.Rect(bx, by, 260, 40)
-                if rect.collidepoint(mouse_pos):
-                    self.execute_pause_choice(idx, game)
+            p_state = self.pause_menu_state
+            if p_state == "main":
+                for idx in range(len(self.pause_options)):
+                    bx = SCREEN_WIDTH // 2 - 160
+                    by = SCREEN_HEIGHT // 2 - 200 + 68 + idx * 58
+                    rect = pygame.Rect(bx, by, 260, 40)
+                    if rect.collidepoint(mouse_pos):
+                        self.execute_pause_choice(idx, game)
+                        return
+            elif p_state in ["save_slots", "load_slots"]:
+                px = SCREEN_WIDTH // 2 - 250
+                py = SCREEN_HEIGHT // 2 - 205
+                for idx in range(3):
+                    bx = px + 30
+                    by = py + 68 + idx * 82
+                    rect = pygame.Rect(bx, by, 440, 72)
+                    if rect.collidepoint(mouse_pos):
+                        self.execute_pause_choice(idx, game)
+                        return
+                # Cancel button
+                cancel_rect = pygame.Rect(px + 30, py + 326, 440, 40)
+                if cancel_rect.collidepoint(mouse_pos):
+                    self.execute_pause_choice(3, game)
                     return
+            elif p_state == "slot_actions":
+                px = SCREEN_WIDTH // 2 - 200
+                py = SCREEN_HEIGHT // 2 - 180
+                meta = self.slots_meta.get(self.selected_slot_idx + 1, {"exists": False})
+                if self.pause_action_source == "save":
+                    opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Export Backup", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
+                else:
+                    opts = ["Load Profile", "Export Backup", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
+
+                for idx, opt in enumerate(opts):
+                    bx = px + 30
+                    by = py + 135 + idx * 42
+                    rect = pygame.Rect(bx, by, 340, 34)
+                    if rect.collidepoint(mouse_pos):
+                        self.execute_pause_choice(idx, game)
+                        return
+
 
         # Dialogue box clicks
         elif state == STATE_DIALOGUE:
@@ -2051,11 +2117,12 @@ class UIManager:
             cw, ch = 680, 460
             cx = (SCREEN_WIDTH - cw) // 2
             cy = (SCREEN_HEIGHT - ch) // 2
-            tab_x, tab_y = cx + 360, cy + 52
-            tab1_rect = pygame.Rect(tab_x, tab_y, 65, 24)
-            tab2_rect = pygame.Rect(tab_x + 70, tab_y, 65, 24)
-            tab3_rect = pygame.Rect(tab_x + 140, tab_y, 65, 24)
-            tab4_rect = pygame.Rect(tab_x + 210, tab_y, 90, 24)
+            tab_x, tab_y = cx + 320, cy + 52
+            tab1_rect = pygame.Rect(tab_x, tab_y, 60, 24)
+            tab2_rect = pygame.Rect(tab_x + 64, tab_y, 50, 24)
+            tab3_rect = pygame.Rect(tab_x + 118, tab_y, 45, 24)
+            tab4_rect = pygame.Rect(tab_x + 167, tab_y, 90, 24)
+            tab5_rect = pygame.Rect(tab_x + 261, tab_y, 65, 24)
 
             if tab1_rect.collidepoint(mouse_pos):
                 self.active_char_tab = "factions"
@@ -2069,6 +2136,10 @@ class UIManager:
             elif tab4_rect.collidepoint(mouse_pos):
                 self.active_char_tab = "achievements"
                 return
+            elif tab5_rect.collidepoint(mouse_pos):
+                self.active_char_tab = "bestiary"
+                return
+
 
 
         # 3. Shop Window clicks
@@ -2287,11 +2358,9 @@ class UIManager:
 
             # Determine options list
             if self.pause_action_source == "save":
-                opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"]
+                opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
             else:
-                opts = ["Load Profile", "Rename Profile", "Delete Save", "Back"]
-                if not meta["exists"]:
-                    opts = ["Back"]
+                opts = ["Load Profile", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
 
             # Out of bounds safety check
             if idx >= len(opts):
@@ -2336,6 +2405,8 @@ class UIManager:
             elif action == "Back":
                 self.pause_menu_state = self.pause_action_source + "_slots"
                 self.pause_select_idx = self.selected_slot_idx
+
+
 
     def draw_exploration_log_panel(self, surface: pygame.Surface, game: Any) -> None:
         """Renders Region Exploration Log & Progression Panel [R]."""

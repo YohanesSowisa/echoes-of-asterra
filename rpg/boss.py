@@ -259,8 +259,10 @@ class Boss(Enemy):
         # Text Overlay
         try:
             font = pygame.font.Font("assets/fonts/game_font.ttf", 14)
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed loading custom font for Boss HUD: {e}")
             font = pygame.font.SysFont("Arial", 12, bold=True)
+
         name_txt = font.render(f"{self.name} (PHASE {self.phase})", True, COLOR_WHITE)
         hp_txt = font.render(f"{self.hp} / {self.max_hp}", True, COLOR_WHITE)
 

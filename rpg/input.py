@@ -119,8 +119,9 @@ class InputHandler:
                     ax_y = js.get_axis(1)
                     if abs(ax_x) > 0.2: self.move_dir.x += ax_x
                     if abs(ax_y) > 0.2: self.move_dir.y += ax_y
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Warning: Failed reading joystick axis: {e}")
+
         
         if self.move_dir.length_squared() > 0:
             self.move_dir = self.move_dir.normalize()

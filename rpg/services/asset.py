@@ -6,7 +6,8 @@ and fail-fast manifest verification with graceful runtime fallbacks.
 import os
 import json
 import logging
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple
+
 import pygame
 from rpg.config import AssetConfig, game_config
 
