@@ -448,13 +448,13 @@ class BlacksmithDennis(NPC):
                 node = DialogueNode(
                     "dennis_start",
                     self.name,
-                    "Scholar Mira sent you? I can forge a sturdy shield for you, but I need 5 Iron Ores from the Caverns.",
+                    "Scholar Mira sent you? I can forge a sturdy shield for you, but I need 5 Iron Ores. You can find them in Cavern crates, scavenge them from skeletons/goblins, or buy them from Silas!",
                     [
                         DialogueChoice("Sure, I'll bring 5 Iron Ores.", "dennis_accepted", accept_side),
                         DialogueChoice("Just open the forge.", None, open_crafting)
                     ]
                 )
-                node_acc = DialogueNode("dennis_accepted", self.name, "Excellent! Bring 5 Iron Ores from the Caverns and I'll reward you.")
+                node_acc = DialogueNode("dennis_accepted", self.name, "Excellent! Bring 5 Iron Ores (from Cavern crates, monster drops, or Merchant Silas) and I'll reward you with a Wooden Shield.")
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("dennis_start")
@@ -832,16 +832,16 @@ class TownNoticeboard(NPC):
             qm.accept_quest("watchtower_quest")
 
         if b_quest and b_quest.status == QUEST_NOT_STARTED:
-            choices.append(DialogueChoice("[QUEST] Northern Bridge Repair (5 Oak Wood, 3 Iron Ore)", None, accept_bridge_q))
+            choices.append(DialogueChoice("[QUEST] Northern Bridge Repair (5 Oak Wood from Wolves, 3 Iron Ore)", None, accept_bridge_q))
         elif b_quest and b_quest.status == QUEST_ACTIVE:
-            choices.append(DialogueChoice("[STATUS] Bridge Repair Active (5 Oak Wood, 3 Iron Ore needed)", None))
+            choices.append(DialogueChoice("[STATUS] Bridge Repair Active (5 Oak Wood from Wolves, 3 Iron Ore needed)", None))
         elif b_quest and b_quest.status == QUEST_COMPLETED:
             choices.append(DialogueChoice("[STATUS] Northern Bridge Rebuilt!", None))
 
         if w_quest and w_quest.status == QUEST_NOT_STARTED:
-            choices.append(DialogueChoice("[QUEST] Watchtower Construction (3 Oak Wood, 2 Iron Ore)", None, accept_watchtower_q))
+            choices.append(DialogueChoice("[QUEST] Watchtower Construction (3 Oak Wood from Wolves, 2 Iron Ore)", None, accept_watchtower_q))
         elif w_quest and w_quest.status == QUEST_ACTIVE:
-            choices.append(DialogueChoice("[STATUS] Watchtower Construction Active (3 Oak Wood, 2 Iron Ore needed)", None))
+            choices.append(DialogueChoice("[STATUS] Watchtower Construction Active (3 Oak Wood from Wolves, 2 Iron Ore needed)", None))
         elif w_quest and w_quest.status == QUEST_COMPLETED:
             choices.append(DialogueChoice("[STATUS] Watchtower Erected!", None))
 

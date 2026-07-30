@@ -74,7 +74,7 @@ class QuestManager:
             objectives=[
                 QuestObjective("Speak to Elder Eldrin in the village", "talk", "Eldrin", 1),
                 QuestObjective("Defeat 3 Wolves in the Forest", "kill", "wolf", 3),
-                QuestObjective("Gather 3 Iron Ores", "collect", "Iron Ore", 3),
+                QuestObjective("Gather 3 Iron Ores (from Caverns, Mobs, or Silas)", "collect", "Iron Ore", 3),
                 QuestObjective("Slay the Shadow Knight in the Dungeon", "kill", "boss", 1)
             ],
             rewards={
@@ -136,9 +136,9 @@ class QuestManager:
         self.quests["blacksmith_quest"] = Quest(
             quest_id="blacksmith_quest",
             title="Iron Forging",
-            description="Acquire materials so the Blacksmith can forge weapons for defense.",
+            description="Acquire materials so the Blacksmith can forge weapons for defense. Iron Ore can be found in Caverns, dropped by Skeletons/Goblins, or bought from Merchant Silas.",
             objectives=[
-                QuestObjective("Deliver 5 Iron Ores to Blacksmith", "collect", "Iron Ore", 5)
+                QuestObjective("Deliver 5 Iron Ores to Blacksmith (Caverns/Mobs/Silas)", "collect", "Iron Ore", 5)
             ],
             rewards={
                 "exp": 150,
@@ -169,10 +169,10 @@ class QuestManager:
         self.quests["bridge_repair_quest"] = Quest(
             quest_id="bridge_repair_quest",
             title="Northern Bridge Reconstruction",
-            description="The northern stone bridge to Asterra Lake collapsed in the spring flood. Gather materials and fund the repair.",
+            description="The northern stone bridge to Asterra Lake collapsed. Gather materials (Oak Wood from Forest Wolves/Silas, Iron Ore from Caverns/Silas) and fund the repair.",
             objectives=[
-                QuestObjective("Deliver 5 Oak Wood for bridge timbers", "collect", "Oak Wood", 5),
-                QuestObjective("Deliver 3 Iron Ores for bridge bolts", "collect", "Iron Ore", 3)
+                QuestObjective("Deliver 5 Oak Wood (from Forest Wolves / Silas)", "collect", "Oak Wood", 5),
+                QuestObjective("Deliver 3 Iron Ores (from Caverns / Silas)", "collect", "Iron Ore", 3)
             ],
             rewards={
                 "exp": 120,
@@ -186,10 +186,10 @@ class QuestManager:
         self.quests["watchtower_quest"] = Quest(
             quest_id="watchtower_quest",
             title="Watchtower Construction",
-            description="Build the village watchtower to secure the road to the Crystal Caverns.",
+            description="Build the village watchtower to secure the road to the Crystal Caverns. Oak Wood drops from Forest Wolves; Iron Ore can be scavenged from Caverns or Merchant Silas.",
             objectives=[
-                QuestObjective("Deliver 3 Oak Wood for scaffolding", "collect", "Oak Wood", 3),
-                QuestObjective("Deliver 2 Iron Ores for reinforcements", "collect", "Iron Ore", 2)
+                QuestObjective("Deliver 3 Oak Wood (from Forest Wolves / Silas)", "collect", "Oak Wood", 3),
+                QuestObjective("Deliver 2 Iron Ores (from Caverns / Silas)", "collect", "Iron Ore", 2)
             ],
             rewards={
                 "exp": 100,

@@ -114,7 +114,7 @@ class MapGenerator:
             npcs.append({"type": "guard_village", "pos": ((w // 2) * TILE_SIZE, 4 * TILE_SIZE)})
 
             # Chest
-            chests.append({"pos": (12 * TILE_SIZE, 5 * TILE_SIZE), "loot": [("Baked Bread", 2), ("Red Potion", 1)]})
+            chests.append({"pos": (12 * TILE_SIZE, 5 * TILE_SIZE), "loot": [("Baked Bread", 2), ("Red Potion", 1), ("Iron Ore", 2)]})
 
             # Portals to Forest (Right side)
             grid[h // 2][w - 1] = "dirt"
@@ -197,8 +197,8 @@ class MapGenerator:
             # Mini-boss: Forest Guardian (required for MAP_CAVE unlock)
             enemies.append({"type": "forest_guardian", "pos": ((w - 5) * TILE_SIZE, (h - 5) * TILE_SIZE)})
 
-            # Apples chest (rebalanced quantity)
-            chests.append({"pos": (5 * TILE_SIZE, 6 * TILE_SIZE), "loot": [("Forest Apple", 3)]})
+            # Apples & starter Oak Wood chest
+            chests.append({"pos": (5 * TILE_SIZE, 6 * TILE_SIZE), "loot": [("Forest Apple", 3), ("Oak Wood", 2)]})
 
             # Portals
             # Left -> Village

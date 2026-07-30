@@ -353,21 +353,21 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "rarity": RARITY_COMMON,
         "max_stack": 99,
         "stats": {},
-        "description": "Unrefined iron nuggets mined from deep cavern rocks."
+        "description": "Unrefined iron nuggets found in cavern chests, mined rocks, and dropped by armored foes."
     },
     "Oak Wood": {
         "item_type": ITEM_MATERIAL,
         "rarity": RARITY_COMMON,
         "max_stack": 99,
         "stats": {},
-        "description": "Sturdy timber cut from prime forest trees."
+        "description": "Sturdy timber gathered from forest wolves, beasts, and woodland supply crates."
     },
     "Timber": {
         "item_type": ITEM_MATERIAL,
         "rarity": RARITY_COMMON,
         "max_stack": 99,
         "stats": {},
-        "description": "Sturdy wood timber gathered from forest trees, used in crafting & building."
+        "description": "Sturdy wood timber carried by forest beasts, used in crafting & infrastructure building."
     },
     "Beast Leather": {
         "item_type": ITEM_MATERIAL,

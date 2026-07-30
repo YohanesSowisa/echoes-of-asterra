@@ -58,15 +58,15 @@ class UIManager:
         self.open_panels: Set[str] = set()
 
         # Shop configurations
-        self.shop_goods = ["Red Potion", "Blue Potion", "Baked Bread", "Steel Blade", "Wooden Shield"]
+        self.shop_goods = ["Red Potion", "Blue Potion", "Baked Bread", "Oak Wood", "Iron Ore", "Steel Blade", "Wooden Shield"]
         self.shop_prices = {
             "Red Potion": (15, 5),      # (Buy, Sell)
             "Blue Potion": (20, 7),
             "Baked Bread": (10, 3),
+            "Oak Wood": (12, 5),
+            "Iron Ore": (25, 10),
             "Steel Blade": (100, 30),
             "Wooden Shield": (40, 12),
-            "Iron Ore": (0, 10),        # Silas only buys these
-            "Oak Wood": (0, 6),
             "Forest Apple": (0, 3),
             "Asterra Heart": (0, 150)
         }
