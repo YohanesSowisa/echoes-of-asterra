@@ -125,8 +125,22 @@ class MemoryManager:
             details=details or {}
         )
         self.memories.append(mem)
-        self.save_memories()
         return mem
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes memory manager state for per-slot save payload."""
+        return {
+            "current_day": self.current_day,
+            "memories": [m.to_dict() for m in self.memories]
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Restores memory manager state from per-slot save payload."""
+        if not data:
+            return
+        self.current_day = data.get("current_day", 1)
+        raw = data.get("memories", [])
+        self.memories = [SocialMemory.from_dict(m) for m in raw]
 
     def get_active_memories(self, category_filter: Optional[str] = None) -> List[SocialMemory]:
         """Returns all non-expired memories ordered by highest relevance score."""
@@ -158,7 +172,6 @@ class MemoryManager:
         )
 
     def _on_enemy_killed(self, enemy_type: str = "", enemy_name: str = "", **kwargs: Any) -> None:
-
         """EventBus callback for slain elite/boss enemies."""
         if enemy_type in ["boss", "wolf_alpha"]:
             self.add_memory(
@@ -170,27 +183,9 @@ class MemoryManager:
             )
 
     def save_memories(self) -> None:
-        """Serializes memories to JSON."""
-        os.makedirs(os.path.dirname(MEMORIES_SAVE_PATH), exist_ok=True)
-        payload = {
-            "current_day": self.current_day,
-            "memories": [m.to_dict() for m in self.memories]
-        }
-        try:
-            with open(MEMORIES_SAVE_PATH, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-        except Exception as e:
-            print(f"MemoryManager save warning: {e}")
+        """Legacy helper for backward compatibility."""
+        pass
 
     def load_memories(self) -> None:
-        """Loads serialized memories from JSON."""
-        if not os.path.exists(MEMORIES_SAVE_PATH):
-            return
-        try:
-            with open(MEMORIES_SAVE_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.current_day = data.get("current_day", 1)
-                raw = data.get("memories", [])
-                self.memories = [SocialMemory.from_dict(m) for m in raw]
-        except Exception as e:
-            print(f"MemoryManager load warning: {e}")
+        """Legacy helper for backward compatibility."""
+        pass

@@ -301,8 +301,8 @@ class Player(BaseSprite):
         self.atk -= atk_boost
 
     def perform_roll(self) -> None:
-        """Initiates a dodge roll maneuver."""
-        if self.state in ["roll", "attack", "dead"]:
+        """Initiates a dodge roll maneuver (supports attack animation canceling)."""
+        if self.state in ["roll", "dead"]:
             return
         if self.stamina < 15:
             return

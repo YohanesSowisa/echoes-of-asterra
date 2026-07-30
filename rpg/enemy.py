@@ -145,9 +145,11 @@ class Enemy(BaseSprite):
         self.knockback_vector = pygame.math.Vector2(0, 0)
         self.knockback_duration = 0.0
 
-        # --- COMBAT COOLDOWNS ---
+        # --- COMBAT COOLDOWNS & TELEGRAPHING ---
         self.attack_timer = 0.0
         self.attack_cooldown = 1.5  # seconds
+        self.telegraph_timer = 0.0
+        self.is_telegraphing = False
         self.i_frames_timer = 0.0
         self.is_invincible = False
 
@@ -216,12 +218,18 @@ class Enemy(BaseSprite):
 
 
     def perform_attack(self) -> None:
-        """Melee strike towards the player."""
+        """Initiates a telegraphed attack sequence giving the player time to dodge."""
+        if self.is_telegraphing:
+            return
         self.state = "attack"
         self.frame_index = 0.0
         self.attack_timer = self.attack_cooldown
+        self.is_telegraphing = True
+        self.telegraph_timer = 0.35  # 350ms danger indicator before hit
 
-        # Check hit on player with expanded melee reach box
+    def execute_attack_hit(self) -> None:
+        """Executes the actual attack hit after telegraph windup ends."""
+        self.is_telegraphing = False
         player = self.game.player
         if player and hasattr(player, "pos"):
             attack_box = self.hitbox.inflate(36, 36)
@@ -278,6 +286,11 @@ class Enemy(BaseSprite):
         # 1. Update timers
         if self.attack_timer > 0:
             self.attack_timer -= dt
+
+        if self.is_telegraphing:
+            self.telegraph_timer -= dt
+            if self.telegraph_timer <= 0:
+                self.execute_attack_hit()
 
         if self.i_frames_timer > 0:
             self.i_frames_timer -= dt
@@ -399,18 +412,25 @@ class Enemy(BaseSprite):
             self.image = mask.to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(0, 0, 0, 0))
 
     def draw_hp_bar(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+        """
+        Renders floating mini HP bar, Level badge, Name, and telegraphed danger ring.
+        """
+        offset_pos = self.rect.topleft - camera_offset
+        center_x = int(offset_pos.x + self.rect.width / 2)
+        center_y = int(offset_pos.y + self.rect.height / 2)
 
-        """
-        Renders floating mini HP bar, Level badge, Name, and XP reward above enemy head ONLY if enemy has been struck.
-        Features smooth HP fill, dark border, color gradient, and XP reward scaling display.
-        """
+        # Draw red telegraphed attack ring overlay if windup active
+        if self.is_telegraphing and self.hp > 0:
+            ring_surf = pygame.Surface((60, 60), pygame.SRCALPHA)
+            alpha = int(120 + 125 * (1.0 - max(0.0, self.telegraph_timer / 0.35)))
+            pygame.draw.circle(ring_surf, (255, 40, 40, alpha), (30, 30), 26, 3)
+            surface.blit(ring_surf, (center_x - 30, center_y - 30))
+
         if not self.has_been_hit or self.hp <= 0:
             return
 
         font_small, font_tiny = get_enemy_ui_fonts()
         bar_w, bar_h = 44, 5
-        offset_pos = self.rect.topleft - camera_offset
-        center_x = int(offset_pos.x + self.rect.width / 2)
         bar_y = int(offset_pos.y - 10)
 
         # 1. Level & Name Header (e.g. "Lv.3 Goblin")

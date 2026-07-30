@@ -8,6 +8,17 @@ from typing import Tuple, Any, List
 from rpg.sprite import BaseSprite
 from rpg.constants import COLOR_WHITE, COLOR_YELLOW, COLOR_RED, COLOR_CYAN
 
+_DAMAGE_FONT_CACHE: dict = {}
+
+def get_damage_font(size: int) -> pygame.font.Font:
+    """Returns cached pygame.font.Font instance to prevent disk I/O and object allocations per hit."""
+    if size not in _DAMAGE_FONT_CACHE:
+        try:
+            _DAMAGE_FONT_CACHE[size] = pygame.font.Font("assets/fonts/game_font.ttf", size)
+        except Exception:
+            _DAMAGE_FONT_CACHE[size] = pygame.font.SysFont("Arial", size, bold=True)
+    return _DAMAGE_FONT_CACHE[size]
+
 class DamageNumber(BaseSprite):
     """
     Floating damage number text. Rises slightly and fades out.
@@ -16,12 +27,7 @@ class DamageNumber(BaseSprite):
         super().__init__(pos, groups, layer=3)  # High layer to draw above characters
         self.text = text
         self.color = color
-        try:
-            self.font = pygame.font.Font("assets/fonts/game_font.ttf", size)
-        except Exception as e:
-            print(f"Warning: Failed loading font for DamageNumber: {e}")
-            self.font = pygame.font.SysFont("Arial", size, bold=True)
-
+        self.font = get_damage_font(size)
         self.alpha = 255
         self.lifetime = 0.6  # seconds
         self.timer = self.lifetime

@@ -26,6 +26,8 @@ MANIFEST
 
 .pytest_cache/
 scratch/
+.vscode/
+.idea/
 
 # User Save Files & Generated Map Cache
 saves/

@@ -173,6 +173,8 @@ class SaveSystem:
                     save_payload["npc_memories"] = player.game.npc_memory.to_dict()
                 if hasattr(player.game, "reputation_manager"):
                     save_payload["social_reputation"] = player.game.reputation_manager.to_dict()
+                if hasattr(player.game, "memory_manager"):
+                    save_payload["decay_memories"] = player.game.memory_manager.to_dict()
                 if hasattr(player.game, "ecology"):
                     save_payload["ecology"] = player.game.ecology.to_dict()
                 if hasattr(player.game, "tutorial_flags"):
@@ -293,6 +295,8 @@ class SaveSystem:
                     player.game.npc_memory.from_dict(save_payload["npc_memories"])
                 if "social_reputation" in save_payload and hasattr(player.game, "reputation_manager"):
                     player.game.reputation_manager.from_dict(save_payload["social_reputation"])
+                if "decay_memories" in save_payload and hasattr(player.game, "memory_manager"):
+                    player.game.memory_manager.from_dict(save_payload["decay_memories"])
                 if "ecology" in save_payload and hasattr(player.game, "ecology"):
                     player.game.ecology.from_dict(save_payload["ecology"])
                 if "tutorial_flags" in save_payload and hasattr(player.game, "tutorial_flags"):

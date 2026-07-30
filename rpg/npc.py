@@ -173,19 +173,33 @@ class NPC(BaseSprite):
         return True
 
     def draw_indicator(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
-        """Renders a floating 'E' interaction button above the NPC's head."""
+        """Renders floating quest marker [!] or interaction prompt [E] above NPC head."""
+        x = self.rect.centerx - camera_offset.x
+        y = self.rect.top - 20 - camera_offset.y
+
+        # Floating quest available marker for Elder or primary quest givers
+        is_elder = (getattr(self, "npc_id", "") == "elder" or "eldrin" in getattr(self, "name", "").lower())
+        if is_elder and not self.show_indicator:
+            # Pulsing gold ! badge above head
+            bob_offset = int(math.sin(pygame.time.get_ticks() / 180.0) * 3)
+            bg_rect = pygame.Rect(x - 10, y + bob_offset, 20, 20)
+            pygame.draw.rect(surface, (255, 200, 0), bg_rect, border_radius=10)
+            pygame.draw.rect(surface, (40, 30, 0), bg_rect, 1, border_radius=10)
+            try:
+                font = pygame.font.Font("assets/fonts/game_font.ttf", 14)
+            except Exception:
+                font = pygame.font.SysFont("Arial", 14, bold=True)
+            lbl = font.render("!", True, (20, 20, 20))
+            surface.blit(lbl, (x - lbl.get_width() // 2, y + bob_offset + 1))
+            return
+
         if not self.show_indicator:
             return
             
-        # Position indicator above sprite
-        x = self.rect.centerx - camera_offset.x
-        y = self.rect.top - 20 - camera_offset.y
-        
-        # Indicator box
+        # Interaction prompt [E]
         try:
             font = pygame.font.Font("assets/fonts/game_font.ttf", 12)
-        except Exception as e:
-            print(f"Debug: Using fallback font for NPC indicator: {e}")
+        except Exception:
             font = pygame.font.SysFont("Arial", 12, bold=True)
         lbl = font.render("[E]", True, COLOR_YELLOW)
         
