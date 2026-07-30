@@ -124,7 +124,26 @@ class CombatSystem:
         # If defender is in i-frames, hit fails
         if getattr(defender, "is_invincible", False):
             return False
-            
+
+        # --- TIMED PARRY CHECK (Player only) ---
+        if getattr(defender, "parry_window_timer", 0.0) > 0 and getattr(defender, "is_blocking", False):
+            # Perfect parry: 100% damage negated, stagger attacker
+            DamageNumber(defender.rect.center, "PARRY!", COLOR_CYAN, ui_group, size=20)
+            defender.trigger_invincibility(400)
+            defender.sound_manager.play_sound("click")
+            # Stagger the attacker
+            if hasattr(attacker, "take_poise_damage"):
+                attacker.take_poise_damage(attacker.max_poise)  # Instantly break poise
+            elif hasattr(attacker, "apply_slow_effect"):
+                attacker.apply_slow_effect(1.0)
+            # Camera impact feedback
+            if hasattr(defender, "game"):
+                defender.game.camera.trigger_shake(6.0, 120)
+                defender.game.trigger_hit_stop(0.12)
+            if hasattr(defender, "particles"):
+                defender.particles.create_block_sparks(defender.rect.center)
+            return True
+
         # Calculate damage
         dmg, is_crit = CombatSystem.calculate_damage(attacker, defender, is_magic, armor_pierce, damage_multiplier)
         
@@ -155,7 +174,11 @@ class CombatSystem:
             # Standard unblocked hit
             sound_name = "hit"
             knockback_strength = 6.0 * speed_modifier
-            
+
+        # Apply stagger damage bonus (1.75x when target is staggered)
+        if getattr(defender, "is_staggered", False):
+            dmg = int(dmg * 1.75)
+
         # Apply Stun Effect if weapon class specifies stun
         if stun_duration > 0 and hasattr(defender, "apply_slow_effect"):
             defender.apply_slow_effect(stun_duration)
@@ -163,6 +186,17 @@ class CombatSystem:
             
         # Deduct Health
         defender.take_damage(dmg)
+
+        # Apply Poise Damage (weapon-class based)
+        if hasattr(defender, "take_poise_damage") and hasattr(attacker, "equipment"):
+            from rpg.constants import ITEM_WEAPON
+            eq_weapon = attacker.equipment.slots.get(ITEM_WEAPON)
+            weapon_class = getattr(eq_weapon, "weapon_class", "sword") if eq_weapon else "sword"
+            poise_dmg_map = {"hammer": 30.0, "axe": 20.0, "sword": 12.0, "spear": 10.0, "dagger": 6.0}
+            poise_dmg = poise_dmg_map.get(weapon_class, 12.0)
+            if is_crit:
+                poise_dmg *= 1.5
+            defender.take_poise_damage(poise_dmg)
         
         # Apply Directional Knockback Pushback Vector
         if hasattr(attacker, "pos") and hasattr(defender, "pos"):

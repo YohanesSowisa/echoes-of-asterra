@@ -99,6 +99,10 @@ class Player(BaseSprite):
         self.is_invincible = False
         self.attack_cooldown_timer = 0.0
 
+        # --- PARRY SYSTEM ---
+        self.parry_window_timer = 0.0
+        self._was_blocking_last_frame = False
+
         # --- COMBO SYSTEM ---
         self.combo_count = 0
         self.combo_timer = 0.0
@@ -418,12 +422,17 @@ class Player(BaseSprite):
 
         # Check shield blocking
         if input_handler.is_blocking and self.equipment.slots.get(ITEM_SHIELD):
+            if not self._was_blocking_last_frame:
+                # First frame of block press: activate parry window
+                self.parry_window_timer = 0.2  # 200ms parry window
+            self._was_blocking_last_frame = True
             self.is_blocking = True
             self.state = "block"
             self.velocity.x = 0
             self.velocity.y = 0
             return
         else:
+            self._was_blocking_last_frame = False
             self.is_blocking = False
 
         move_vec = input_handler.move_dir
@@ -515,6 +524,9 @@ class Player(BaseSprite):
 
         if self.potion_cooldown_timer > 0:
             self.potion_cooldown_timer -= dt
+
+        if self.parry_window_timer > 0:
+            self.parry_window_timer -= dt
 
         if self.i_frames_timer > 0:
 

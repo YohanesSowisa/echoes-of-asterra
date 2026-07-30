@@ -41,37 +41,37 @@ class Game:
         self.dt = 0.0
         self.is_fullscreen = False
         self.target_fps = TARGET_FPS
-        
+
         # State machine
         self.game_state = STATE_MENU
-        
+
         # Initialize Core Subsystems
         self.event_bus = EventBus()
         from rpg.config import game_config
         from rpg.services import ServiceContainer
         self.services = ServiceContainer(game_config, self.event_bus)
-        
+
         self.living_world = LivingWorldManager(self.event_bus)
         self.living_world.game_reference = self
         self.debug_overlay = DebugOverlay()
 
-        
+
         # Accessor aliases for backward compatibility
         self.world_state = self.living_world.world_state
         self.ecology = self.living_world.ecology
-        
+
         self.factions = FactionManager()
         self.factions.register_event_listeners(self.event_bus)
-        
+
         self.npc_memory = NPCMemoryManager()
         self.npc_memory.register_event_listeners(self.event_bus)
-        
+
         from rpg.memory import MemoryManager
         self.memory_manager = MemoryManager(self.event_bus)
-        
+
         from rpg.social import ReputationManager
         self.reputation_manager = ReputationManager(self.event_bus, self.memory_manager)
-        
+
         from rpg.notification import NotificationManager
         self.notification_manager = NotificationManager()
         self.sound_manager = SoundManager()
@@ -89,16 +89,20 @@ class Game:
         self.quest_manager.event_bus = self.event_bus
         self.dialogue_manager = DialogueManager()
 
+        from rpg.bounty import BountyManager
+        self.bounty_manager = BountyManager()
+
         self.dialogue_manager.game = self
         self.world_manager = WorldManager()
         self.bestiary_manager = BestiaryManager(self.event_bus)
-        
+
         # Sprite groups
         self.visible_sprites = YSortedGroup()
         self.projectiles = pygame.sprite.Group()
         self.dropped_items = pygame.sprite.Group()
         self.chests = pygame.sprite.Group()
         self.npcs = pygame.sprite.Group()
+        self.waypoint_obelisks = pygame.sprite.Group()
         self.ui_sprites = YSortedGroup()  # Renders floating combat texts
         self.enemies = []
         self._enemies_list = self.enemies
@@ -107,12 +111,12 @@ class Game:
         # Initialize Player (Spawned at center of Village)
         self.player = Player((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), [self.visible_sprites], self.sound_manager, self.particles)
         self.player.game = self
-        
+
         # Minimap & Camera
         self.minimap = Minimap()
         self.camera = Camera(GRID_WIDTH * TILE_SIZE, GRID_HEIGHT * TILE_SIZE)
         self.minimap_enabled = True
-        
+
         # Mythos Inheritance Engine (Warisan Mitos & Legacy)
         from rpg.mythos import MythosManager
         from rpg.telemetry import EventTelemetry
@@ -131,7 +135,7 @@ class Game:
         self.event_bus.subscribe("first_quest_accepted", self._show_quest_tip)
         self.event_bus.subscribe("town_invested", self._on_town_invested)
 
-        
+
         # Load initial village map for menu background and start Main Menu BGM
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
         self.sound_manager.play_music("menu_music")
@@ -223,7 +227,7 @@ class Game:
         """
         Evaluates whether saving is safe and allowed based on region safety,
         enemy combat aggro, hostile proximity, and player health state.
-        
+
         Returns:
             (allowed: bool, reason: str)
         """
@@ -264,7 +268,7 @@ class Game:
         """Resets variables and loads the starting Village map."""
         self.world_manager.boss_defeated = False
         self.world_manager.chests_opened.clear()
-        
+
         # Reset player variables and state
         self.player.level = 1
         self.player.xp = 0
@@ -278,16 +282,16 @@ class Game:
         self.player.frame_index = 0.0
         self.player.is_invincible = False
 
-        
+
         # Equip defaults
         self.player.inventory.slots = [None] * self.player.inventory.size
         self.player.equipment.slots = {k: None for k in self.player.equipment.slots}
         self.player.add_starter_items()
         self.player.equipment.recalculate_player_stats(self.player)
-        
+
         self.player.skill_manager = type(self.player.skill_manager)()  # Fresh skills
         self.player.skill_manager.check_unlocks(self.player.level)
-        
+
         # Reset quests
         self.quest_manager = type(self.quest_manager)()
         self.quest_manager.event_bus = self.event_bus
@@ -311,7 +315,7 @@ class Game:
 
 
 
-        
+
         # Reset tutorial flags and push initial onboarding notifications for New Adventure
         self.tutorial_flags.clear()
         if hasattr(self, "ui_manager") and self.ui_manager:
@@ -382,7 +386,7 @@ class Game:
         # 2. Apply XP and Gold penalties
         xp_loss = int(player.xp_needed * 0.25)
         gold_loss = int(player.gold * 0.30)
-        
+
         player.xp = max(0, player.xp - xp_loss)
         player.gold = max(0, player.gold - gold_loss)
 
@@ -426,13 +430,13 @@ class Game:
         """Captures window clicks, quick menu key toggles, and interactions."""
         events = pygame.event.get()
         self.input_handler.process_events(events)
-        
+
         for event in events:
             if event.type == pygame.QUIT:
                 self.sound_manager.stop_music()
                 pygame.quit()
                 sys.exit()
-                
+
             elif event.type == pygame.KEYDOWN:
                 # Developer Debug Overlay hotkey check (F9, F10, F11)
                 if self.debug_overlay.handle_keydown(event.key):
@@ -445,7 +449,7 @@ class Game:
                             tabs = ["factions", "social", "town", "achievements", "bestiary"]
                             curr_t = getattr(self.ui_manager, "active_char_tab", "factions")
                             curr_i = tabs.index(curr_t) if curr_t in tabs else 0
-                            
+
                             if event.key in [pygame.K_a, pygame.K_LEFT]:
                                 self.ui_manager.active_char_tab = tabs[(curr_i - 1) % len(tabs)]
                             elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_TAB]:
@@ -471,7 +475,7 @@ class Game:
                         cols = 6
 
                         total_slots = self.player.inventory.size
-                        
+
                         if event.key in [pygame.K_w, pygame.K_UP]:
                             self.ui_manager.selected_inventory_slot = (sel_idx - cols) % total_slots
                             self.sound_manager.play_sound("click")
@@ -553,12 +557,17 @@ class Game:
                     elif event.key == pygame.K_e:
                         self.handle_interaction()
                     elif event.key == pygame.K_ESCAPE:
-                        # Open pause
-                        self.game_state = STATE_PAUSED
-                        self.ui_manager.pause_menu_state = "main"
-                        self.ui_manager.pause_select_idx = 0
-                        self.ui_manager.refresh_slots_metadata()
-                        self.sound_manager.play_sound("click")
+                        if self.ui_manager.open_panels:
+                            self.ui_manager.close_all_panels()
+                            self.sound_manager.play_sound("click")
+                        else:
+                            # Open pause
+                            self.ui_manager.close_all_panels()
+                            self.game_state = STATE_PAUSED
+                            self.ui_manager.pause_menu_state = "main"
+                            self.ui_manager.pause_select_idx = 0
+                            self.ui_manager.refresh_slots_metadata()
+                            self.sound_manager.play_sound("click")
 
                 elif self.game_state == STATE_MENU:
                     if event.key in [pygame.K_w, pygame.K_UP]:
@@ -641,9 +650,14 @@ class Game:
                         self.sound_manager.play_sound("click")
                         self.return_from_settings()
 
-                        
                 elif self.game_state == STATE_TUTORIAL:
-                    if event.key in [pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE]:
+                    if event.key in [pygame.K_a, pygame.K_LEFT]:
+                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx - 1) % 4
+                        self.sound_manager.play_sound("click")
+                    elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_TAB]:
+                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx + 1) % 4
+                        self.sound_manager.play_sound("click")
+                    elif event.key in [pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE]:
                         self.sound_manager.play_sound("click")
                         self.game_state = STATE_MENU
 
@@ -718,7 +732,7 @@ class Game:
                             else:
                                 self.game_state = STATE_PLAYING
                             self.sound_manager.play_sound("click")
-                        
+
                 elif self.game_state == STATE_DIALOGUE:
                     if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_e]:
                         prev_st = self.game_state
@@ -733,12 +747,12 @@ class Game:
                     elif event.key == pygame.K_ESCAPE:
                         self.dialogue_manager.close()
                         self.game_state = STATE_PLAYING
-                        
+
                 elif self.game_state == STATE_SHOP:
                     if event.key == pygame.K_ESCAPE:
                         self.game_state = STATE_PLAYING
                         self.sound_manager.play_sound("click")
-                        
+
                 elif self.game_state == STATE_GAME_OVER:
                     if event.key == pygame.K_r:
                         self.respawn_player()
@@ -770,8 +784,12 @@ class Game:
                 if is_right:
                     self.ui_manager.handle_click(event.pos, self, right_click=True)
                 elif event.button == 1:
+                    # Check minimap fast travel click
+                    if getattr(self, "minimap_enabled", True) and self.game_state == STATE_PLAYING and not self.ui_manager.open_panels:
+                        if self.minimap.handle_click(event.pos, self):
+                            continue
                     self.ui_manager.handle_click(event.pos, self, right_click=False)
-                    
+
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
                     # Complete drag & drop
@@ -781,14 +799,14 @@ class Game:
         """Finishes drag and drop items in slots."""
         if not self.player.inventory.dragged_item:
             return
-            
+
         target_idx = -1
         # Find hovered slot
         for rect, idx in self.ui_manager.slot_rects["inventory"]:
             if rect.collidepoint(pos):
                 target_idx = idx
                 break
-                
+
         if target_idx != -1:
             self.player.inventory.stop_drag(target_idx)
         else:
@@ -814,15 +832,21 @@ class Game:
                 npc.interact()
                 return
 
+        # 3. Check Waypoint Obelisks range
+        for obelisk in self.waypoint_obelisks:
+            if obelisk.check_interaction_range(self.player.pos):
+                obelisk.interact(self.player)
+                return
+
     def update(self) -> None:
         """Ticks recovery pools, triggers camera positioning, and checks portal collisions."""
         self.services.profiling.start_sample("update")
         # Limit frame rate
         self.dt = self.clock.tick(self.target_fps) / 1000.0
-        
+
         # Process inputs
         self.process_events()
-        
+
         # Play main menu music when in menu state
         if self.game_state in [STATE_MENU, STATE_TUTORIAL]:
             self.sound_manager.play_music("menu_music")
@@ -841,9 +865,11 @@ class Game:
         if self.effects_manager.hit_stop_timer > 0:
             return
 
-        # Update NPCs range indicators
+        # Update NPCs and Waypoints range indicators
         for npc in self.npcs:
             npc.check_interaction_range(self.player.pos)
+        for obelisk in self.waypoint_obelisks:
+            obelisk.check_interaction_range(self.player.pos)
 
         # 1. Update Game dialogue
         if self.game_state == STATE_DIALOGUE:
@@ -861,7 +887,7 @@ class Game:
         self.visible_sprites.update(self.dt)
         self.projectiles.update(self.dt)
         self.ui_sprites.update(self.dt)
-        
+
         # 3b. Check quest completions and grant rewards
         completed_quests = self.quest_manager.check_completable_quests(self.player)
         for cq in completed_quests:
@@ -873,14 +899,14 @@ class Game:
                 event_bus=self.event_bus
             )
             self.event_bus.emit("quest_completed", quest_id=cq.id)
-        
+
         # 3c. Update central Living World simulation orchestrator
         self.living_world.update(self.dt, self.player, self.world_manager, self.visible_sprites)
-        
+
         # 4. Update weather particles
         self.weather.update(self.particles, self.camera.get_offset(), self.dt, self.world_state)
         self.particles.update(self.dt)
-        
+
         # 5. Update ambient cycle
         self.lighting.update(self.dt, self.world_state)
 
@@ -890,11 +916,11 @@ class Game:
             if player_hb.colliderect(portal["rect"]):
                 target = portal["target_map"]
                 spawn_coords = portal["target_spawn"]
-                
+
                 # Evaluate regional access via ProgressionManager (Rule 1)
                 prog_mgr = self.living_world.progression
                 can_access, clue, reg_state = prog_mgr.can_access_region(target, self)
-                
+
                 if not can_access:
                     # Push back player slightly to prevent stuck collision loop
                     push_dir = pygame.math.Vector2(self.player.pos - portal["rect"].center)
@@ -903,7 +929,7 @@ class Game:
                         self.player.pos += push_dir * 22.0
                         self.player.hitbox.center = (int(self.player.pos.x), int(self.player.pos.y))
                         self.player.rect.center = self.player.hitbox.center
-                    
+
                     target_prof = prog_mgr.regions.get(target)
                     reg_name = target_prof.name if target_prof else target.upper()
 
@@ -934,7 +960,7 @@ class Game:
                 # Fade transition flash
                 self.effects_manager.trigger_flash((255, 255, 255), 300)
                 self.sound_manager.play_sound("magic")
-                
+
                 # Load Map
                 self.world_manager.load_map(target, self.player, portal_spawn=True, portal_coord=spawn_coords)
                 self.services.reset_services()
@@ -956,12 +982,12 @@ class Game:
         # 1. Clear display
         self.screen.fill(COLOR_BLACK)
 
-        
+
         # Draw game world when playing, paused, dialogue, shop, menu or tutorial
         if self.game_state in [STATE_PLAYING, STATE_PAUSED, STATE_DIALOGUE, STATE_SHOP, STATE_MENU, STATE_TUTORIAL]:
             from rpg.animation import tile_assets
             grid = self.world_manager.current_map_grid
-            
+
             if grid and len(grid) > 0:
                 map_h = len(grid)
                 map_w = len(grid[0]) if map_h > 0 else 0
@@ -988,14 +1014,14 @@ class Game:
                             tile_surf = tile_assets.get("grass")
                         else:
                             tile_surf = tile_assets.get(tile_type, tile_assets["grass"])
-                            
+
                         sx = int(c * TILE_SIZE - camera_offset.x)
                         sy = int(r * TILE_SIZE - camera_offset.y)
                         self.screen.blit(tile_surf, (sx, sy))
 
             # 2. Draw YSorted Sprites (Player, enemies, chests, NPCs, projectiles)
             self.visible_sprites.draw_sorted(self.screen, camera_offset)
-            
+
             # Render NPCs indicators above heads
             for sprite in self.visible_sprites.sprites():
                 if hasattr(sprite, "draw_indicator"):
@@ -1012,7 +1038,7 @@ class Game:
 
             # 6. Draw floating combat damage indicators
             self.ui_sprites.draw_sorted(self.screen, camera_offset)
-            
+
             # Draw cinematic dark menu overlay for main menu & tutorial screens
             if self.game_state in [STATE_MENU, STATE_TUTORIAL]:
                 menu_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1021,13 +1047,13 @@ class Game:
 
         # 7. UI Overlay Panel layer
         self.ui_manager.draw(self.screen, self)
-        
+
         # 8. Render damage flashes on top of UI
         self.effects_manager.draw_flash(self.screen)
-        
+
         # 9. Render Developer Debug Overlay (F9, F10, F11)
         self.debug_overlay.draw(self.screen, self)
-        
+
         self.services.profiling.end_sample("draw")
         # Flip display buffer
         pygame.display.flip()

@@ -418,12 +418,28 @@ class BlacksmithDennis(NPC):
         self.game.dialogue_manager.add_node(node_donated)
         self.game.dialogue_manager.add_node(node_sold)
 
+        def upgrade_forge():
+            settlement = getattr(self.game.living_world, "settlement", None) if hasattr(self.game, "living_world") else None
+            if settlement:
+                success, msg = settlement.upgrade_facility("blacksmith", player)
+                from rpg.combat import DamageNumber
+                color = (255, 215, 0) if success else (220, 60, 60)
+                DamageNumber(self.rect.center, msg, color, [self.game.ui_sprites], size=16)
+
         # Build choices list based on player's Iron Ore inventory
         choices = []
         if player.inventory.has_item("Iron Ore", 5):
             choices.append(DialogueChoice("[TOWN SECURITY] Donate 5 Ore -> Forge Guard Shields (-15% Market Tax)", None, donate_ore_for_guards))
             choices.append(DialogueChoice("[PERSONAL POWER] Sell 5 Ore for 50 Gold (Buy Spells)", None, sell_ore_for_gold))
-        
+
+        settlement = getattr(self.game.living_world, "settlement", None) if hasattr(self.game, "living_world") else None
+        if settlement:
+            lvl = settlement.get_facility_level("blacksmith")
+            if lvl < 3:
+                choices.append(DialogueChoice(f"[UPGRADE FORGE] Upgrade Blacksmith to Level {lvl + 1}", None, upgrade_forge))
+            else:
+                choices.append(DialogueChoice("[FORGE] Blacksmith is Max Level (Lvl 3)", None))
+
         choices.append(DialogueChoice("Open Forge Crafting", None, open_crafting))
         choices.append(DialogueChoice("Goodbye.", None))
 
@@ -737,6 +753,13 @@ class TownNoticeboard(NPC):
         player = self.game.player
         settlement = getattr(self.game.living_world, "settlement", None) if hasattr(self.game, "living_world") else None
 
+        # --- Bounty Board Integration ---
+        bounty_mgr = getattr(self.game, "bounty_manager", None)
+        if bounty_mgr:
+            # Auto-refresh if board is empty
+            if not bounty_mgr.available_bounties and not bounty_mgr.active_bounties:
+                bounty_mgr.refresh_board(player.level)
+
         def fund_silas():
             if player.gold >= 100:
                 if settlement and settlement.fund_investment("silas_market", 30.0):
@@ -762,7 +785,42 @@ class TownNoticeboard(NPC):
 
         choices = []
 
-        # Add quest options for town infrastructure
+        # --- Bounty Contracts Section ---
+        if bounty_mgr:
+            # Show turn-in options for completed bounties first
+            for b in list(bounty_mgr.active_bounties):
+                if b.is_completed and not b.is_turned_in:
+                    def _turn_in(bounty=b):
+                        success, msg = bounty_mgr.turn_in_bounty(bounty, player)
+                        if success:
+                            from rpg.combat import DamageNumber
+                            DamageNumber(self.rect.center, f"BOUNTY COMPLETE! {msg}", (255, 215, 0), [self.game.ui_sprites], size=18)
+                    choices.append(DialogueChoice(f"[TURN IN] {b.title} ({b.gold_reward}g + {b.xp_reward}XP)", None, _turn_in))
+
+            # Show progress on active bounties
+            for b in bounty_mgr.active_bounties:
+                if not b.is_completed:
+                    choices.append(DialogueChoice(f"[ACTIVE] {b.title} ({b.current_count}/{b.required_count})", None))
+
+            # Show available bounties to accept
+            for b in bounty_mgr.available_bounties:
+                if not b.is_accepted:
+                    def _accept(bounty=b):
+                        success, msg = bounty_mgr.accept_bounty(bounty)
+                        from rpg.combat import DamageNumber
+                        color = (100, 255, 100) if success else (220, 60, 60)
+                        DamageNumber(self.rect.center, msg, color, [self.game.ui_sprites], size=16)
+                    label = f"[BOUNTY] {b.title} → {b.gold_reward}g + {b.xp_reward}XP"
+                    choices.append(DialogueChoice(label, None, _accept))
+
+            # Refresh board option
+            def _refresh():
+                bounty_mgr.refresh_board(player.level)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "Board refreshed!", (120, 200, 255), [self.game.ui_sprites], size=14)
+            choices.append(DialogueChoice("[REFRESH] New bounty contracts", None, _refresh))
+
+        # --- Quest Infrastructure Options ---
         qm = self.game.quest_manager
         b_quest = qm.quests.get("bridge_repair_quest")
         w_quest = qm.quests.get("watchtower_quest")
@@ -787,6 +845,7 @@ class TownNoticeboard(NPC):
         elif w_quest and w_quest.status == QUEST_COMPLETED:
             choices.append(DialogueChoice("[STATUS] Watchtower Erected!", None))
 
+        # --- Investment Options ---
         if settlement:
             if not settlement.is_investment_completed("silas_market") and player.gold >= 100:
                 choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
@@ -796,7 +855,10 @@ class TownNoticeboard(NPC):
                 choices.append(DialogueChoice("[INVEST: DENNIS] Fund Master Forge (50g -> Tier 2 Gear)", None, fund_dennis))
         choices.append(DialogueChoice("Close Town Board.", None))
 
-        node = DialogueNode("town_board", self.name, "Asterra Town Board: Allocate your gold and resources to fund competing NPC ambitions and town infrastructure!", choices)
+        board_desc = "Asterra Town Board: Accept bounties, fund investments, and build infrastructure!"
+        if bounty_mgr:
+            board_desc += f" (Bounties completed: {bounty_mgr.completed_count})"
+        node = DialogueNode("town_board", self.name, board_desc, choices)
         self.game.dialogue_manager.add_node(node)
         self.game.dialogue_manager.start_dialogue("town_board")
         self.game.game_state = STATE_DIALOGUE

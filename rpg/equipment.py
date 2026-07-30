@@ -77,6 +77,7 @@ class Equipment:
         bonus_mana = 0
 
         # Scan slots and aggregate stats
+        from rpg.items import RUNE_DATABASE
         for slot_item in self.slots.values():
             if slot_item:
                 stats = slot_item.stats
@@ -87,6 +88,25 @@ class Equipment:
                 bonus_crit += stats.get("crit", 0)
                 bonus_hp += stats.get("hp", 0)
                 bonus_mana += stats.get("mana", 0)
+
+                # Aggregate socketed runes
+                for rune_name in getattr(slot_item, "socketed_runes", []):
+                    rune_info = RUNE_DATABASE.get(rune_name)
+                    if rune_info:
+                        stat_key = rune_info["stat"]
+                        val = rune_info["value"]
+                        if stat_key == "atk":
+                            bonus_atk += val
+                        elif stat_key == "def":
+                            bonus_def += val
+                        elif stat_key == "crit":
+                            bonus_crit += val
+                        elif stat_key == "hp":
+                            bonus_hp += val
+                        elif stat_key == "magic":
+                            bonus_magic += val
+                        elif stat_key == "mana":
+                            bonus_mana += val
 
         # Apply values to player
         player.max_hp = max(10, player.base_max_hp + bonus_hp)

@@ -6,7 +6,7 @@ and fail-fast manifest verification with graceful runtime fallbacks.
 import os
 import json
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import pygame
 from rpg.config import AssetConfig, game_config
@@ -23,21 +23,21 @@ class AssetService:
     def __init__(self, config: Optional[AssetConfig] = None) -> None:
         self.config = config or game_config.asset
         self.manifest_path = self.config.manifest_path
-        
+
         # Manifest data structures
         self.textures_manifest: Dict[str, str] = {}
         self.fonts_manifest: Dict[str, str] = {}
         self.sounds_manifest: Dict[str, str] = {}
         self.tilesets_manifest: Dict[str, str] = {}
-        
+
         # Caches
         self._texture_cache: Dict[str, pygame.Surface] = {}
         self._font_cache: Dict[Tuple[str, int], pygame.font.Font] = {}
         self._sound_cache: Dict[str, pygame.mixer.Sound] = {}
-        
+
         # Fallback surface (64x64 magenta/black checkerboard)
         self._fallback_texture: Optional[pygame.Surface] = None
-        
+
         # Load and validate manifest (Fail-Fast condition)
         self._load_manifest()
 
@@ -49,11 +49,11 @@ class AssetService:
         if not os.path.exists(self.manifest_path):
             # Create default manifest if missing in local dev environment
             self._create_default_manifest()
-            
+
         try:
             with open(self.manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                
+
             self.textures_manifest = data.get("textures", {})
             self.fonts_manifest = data.get("fonts", {})
             self.sounds_manifest = data.get("sounds", {})
@@ -97,12 +97,12 @@ class AssetService:
         """
         if texture_id in self._texture_cache:
             return self._texture_cache[texture_id]
-            
+
         rel_path = self.textures_manifest.get(texture_id)
         if not rel_path or not os.path.exists(rel_path):
             logger.warning("Runtime texture asset missing for ID '%s' (path: %s). Using fallback surface.", texture_id, rel_path)
             return self._get_fallback_texture()
-            
+
         try:
             surface = pygame.image.load(rel_path).convert_alpha()
             self._texture_cache[texture_id] = surface
@@ -119,7 +119,7 @@ class AssetService:
         cache_key = (font_id, size)
         if cache_key in self._font_cache:
             return self._font_cache[cache_key]
-            
+
         rel_path = self.fonts_manifest.get(font_id)
         if rel_path and os.path.exists(rel_path):
             try:
@@ -128,7 +128,7 @@ class AssetService:
                 return font
             except Exception as e:
                 logger.warning("Failed to load font file '%s' for ID '%s': %s. Using SysFont fallback.", rel_path, font_id, e)
-                
+
         # System font fallback
         font = pygame.font.SysFont(None, size)
         self._font_cache[cache_key] = font
@@ -141,16 +141,16 @@ class AssetService:
         """
         if sound_id in self._sound_cache:
             return self._sound_cache[sound_id]
-            
+
         if not pygame.mixer.get_init():
             logger.warning("Sound requested for ID '%s' but pygame.mixer is uninitialized.", sound_id)
             return None
-            
+
         rel_path = self.sounds_manifest.get(sound_id)
         if not rel_path or not os.path.exists(rel_path):
             logger.warning("Sound asset missing for ID '%s' (path: %s).", sound_id, rel_path)
             return None
-            
+
         try:
             sound = pygame.mixer.Sound(rel_path)
             self._sound_cache[sound_id] = sound
@@ -165,6 +165,58 @@ class AssetService:
         if not path:
             logger.warning("Tileset ID '%s' not registered in asset manifest.", tileset_id)
         return path
+
+    def load_tileset_png(self, path: str, tile_size: int = 32) -> Dict[int, pygame.Surface]:
+        """
+        Loads a PNG tileset image and slices it into an indexed dictionary of tile surfaces (1-based index).
+        Falls back to returning empty dict if PNG does not exist.
+        """
+        if not os.path.exists(path):
+            logger.info("PNG tileset file '%s' not found; using procedural tile fallback.", path)
+            return {}
+
+        try:
+            sheet = pygame.image.load(path).convert_alpha()
+            cols = sheet.get_width() // tile_size
+            rows = sheet.get_height() // tile_size
+            tiles = {}
+            idx = 1
+            for r in range(rows):
+                for c in range(cols):
+                    sub_rect = pygame.Rect(c * tile_size, r * tile_size, tile_size, tile_size)
+                    tile_surf = sheet.subsurface(sub_rect).copy()
+                    tiles[idx] = tile_surf
+                    idx += 1
+            logger.info("Loaded PNG tileset '%s' with %d tiles.", path, len(tiles))
+            return tiles
+        except Exception as e:
+            logger.warning("Failed to parse tileset PNG '%s': %s", path, e)
+            return {}
+
+    def load_spritesheet_png(self, path: str, frame_width: int, frame_height: int) -> List[pygame.Surface]:
+        """
+        Loads a PNG spritesheet image and slices it into an ordered list of frame surfaces.
+        Falls back to returning empty list if PNG does not exist.
+        """
+        if not os.path.exists(path):
+            logger.info("PNG spritesheet file '%s' not found; using procedural frame fallback.", path)
+            return []
+
+        try:
+            sheet = pygame.image.load(path).convert_alpha()
+            cols = sheet.get_width() // frame_width
+            rows = sheet.get_height() // frame_height
+            frames = []
+            for r in range(rows):
+                for c in range(cols):
+                    sub_rect = pygame.Rect(c * frame_width, r * frame_height, frame_width, frame_height)
+                    frame_surf = sheet.subsurface(sub_rect).copy()
+                    frames.append(frame_surf)
+            logger.info("Loaded PNG spritesheet '%s' with %d frames.", path, len(frames))
+            return frames
+        except Exception as e:
+            logger.warning("Failed to parse spritesheet PNG '%s': %s", path, e)
+            return []
 
     def unload_unused(self) -> None:
         """Public API: Flushes non-essential texture caches upon map or state transition."""

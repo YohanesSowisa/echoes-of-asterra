@@ -99,19 +99,21 @@ class SaveSystem:
         
         try:
             # 1. Player Info
-            inventory_list = []
-            for item in player.inventory.slots:
-                if item:
-                    inventory_list.append({"name": item.name, "qty": item.quantity})
-                else:
-                    inventory_list.append(None)
+            def _serialize_item(item):
+                if not item:
+                    return None
+                return {
+                    "name": item.name,
+                    "qty": item.quantity,
+                    "rarity": item.rarity,
+                    "stats": item.stats,
+                    "sockets": getattr(item, "sockets", 0),
+                    "socketed_runes": getattr(item, "socketed_runes", []),
+                    "affixes": getattr(item, "affixes", []),
+                }
 
-            equipment_dict = {}
-            for slot, item in player.equipment.slots.items():
-                if item:
-                    equipment_dict[slot] = item.name
-                else:
-                    equipment_dict[slot] = None
+            inventory_list = [_serialize_item(item) for item in player.inventory.slots]
+            equipment_dict = {slot: _serialize_item(item) for slot, item in player.equipment.slots.items()}
 
             player_data = {
                 "slot_name": final_slot_name,
@@ -231,19 +233,44 @@ class SaveSystem:
             player.hitbox.center = (int(player.pos.x), int(player.pos.y))
             player.rect.center = player.hitbox.center
 
+            # --- Rebuild Inventory & Equipment Helper ---
+            def _deserialize_item(info):
+                if not info:
+                    return None
+                item_obj = create_item(info["name"], info.get("qty", 1), roll_equipment_affixes=False)
+                if item_obj:
+                    if "rarity" in info:
+                        item_obj.rarity = info["rarity"]
+                    if "stats" in info:
+                        item_obj.stats = info["stats"]
+                    if "sockets" in info:
+                        item_obj.sockets = info["sockets"]
+                    if "socketed_runes" in info:
+                        item_obj.socketed_runes = info["socketed_runes"]
+                    if "affixes" in info:
+                        item_obj.affixes = info["affixes"]
+                return item_obj
+
             # --- Rebuild Inventory Slots ---
             player.inventory.slots = [None] * player.inventory.size
             for idx, item_info in enumerate(player_data["inventory"]):
                 if item_info:
-                    item_obj = create_item(item_info["name"], item_info["qty"])
+                    # Support legacy string/simple dict or new full dict format
+                    if isinstance(item_info, str):
+                        item_obj = create_item(item_info, 1)
+                    else:
+                        item_obj = _deserialize_item(item_info)
                     if item_obj:
                         player.inventory.slots[idx] = item_obj
 
             # --- Rebuild Equipment Slots ---
             player.equipment.slots = {k: None for k in player.equipment.slots}
-            for slot, item_name in player_data["equipment"].items():
-                if item_name:
-                    item_obj = create_item(item_name, 1)
+            for slot, item_info in player_data["equipment"].items():
+                if item_info:
+                    if isinstance(item_info, str):
+                        item_obj = create_item(item_info, 1)
+                    else:
+                        item_obj = _deserialize_item(item_info)
                     if item_obj:
                         player.equipment.slots[slot] = item_obj
 

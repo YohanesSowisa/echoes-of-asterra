@@ -613,6 +613,19 @@ class MapGenerator:
             # Default spawn on grass (not center water puddle)
             player_spawn = (w // 2 * TILE_SIZE, (h - 5) * TILE_SIZE)
 
+        # Optional PNG tileset asset loading override (Phase 6)
+        png_path = os.path.join(BASE_DIR, "assets", "textures", f"tileset_{map_name}.png")
+        if os.path.exists(png_path):
+            try:
+                from rpg.services.asset import AssetService
+                asset_svc = AssetService()
+                png_tiles = asset_svc.load_tileset_png(png_path, TILE_SIZE)
+                if png_tiles:
+                    from rpg.animation import tile_assets
+                    tile_assets[f"png_{map_name}"] = png_tiles
+            except Exception as e:
+                print(f"Warning: Could not load PNG tileset '{png_path}': {e}")
+
         # Assemble map database
         assembled_data = {
             "grid": grid,

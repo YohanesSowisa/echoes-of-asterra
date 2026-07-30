@@ -88,6 +88,9 @@ class UIManager:
         self.settings_select_idx = 0
         self.settings_options = ["Music Volume", "SFX Volume", "Display Mode", "Target FPS", "Difficulty Preset", "Back to Menu"]
 
+        # Tutorial multi-page selection index
+        self.tutorial_page_idx = 0
+
 
         # Progression / Exploration log selection index
         self.progression_select_idx = 0
@@ -757,10 +760,12 @@ class UIManager:
 
     # --- TUTORIAL SCREEN ---
 
+    # --- TUTORIAL SCREEN ---
+
     def draw_tutorial(self, surface: pygame.Surface) -> None:
-        """Draws a complete custom tutorial overlay detailing all key bindings and game systems."""
+        """Draws a multi-page interactive tutorial overlay detailing keybindings and gameplay mechanics."""
         # Panel Coordinates (Center screen)
-        tw, th = 760, 480
+        tw, th = 800, 520
         tx = (SCREEN_WIDTH - tw) // 2
         ty = (SCREEN_HEIGHT - th) // 2
 
@@ -769,74 +774,214 @@ class UIManager:
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=8)
 
         # Header title
-        hdr = self.fonts["large"].render("Tutorial & Keybindings Reference", True, COLOR_UI_HIGHLIGHT)
-        surface.blit(hdr, (tx + tw // 2 - hdr.get_width() // 2, ty + 18))
+        hdr = self.fonts["large"].render("Echoes of Asterra - Game Guide & Systems", True, COLOR_UI_HIGHLIGHT)
+        surface.blit(hdr, (tx + tw // 2 - hdr.get_width() // 2, ty + 16))
 
-        # Divider under header
-        pygame.draw.line(surface, (60, 70, 90), (tx + 24, ty + 54), (tx + tw - 24, ty + 54), 1)
-
-        # Left Column: Combat & Movement
-        left_controls = [
-            ("Move / Walk", "W, A, S, D"),
-            ("Sprint Movement", "Hold Left Shift"),
-            ("Dodge Roll", "Spacebar (I-Frames)"),
-            ("Melee Attack", "J or Left Click"),
-            ("Shield Block", "K or Hold Right Click"),
-            ("Quick Spells", "1 (Fireball), 2 (Ice), 3 (Heal), 4 (Dash)"),
-            ("Interaction", "Press [E] (NPCs, Chests, Portals)")
+        # --- Tab Navigation Bar ---
+        tabs = [
+            "1. Controls",
+            "2. Combat & Parry",
+            "3. Fast Travel & Bounties",
+            "4. Upgrades & Loot"
         ]
+        curr_page = self.tutorial_page_idx % len(tabs)
 
-        # Right Column: UI Menus & Systems
-        right_controls = [
-            ("Backpack Inventory", "Toggle [I]"),
-            ("Character Attributes", "Toggle [C]"),
-            ("Quest Journal", "Toggle [Q] or [L]"),
-            ("Crafting Forge", "Toggle [G]"),
-            ("Radar Minimap", "Toggle [M]"),
-            ("Equip / Use Item", "Right-Click item"),
-            ("Unequip Gear", "Right-Click equipment slot"),
-            ("Sell Items to Silas", "Click item in Shop Sell Panel"),
-            ("Pause / Save / Load", "Press [ESC]")
-        ]
+        tab_y = ty + 50
+        tab_w = 180
+        tab_h = 32
+        start_tab_x = tx + (tw - (len(tabs) * (tab_w + 8) - 8)) // 2
 
-        col_w = 340
-        left_x = tx + 24
-        right_x = tx + tw // 2 + 16
+        mouse_pos = pygame.mouse.get_pos()
 
-        # Column Section Headers
-        c1_hdr = self.fonts["medium"].render("Combat & Movement", True, (200, 220, 255))
-        c2_hdr = self.fonts["medium"].render("Menus & System Controls", True, (200, 220, 255))
-        surface.blit(c1_hdr, (left_x, ty + 64))
-        surface.blit(c2_hdr, (right_x, ty + 64))
+        for idx, tab_name in enumerate(tabs):
+            tab_x = start_tab_x + idx * (tab_w + 8)
+            tab_rect = pygame.Rect(tab_x, tab_y, tab_w, tab_h)
+            is_active = (idx == curr_page)
+            is_hover = tab_rect.collidepoint(mouse_pos)
 
-        # Vertical Divider between columns
-        pygame.draw.line(surface, (50, 60, 80), (tx + tw // 2, ty + 64), (tx + tw // 2, ty + th - 50), 1)
+            if is_active:
+                bg_col = (0, 140, 180)
+                border_col = (0, 220, 255)
+                txt_col = COLOR_WHITE
+            elif is_hover:
+                bg_col = (40, 55, 75)
+                border_col = (100, 180, 220)
+                txt_col = (200, 230, 255)
+            else:
+                bg_col = (25, 32, 45)
+                border_col = (50, 65, 85)
+                txt_col = COLOR_GRAY
 
-        # Draw Left Column
-        start_y = ty + 96
-        line_h = 44
-        for idx, (action, bind) in enumerate(left_controls):
-            curr_y = start_y + idx * line_h
-            act_lbl = self.fonts["small"].render(action, True, COLOR_WHITE)
-            bind_lbl = self.fonts["small"].render(bind, True, COLOR_UI_HIGHLIGHT)
-            surface.blit(act_lbl, (left_x, curr_y))
-            surface.blit(bind_lbl, (left_x, curr_y + 16))
-            if idx < len(left_controls) - 1:
-                pygame.draw.line(surface, (40, 45, 55), (left_x, curr_y + 36), (left_x + col_w, curr_y + 36), 1)
+            pygame.draw.rect(surface, bg_col, tab_rect, border_radius=4)
+            pygame.draw.rect(surface, border_col, tab_rect, 1, border_radius=4)
 
-        # Draw Right Column
-        for idx, (action, bind) in enumerate(right_controls):
-            curr_y = start_y + idx * 36
-            act_lbl = self.fonts["small"].render(action, True, COLOR_WHITE)
-            bind_lbl = self.fonts["small"].render(bind, True, COLOR_UI_HIGHLIGHT)
-            surface.blit(act_lbl, (right_x, curr_y))
-            surface.blit(bind_lbl, (right_x + col_w - bind_lbl.get_width(), curr_y))
-            if idx < len(right_controls) - 1:
-                pygame.draw.line(surface, (40, 45, 55), (right_x, curr_y + 28), (right_x + col_w, curr_y + 28), 1)
+            t_surf = self.fonts["small"].render(tab_name, True, txt_col)
+            surface.blit(t_surf, (tab_x + (tab_w - t_surf.get_width()) // 2, tab_y + (tab_h - t_surf.get_height()) // 2))
 
-        # Footer
+        # Divider under tab bar
+        content_top_y = tab_y + tab_h + 12
+        pygame.draw.line(surface, (60, 70, 90), (tx + 24, content_top_y), (tx + tw - 24, content_top_y), 1)
+
+        content_y = content_top_y + 12
+
+        # --- PAGE CONTENTS ---
+        if curr_page == 0:
+            # PAGE 0: Controls & Keybindings
+            left_controls = [
+                ("Move / Walk", "W, A, S, D"),
+                ("Sprint Movement", "Hold Left Shift"),
+                ("Dodge Roll (I-Frames)", "Spacebar"),
+                ("Melee Attack", "Left Click or J"),
+                ("Shield Block / Parry", "Right Click or K"),
+                ("Quick Spells / Skills", "1, 2, 3, 4"),
+                ("Interaction", "Press [E] (NPCs, Chests, Portals)")
+            ]
+            right_controls = [
+                ("Backpack Inventory", "Toggle [I]"),
+                ("Character Attributes", "Toggle [C]"),
+                ("Quest Journal", "Toggle [Q]"),
+                ("Crafting Forge", "Toggle [G]"),
+                ("Exploration Log / World Map", "Toggle [R]"),
+                ("Radar Minimap", "Toggle [M]"),
+                ("Level Up Cheat", "Press [L]"),
+                ("Pause / Settings / Save", "Press [ESC]")
+            ]
+
+            col_w = 350
+            left_x = tx + 28
+            right_x = tx + tw // 2 + 16
+
+            c1_hdr = self.fonts["medium"].render("Combat & Movement Controls", True, (200, 220, 255))
+            c2_hdr = self.fonts["medium"].render("Menus & System Shortcuts", True, (200, 220, 255))
+            surface.blit(c1_hdr, (left_x, content_y))
+            surface.blit(c2_hdr, (right_x, content_y))
+
+            pygame.draw.line(surface, (50, 60, 80), (tx + tw // 2, content_y), (tx + tw // 2, ty + th - 55), 1)
+
+            start_y = content_y + 28
+            for idx, (action, bind) in enumerate(left_controls):
+                curr_y = start_y + idx * 42
+                act_lbl = self.fonts["small"].render(action, True, COLOR_WHITE)
+                bind_lbl = self.fonts["small"].render(bind, True, COLOR_UI_HIGHLIGHT)
+                surface.blit(act_lbl, (left_x, curr_y))
+                surface.blit(bind_lbl, (left_x, curr_y + 16))
+                if idx < len(left_controls) - 1:
+                    pygame.draw.line(surface, (40, 45, 55), (left_x, curr_y + 36), (left_x + col_w, curr_y + 36), 1)
+
+            for idx, (action, bind) in enumerate(right_controls):
+                curr_y = start_y + idx * 36
+                act_lbl = self.fonts["small"].render(action, True, COLOR_WHITE)
+                bind_lbl = self.fonts["small"].render(bind, True, COLOR_UI_HIGHLIGHT)
+                surface.blit(act_lbl, (right_x, curr_y))
+                surface.blit(bind_lbl, (right_x + col_w - bind_lbl.get_width(), curr_y))
+                if idx < len(right_controls) - 1:
+                    pygame.draw.line(surface, (40, 45, 55), (right_x, curr_y + 28), (right_x + col_w, curr_y + 28), 1)
+
+        elif curr_page == 1:
+            # PAGE 1: Combat & Parry Mechanics
+            sections = [
+                ("1. Poise & Break Stagger System", [
+                    "• Enemies have a yellow Poise bar under their HP. Poise regenerates over time.",
+                    "• Heavy weapons (Hammers/Axes) deal high poise damage; daggers deal fast light poise damage.",
+                    "• Breaking poise triggers [STAGGERED!] — freezing enemy movement (1.5s mob / 2.0s elite / 3.0s boss).",
+                    "• All attacks against staggered enemies deal 1.75x bonus damage!"
+                ]),
+                ("2. Timed Shield Parry & Animation Canceling", [
+                    "• Raising your shield (Right-Click) within 0.2s of an incoming strike triggers a PERFECT PARRY.",
+                    "• Perfect Parry negates 100% damage, triggers [PARRY!], and instantly breaks the attacker's poise.",
+                    "• Press Spacebar during attack recovery to cancel animation into an invincible Dodge Roll (I-Frames)."
+                ]),
+                ("3. Elemental Reactions", [
+                    "• Combine elements for extra damage: Fire + Oil = Ignite DOT | Ice + Wet = Freeze Stun | Lightning + Wet = Overload AOE."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (255, 215, 0))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 2:
+            # PAGE 2: Fast Travel & Bounty System
+            sections = [
+                ("1. Ancient Waypoint Crystals & Fast Travel", [
+                    "• Ornate Waypoint Obelisks are located in major regions (Village, Forest, Lake, Cave, Mountain, Ruins).",
+                    "• Approach an obelisk and press [E] to permanently activate its waypoint.",
+                    "• Fast Travel via Minimap: Click any activated Cyan Diamond on the Minimap radar (M key).",
+                    "• Fast Travel via World Map: Open Exploration Log (R key), select an activated region, and click [★ Fast Travel].",
+                    "• (Fast travel is disabled during active combat and inside subterranean Crypt depths)."
+                ]),
+                ("2. Village Notice Board Bounties", [
+                    "• Visit the Town Notice Board in Asterra Haven Village to accept kill & gather contracts.",
+                    "• Bounties reward Gold and XP scaled to your character level.",
+                    "• Track up to 3 bounties simultaneously. Upon completion, return to the Town Board and click [TURN IN]."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (0, 220, 255))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 20
+                cy_pos += 12
+
+        elif curr_page == 3:
+            # PAGE 3: Upgrades, Loot & Runes
+            sections = [
+                ("1. Interactive Settlement Construction", [
+                    "• Speak with Blacksmith Dennis or visit the Town Board to upgrade village facilities (Level 1 to 3).",
+                    "• Upgrading Blacksmith, Apothecary, and Market unlocks advanced crafting recipes and shop discounts.",
+                    "• High-tier items (Iron Aegis, Asterra Sword, Blue Potion) require specific facility levels to forge."
+                ]),
+                ("2. ARPG Loot Affixes & Socketable Runes", [
+                    "• Equipment drops with Rarity tiers (Common, Uncommon, Rare, Epic, Legendary) and stat Affixes.",
+                    "• Prefixes (Vicious, Heavy, Titan's) and Suffixes (of Strength, of Precision) boost HP, ATK, Def, and Crit.",
+                    "• Gear with open sockets can be socketed with Runes (Rune of Fire, Rune of Vitality, Rune of Shielding).",
+                    "• Stats from gear, affixes, and socketed runes automatically aggregate into your character attributes."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (255, 180, 60))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 20
+                cy_pos += 12
+
+        # --- Footer Navigation Bar ---
         pygame.draw.line(surface, (60, 70, 90), (tx + 24, ty + th - 44), (tx + tw - 24, ty + th - 44), 1)
-        footer = self.fonts["small"].render("Press [ESC, Space, or Enter] to return to menu", True, COLOR_GRAY)
+
+        # Prev / Next buttons
+        btn_w, btn_h = 100, 26
+        prev_rect = pygame.Rect(tx + 28, ty + th - 38, btn_w, btn_h)
+        next_rect = pygame.Rect(tx + tw - 28 - btn_w, ty + th - 38, btn_w, btn_h)
+
+        is_prev_hover = prev_rect.collidepoint(mouse_pos)
+        is_next_hover = next_rect.collidepoint(mouse_pos)
+
+        pygame.draw.rect(surface, (50, 70, 95) if is_prev_hover else (30, 40, 55), prev_rect, border_radius=4)
+        pygame.draw.rect(surface, (0, 180, 216), prev_rect, 1, border_radius=4)
+        p_txt = self.fonts["small"].render("< Prev", True, COLOR_WHITE)
+        surface.blit(p_txt, (prev_rect.centerx - p_txt.get_width() // 2, prev_rect.centery - p_txt.get_height() // 2))
+
+        pygame.draw.rect(surface, (50, 70, 95) if is_next_hover else (30, 40, 55), next_rect, border_radius=4)
+        pygame.draw.rect(surface, (0, 180, 216), next_rect, 1, border_radius=4)
+        n_txt = self.fonts["small"].render("Next >", True, COLOR_WHITE)
+        surface.blit(n_txt, (next_rect.centerx - n_txt.get_width() // 2, next_rect.centery - n_txt.get_height() // 2))
+
+        hint_str = f"Page {curr_page + 1} of {len(tabs)}  |  Press [A/D or Arrows] to switch  |  [ESC/Enter] to Exit"
+        footer = self.fonts["small"].render(hint_str, True, COLOR_GRAY)
         surface.blit(footer, (tx + tw // 2 - footer.get_width() // 2, ty + th - 32))
 
     # --- PAUSE OVERLAY ---
@@ -1518,9 +1663,19 @@ class UIManager:
             surface.blit(name_lbl, (cx + 24, y_pos + 5))
 
             # Draw required items inline (e.g. Iron: 5/3)
-            ingredients, qty = CRAFTING_RECIPES[recipe_name]
+            recipe_data = CRAFTING_RECIPES[recipe_name]
+            ingredients = recipe_data[0]
+            qty = recipe_data[1]
+            min_facility_lvl = recipe_data[2] if len(recipe_data) > 2 else 1
+
             ing_strs = []
             can_craft = True
+
+            settlement = getattr(player.game.living_world, "settlement", None) if hasattr(player, "game") and hasattr(player.game, "living_world") else None
+            facility_lvl = settlement.get_facility_level("blacksmith") if settlement else 1
+            if facility_lvl < min_facility_lvl:
+                can_craft = False
+                ing_strs.append(f"Forge Lvl {min_facility_lvl}")
 
             for ing_name, req_qty in ingredients.items():
                 curr_qty = player.inventory.get_item_count(ing_name)
@@ -2083,6 +2238,41 @@ class UIManager:
                         self.execute_pause_choice(idx, game)
                         return
 
+        # Tutorial Screen tab and page navigation clicks
+        elif state == STATE_TUTORIAL:
+            tw, th = 800, 520
+            tx = (SCREEN_WIDTH - tw) // 2
+            ty = (SCREEN_HEIGHT - th) // 2
+
+            tabs = ["Controls", "Combat", "Fast Travel", "Upgrades"]
+            tab_y = ty + 50
+            tab_w = 180
+            tab_h = 32
+            start_tab_x = tx + (tw - (len(tabs) * (tab_w + 8) - 8)) // 2
+
+            # Check tab clicks
+            for idx in range(len(tabs)):
+                tab_x = start_tab_x + idx * (tab_w + 8)
+                tab_rect = pygame.Rect(tab_x, tab_y, tab_w, tab_h)
+                if tab_rect.collidepoint(mouse_pos):
+                    self.tutorial_page_idx = idx
+                    game.sound_manager.play_sound("click")
+                    return
+
+            # Check Prev / Next button clicks
+            btn_w, btn_h = 100, 26
+            prev_rect = pygame.Rect(tx + 28, ty + th - 38, btn_w, btn_h)
+            next_rect = pygame.Rect(tx + tw - 28 - btn_w, ty + th - 38, btn_w, btn_h)
+
+            if prev_rect.collidepoint(mouse_pos):
+                self.tutorial_page_idx = (self.tutorial_page_idx - 1) % len(tabs)
+                game.sound_manager.play_sound("click")
+                return
+            elif next_rect.collidepoint(mouse_pos):
+                self.tutorial_page_idx = (self.tutorial_page_idx + 1) % len(tabs)
+                game.sound_manager.play_sound("click")
+                return
+            return
 
         # Dialogue box clicks
         elif state == STATE_DIALOGUE:
@@ -2553,7 +2743,7 @@ class UIManager:
 
         from rpg.progression import RegionState
         if sel_reg.state in [RegionState.UNLOCKED, RegionState.MASTERED] or getattr(sel_reg.state, "value", sel_reg.state) in ["unlocked", "mastered"]:
-            unl_lbl = self.fonts["medium"].render("✓ Region path is fully open and accessible!", True, (60, 200, 80))
+            unl_lbl = self.fonts["medium"].render("[OK] Region path is fully open and accessible!", True, (60, 200, 80))
             surface.blit(unl_lbl, (detail_x + 20, curr_y))
             curr_y += 22
         else:
@@ -2564,7 +2754,7 @@ class UIManager:
                 curr_y += 16
                 for req in grp.requirements:
                     req_met = prog_mgr.evaluate_requirement(req, game)
-                    icon_str = "[✓]" if req_met else "[✗]"
+                    icon_str = "[OK]" if req_met else "[X]"
                     col = (60, 200, 80) if req_met else (230, 120, 30)
                     r_text = f"  {icon_str} {req.narrative_clue}"
                     curr_y = self._render_wrapped_text(surface, r_text, self.fonts["small"], col, detail_x + 24, curr_y, detail_w - 48, 16)
@@ -2597,11 +2787,11 @@ class UIManager:
         # Fast Travel Button if Waypoint Activated
         reg_id = getattr(sel_reg, "region_id", getattr(sel_reg, "id", ""))
         if hasattr(game, "world_manager") and reg_id in game.world_manager.activated_waypoints:
-            ft_rect = pygame.Rect(detail_x + detail_w - 150, detail_y + detail_h - 34, 134, 26)
+            ft_rect = pygame.Rect(detail_x + detail_w - 160, detail_y + detail_h - 34, 144, 26)
             is_ft_hover = ft_rect.collidepoint(pygame.mouse.get_pos())
             pygame.draw.rect(surface, (0, 140, 180) if is_ft_hover else (0, 80, 110), ft_rect, border_radius=4)
             pygame.draw.rect(surface, (0, 220, 255), ft_rect, width=1, border_radius=4)
-            ft_lbl = self.fonts["small"].render("★ Fast Travel", True, (255, 255, 255))
+            ft_lbl = self.fonts["small"].render("[CLICK] Fast Travel", True, (255, 255, 255))
             surface.blit(ft_lbl, (ft_rect.centerx - ft_lbl.get_width() // 2, ft_rect.centery - ft_lbl.get_height() // 2))
 
             if pygame.mouse.get_pressed()[0] and is_ft_hover:

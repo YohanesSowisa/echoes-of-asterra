@@ -39,9 +39,33 @@ class Item:
         self.description = description
         self.weapon_class = weapon_class
         self.element = element
-        
+
+        # --- ARPG LOOT AFFIXES & SOCKET SYSTEM ---
+        self.sockets: int = 0
+        self.socketed_runes: list = []  # list of rune item names
+        self.affixes: list = []  # list of dicts: {"type": "prefix"/"suffix", "name": str, "stat": str, "value": int/float}
+
         # Load procedural icon asset
         self.icon = self._get_procedural_icon()
+
+    def add_socket_rune(self, rune_name: str) -> bool:
+        """Inserts a socket rune into an available socket."""
+        if len(self.socketed_runes) < self.sockets:
+            self.socketed_runes.append(rune_name)
+            return True
+        return False
+
+    def get_affix_display_name(self) -> str:
+        """Constructs ARPG name (e.g. 'Flaming Steel Blade of Precision')."""
+        prefix_str = " ".join([a["name"] for a in self.affixes if a["type"] == "prefix"])
+        suffix_str = " ".join([a["name"] for a in self.affixes if a["type"] == "suffix"])
+        parts = []
+        if prefix_str:
+            parts.append(prefix_str)
+        parts.append(self.name)
+        if suffix_str:
+            parts.append(f"of {suffix_str}")
+        return " ".join(parts)
 
     def _get_procedural_icon(self) -> pygame.Surface:
         """Retrieves procedural icon matching this item category."""
@@ -379,12 +403,95 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
     }
 }
 
-def create_item(name: str, quantity: int = 1) -> Union[Item, None]:
+# --- ARPG AFFIX & RUNE DEFINITIONS ---
+PREFIX_TABLE = [
+    {"name": "Heavy", "stat": "atk", "range": (2, 5), "type": "prefix"},
+    {"name": "Vicious", "stat": "atk", "range": (5, 10), "type": "prefix"},
+    {"name": "Sharp", "stat": "crit", "range": (3, 7), "type": "prefix"},
+    {"name": "Fortified", "stat": "def", "range": (2, 4), "type": "prefix"},
+    {"name": "Titan's", "stat": "hp", "range": (15, 35), "type": "prefix"},
+    {"name": "Arcane", "stat": "magic", "range": (4, 9), "type": "prefix"},
+    {"name": "Swift", "stat": "speed", "range": (0.2, 0.5), "type": "prefix"},
+]
+
+SUFFIX_TABLE = [
+    {"name": "Strength", "stat": "atk", "range": (2, 6), "type": "suffix"},
+    {"name": "Precision", "stat": "crit", "range": (4, 8), "type": "suffix"},
+    {"name": "Protection", "stat": "def", "range": (2, 5), "type": "suffix"},
+    {"name": "Vitality", "stat": "hp", "range": (10, 30), "type": "suffix"},
+    {"name": "Haste", "stat": "speed", "range": (0.2, 0.4), "type": "suffix"},
+    {"name": "Wisdom", "stat": "mana", "range": (15, 30), "type": "suffix"},
+]
+
+RUNE_DATABASE = {
+    "Rune of Fire": {"stat": "atk", "value": 5, "desc": "+5 Attack Power"},
+    "Rune of Vitality": {"stat": "hp", "value": 25, "desc": "+25 Max HP"},
+    "Rune of Precision": {"stat": "crit", "value": 5, "desc": "+5% Crit Chance"},
+    "Rune of Shielding": {"stat": "def", "value": 4, "desc": "+4 Defense"},
+}
+
+import random
+
+def roll_affixes(item: Item, roll_chance: float = 0.4) -> None:
+    """Randomly rolls rarity, affixes, and sockets on equipment items."""
+    if item.item_type not in [ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY]:
+        return
+
+    # Roll rarity
+    r = random.random()
+    if r < 0.05:
+        item.rarity = RARITY_LEGENDARY
+        affix_count = 3
+        item.sockets = random.choice([1, 2])
+    elif r < 0.15:
+        item.rarity = RARITY_EPIC
+        affix_count = 2
+        item.sockets = random.choice([1, 2])
+    elif r < 0.35:
+        item.rarity = RARITY_RARE
+        affix_count = 2
+        item.sockets = 1
+    elif r < 0.60:
+        item.rarity = RARITY_UNCOMMON
+        affix_count = 1
+        item.sockets = 0
+    else:
+        item.rarity = RARITY_COMMON
+        affix_count = 0
+        item.sockets = 0
+
+    if affix_count == 0:
+        return
+
+    # Select prefixes and suffixes
+    pools = []
+    if affix_count >= 1:
+        pools.append(random.choice(PREFIX_TABLE))
+    if affix_count >= 2:
+        pools.append(random.choice(SUFFIX_TABLE))
+    if affix_count >= 3:
+        # Pick another prefix or suffix
+        pools.append(random.choice(PREFIX_TABLE + SUFFIX_TABLE))
+
+    for template in pools:
+        val = random.randint(template["range"][0], template["range"][1]) if isinstance(template["range"][0], int) else round(random.uniform(*template["range"]), 2)
+        affix = {
+            "name": template["name"],
+            "type": template["type"],
+            "stat": template["stat"],
+            "value": val,
+        }
+        item.affixes.append(affix)
+        # Add stat directly into item.stats
+        curr = item.stats.get(template["stat"], 0)
+        item.stats[template["stat"]] = curr + val
+
+
+def create_item(name: str, quantity: int = 1, roll_equipment_affixes: bool = True) -> Union[Item, None]:
     """Factory function that creates an Item instance from the database templates."""
     template = ITEM_DATABASE.get(name)
     if template:
-        # Create a new copy
-        return Item(
+        item = Item(
             name=name,
             item_type=template["item_type"],
             rarity=template["rarity"],
@@ -395,5 +502,8 @@ def create_item(name: str, quantity: int = 1) -> Union[Item, None]:
             weapon_class=template.get("weapon_class", WEAPON_SWORD),
             element=template.get("element", ELEMENT_NONE)
         )
+        if roll_equipment_affixes and item.item_type in [ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY]:
+            roll_affixes(item)
+        return item
     print(f"Warning: Item templates for '{name}' was not found.")
     return None

@@ -3,7 +3,7 @@ Echoes of Asterra - Minimap System
 Pre-renders map terrain layouts and draws a real-time radar showing player, enemies, and portals.
 """
 import pygame
-from typing import Any
+from typing import Any, Tuple
 from rpg.constants import COLOR_WHITE, COLOR_GREEN, COLOR_RED, COLOR_BLUE, COLOR_YELLOW, COLOR_ORANGE
 from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 
@@ -152,3 +152,59 @@ class Minimap:
             
         # 7. Draw outline frame
         pygame.draw.rect(surface, COLOR_WHITE, (bx, by, self.width, self.height), 1)
+
+        # 8. Draw Waypoint Obelisk markers (diamond icons for activated waypoints)
+        wm = game.world_manager
+        for region_id in wm.activated_waypoints:
+            from rpg.world import WAYPOINT_POSITIONS
+            if region_id in WAYPOINT_POSITIONS and region_id == wm.current_map_name:
+                wp = WAYPOINT_POSITIONS[region_id]
+                wx = bx + int(wp[0] * self.scale)
+                wy = by + int(wp[1] * self.scale)
+                # Draw cyan diamond
+                pts = [(wx, wy - 4), (wx + 3, wy), (wx, wy + 4), (wx - 3, wy)]
+                pygame.draw.polygon(surface, (100, 220, 255), pts)
+                pygame.draw.polygon(surface, COLOR_WHITE, pts, 1)
+
+    def handle_click(self, mouse_pos: Tuple[int, int], game: Any) -> bool:
+        """
+        Handles mouse click on the minimap for fast travel to activated waypoints.
+        Returns True if fast travel was triggered.
+        """
+        from rpg.world import WAYPOINT_POSITIONS
+        margin = 16
+        bx = game.screen.get_width() - self.width - margin
+        by = 96
+
+        # Check if click is within minimap bounds
+        if not (bx <= mouse_pos[0] <= bx + self.width and by <= mouse_pos[1] <= by + self.height):
+            return False
+
+        wm = game.world_manager
+        # Check click proximity to each activated waypoint marker
+        for region_id in wm.activated_waypoints:
+            if region_id == wm.current_map_name:
+                continue  # Can't teleport to current map's waypoint
+            if region_id not in WAYPOINT_POSITIONS:
+                continue
+            wp = WAYPOINT_POSITIONS[region_id]
+            wx = bx + int(wp[0] * self.scale)
+            wy = by + int(wp[1] * self.scale)
+
+            dist_sq = (mouse_pos[0] - wx) ** 2 + (mouse_pos[1] - wy) ** 2
+            if dist_sq <= 64:  # Within 8px click radius
+                can_travel, reason = wm.can_fast_travel(region_id, game)
+                if can_travel:
+                    from rpg.settings import TILE_SIZE
+                    spawn_x = wp[0] * TILE_SIZE + TILE_SIZE // 2
+                    spawn_y = wp[1] * TILE_SIZE + TILE_SIZE // 2
+                    wm.load_map(region_id, game.player, portal_spawn=True, portal_coord=(spawn_x, spawn_y))
+                    from rpg.combat import DamageNumber
+                    DamageNumber(game.player.rect.center, f"Traveled to {region_id.title()}",
+                                 (100, 220, 255), [game.ui_sprites], size=16)
+                    return True
+                else:
+                    from rpg.combat import DamageNumber
+                    DamageNumber(game.player.rect.center, reason, (220, 60, 60), [game.ui_sprites], size=14)
+                    return False
+        return False

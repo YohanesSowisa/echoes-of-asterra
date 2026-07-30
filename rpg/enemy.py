@@ -148,10 +148,19 @@ class Enemy(BaseSprite):
         # --- COMBAT COOLDOWNS & TELEGRAPHING ---
         self.attack_timer = 0.0
         self.attack_cooldown = 1.5  # seconds
+        self.telegraph_duration = 0.50  # 500ms total windup
         self.telegraph_timer = 0.0
         self.is_telegraphing = False
         self.i_frames_timer = 0.0
         self.is_invincible = False
+
+        # --- POISE & STAGGER SYSTEM ---
+        self.max_poise: float = 50.0
+        self.poise: float = 50.0
+        self.poise_regen_rate: float = 5.0
+        self.stagger_timer: float = 0.0
+        self.stagger_duration: float = 1.5  # default for normal enemies
+        self.is_staggered: bool = False
 
         # Slow debuff tracker
         self.slow_timer = 0.0
@@ -196,6 +205,18 @@ class Enemy(BaseSprite):
             # Archetype AI Abilities unlock
             self.unlocked_abilities = [ability for lvl, ability in bal.abilities_by_level.items() if self.level >= lvl]
 
+        # Tiered stagger durations based on enemy archetype
+        if enemy_key in ["boss", "demon_lord", "dragon"]:
+            self.stagger_duration = 3.0
+            self.max_poise = 120.0
+        elif enemy_key in ["skeleton_mage", "dark_knight", "knight"]:
+            self.stagger_duration = 2.0
+            self.max_poise = 80.0
+        else:
+            self.stagger_duration = 1.5
+            self.max_poise = 50.0
+        self.poise = self.max_poise
+
     def trigger_invincibility(self, duration_ms: float) -> None:
         """Triggers temporary invincibility on getting hit."""
         self.i_frames_timer = duration_ms / 1000.0
@@ -204,6 +225,19 @@ class Enemy(BaseSprite):
     def apply_slow_effect(self, duration: float) -> None:
         """Applies speed slow debuff (e.g. from Ice Spikes)."""
         self.slow_timer = duration
+
+    def take_poise_damage(self, amount: float) -> None:
+        """Deducts poise; triggers stagger state when poise breaks."""
+        if self.is_staggered:
+            return
+        self.poise = max(0.0, self.poise - amount)
+        if self.poise <= 0.0:
+            self.is_staggered = True
+            self.stagger_timer = self.stagger_duration
+            self.is_telegraphing = False
+            self.velocity = pygame.math.Vector2(0, 0)
+            DamageNumber(self.rect.center, "STAGGERED!", (255, 220, 40), [self.game.ui_sprites], size=18)
+            self.sound_manager.play_sound("click")
 
     def take_damage(self, amount: int) -> None:
         """Deducts health, activates conditional floating HP bar, and checks for death."""
@@ -218,14 +252,15 @@ class Enemy(BaseSprite):
 
 
     def perform_attack(self) -> None:
-        """Initiates a telegraphed attack sequence giving the player time to dodge."""
+        """Initiates a telegraphed attack sequence giving the player time to dodge or parry."""
         if self.is_telegraphing:
             return
         self.state = "attack"
         self.frame_index = 0.0
         self.attack_timer = self.attack_cooldown
         self.is_telegraphing = True
-        self.telegraph_timer = 0.35  # 350ms danger indicator before hit
+        self.telegraph_duration = 0.50  # 500ms total windup
+        self.telegraph_timer = self.telegraph_duration
 
     def execute_attack_hit(self) -> None:
         """Executes the actual attack hit after telegraph windup ends."""
@@ -262,6 +297,14 @@ class Enemy(BaseSprite):
         kill_type = getattr(self, "kill_type", self.asset_key)
         self.game.quest_manager.handle_kill(kill_type)
 
+        # Trigger bounty kill progression
+        bounty_mgr = getattr(self.game, "bounty_manager", None)
+        if bounty_mgr:
+            completed = bounty_mgr.on_enemy_killed(kill_type)
+            if completed:
+                DamageNumber(player.rect.center, f"Bounty Done: {completed.title}!", (255, 215, 0),
+                             [self.game.ui_sprites], size=18)
+
         # Emit event bus notification
         if hasattr(self.game, "event_bus"):
             self.game.event_bus.emit("enemy_killed", enemy_type=kill_type, enemy_name=self.name, pos=self.rect.center)
@@ -291,6 +334,16 @@ class Enemy(BaseSprite):
             self.telegraph_timer -= dt
             if self.telegraph_timer <= 0:
                 self.execute_attack_hit()
+
+        # Poise stagger ticking
+        if self.is_staggered:
+            self.stagger_timer -= dt
+            self.velocity = pygame.math.Vector2(0, 0)
+            if self.stagger_timer <= 0:
+                self.is_staggered = False
+                self.poise = self.max_poise
+        elif self.poise < self.max_poise:
+            self.poise = min(self.max_poise, self.poise + self.poise_regen_rate * dt)
 
         if self.i_frames_timer > 0:
             self.i_frames_timer -= dt
@@ -419,12 +472,54 @@ class Enemy(BaseSprite):
         center_x = int(offset_pos.x + self.rect.width / 2)
         center_y = int(offset_pos.y + self.rect.height / 2)
 
-        # Draw red telegraphed attack ring overlay if windup active
+        # Draw Contracting Color-Changing Telegraph Ring (Red -> Yellow -> Green)
         if self.is_telegraphing and self.hp > 0:
-            ring_surf = pygame.Surface((60, 60), pygame.SRCALPHA)
-            alpha = int(120 + 125 * (1.0 - max(0.0, self.telegraph_timer / 0.35)))
-            pygame.draw.circle(ring_surf, (255, 40, 40, alpha), (30, 30), 26, 3)
-            surface.blit(ring_surf, (center_x - 30, center_y - 30))
+            total_dur = getattr(self, "telegraph_duration", 0.50)
+            rem_time = max(0.0, self.telegraph_timer)
+            progress = max(0.0, min(1.0, 1.0 - (rem_time / max(0.01, total_dur))))
+
+            # Contracting ring radii
+            max_r = 44.0
+            min_r = 16.0
+            curr_r = int(max_r - (max_r - min_r) * progress)
+
+            # Color logic based on remaining time to hit:
+            # - Green (Safe Parry Window): remaining_time <= 0.20s (last 200ms)
+            # - Yellow (Warning): 0.20s < remaining_time <= 0.35s
+            # - Red (Windup Start): remaining_time > 0.35s
+            if rem_time <= 0.20:
+                # SAFE PARRY WINDOW! (Bright Emerald / Cyan Green)
+                ring_color = (60, 255, 100)
+                is_parry_window = True
+            elif rem_time <= 0.35:
+                # WARNING ZONE (Bright Gold / Yellow)
+                ring_color = (255, 220, 30)
+                is_parry_window = False
+            else:
+                # WINDUP START (Danger Red)
+                ring_color = (255, 50, 50)
+                is_parry_window = False
+
+            # Outer Surface for crisp drawing
+            surf_size = 110
+            half = surf_size // 2
+            ring_surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+
+            # 1. Fixed Inner Target Zone Ring (Green when in parry window, else dim green)
+            target_col = (60, 255, 100, 220) if is_parry_window else (40, 160, 80, 120)
+            pygame.draw.circle(ring_surf, target_col, (half, half), int(min_r), 2)
+
+            # 2. Contracting Outer Ring (Red -> Yellow -> Green)
+            glow_alpha = 240 if is_parry_window else 190
+            draw_col = (*ring_color, glow_alpha)
+            pygame.draw.circle(ring_surf, draw_col, (half, half), max(4, curr_r), 3)
+
+            # 3. Visual "PARRY NOW!" indicator pulse when inside Green window
+            if is_parry_window:
+                pulse_r = int(min_r + (pygame.time.get_ticks() % 200) * 0.08)
+                pygame.draw.circle(ring_surf, (140, 255, 200, 160), (half, half), pulse_r, 1)
+
+            surface.blit(ring_surf, (center_x - half, center_y - half))
 
         if not self.has_been_hit or self.hp <= 0:
             return
@@ -468,10 +563,25 @@ class Enemy(BaseSprite):
             fill_rect = pygame.Rect(bar_x, bar_y, fill_w, bar_h)
             pygame.draw.rect(surface, col, fill_rect)
 
+        # 2b. Poise Bar (yellow, renders below HP bar when poise is not full)
+        if self.poise < self.max_poise:
+            poise_bar_y = bar_y + bar_h + 2
+            poise_h = 3
+            poise_bg = pygame.Rect(bar_x, poise_bar_y, bar_w, poise_h)
+            pygame.draw.rect(surface, (20, 20, 20), poise_bg)
+            pygame.draw.rect(surface, (0, 0, 0), poise_bg, 1)
+            poise_ratio = max(0.0, min(1.0, self.poise / max(1.0, self.max_poise)))
+            poise_fill_w = int(bar_w * poise_ratio)
+            if poise_fill_w > 0:
+                poise_col = (255, 220, 40) if not self.is_staggered else (255, 80, 80)
+                poise_fill = pygame.Rect(bar_x, poise_bar_y, poise_fill_w, poise_h)
+                pygame.draw.rect(surface, poise_col, poise_fill)
+
         # 3. XP Reward Footer Badge (e.g. "+25 XP")
         xp_text = f"+{self.xp_reward} XP"
         xp_surf = font_tiny.render(xp_text, True, (120, 220, 255))
-        xp_rect = xp_surf.get_rect(center=(center_x, bar_y + bar_h + 7))
+        xp_offset_y = bar_y + bar_h + (8 if self.poise < self.max_poise else 0) + 7
+        xp_rect = xp_surf.get_rect(center=(center_x, xp_offset_y))
 
         xp_shadow = font_tiny.render(xp_text, True, (10, 10, 10))
         surface.blit(xp_shadow, (xp_rect.x + 1, xp_rect.y + 1))
