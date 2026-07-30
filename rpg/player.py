@@ -126,23 +126,15 @@ class Player(BaseSprite):
         self.add_starter_items()
 
     def add_starter_items(self) -> None:
-        """Grants the player basic starting gear and resources."""
+        """Grants the player basic starting consumables."""
         from rpg.items import create_item
-        sword = create_item("Rusty Sword")
-        shield = create_item("Wooden Shield")
         pot = create_item("Red Potion", 3)
         mp_pot = create_item("Blue Potion", 2)
         bread = create_item("Baked Bread", 2)
-        iron = create_item("Iron Ore", 2)
-        wood = create_item("Oak Wood", 2)
 
-        if sword: self.inventory.add_item(sword)
-        if shield: self.inventory.add_item(shield)
         if pot: self.inventory.add_item(pot)
         if mp_pot: self.inventory.add_item(mp_pot)
         if bread: self.inventory.add_item(bread)
-        if iron: self.inventory.add_item(iron)
-        if wood: self.inventory.add_item(wood)
 
     def trigger_invincibility(self, duration_ms: float) -> None:
         """Gives the player temporary damage invincibility frames."""
