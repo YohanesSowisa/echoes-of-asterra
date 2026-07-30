@@ -1693,9 +1693,10 @@ class UIManager:
 
     def draw_shop_interface(self, surface: pygame.Surface, player: Any) -> None:
         """Buy and Sell panels interface with Merchant Silas."""
-        # Large centered dual window
-        sx, sy = SCREEN_WIDTH // 2 - 340, SCREEN_HEIGHT // 2 - 200
-        sw, sh = 680, 400
+        # Large centered dual window (740x500)
+        sw, sh = 740, 500
+        sx = (SCREEN_WIDTH - sw) // 2
+        sy = (SCREEN_HEIGHT - sh) // 2
 
         box = pygame.Rect(sx, sy, sw, sh)
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=8)
@@ -1703,19 +1704,19 @@ class UIManager:
 
         # Header Title
         hdr = self.fonts["large"].render(f"Merchant Silas' Shop (Gold: {player.gold}g)", True, COLOR_UI_HIGHLIGHT)
-        surface.blit(hdr, (sx + 24, sy + 20))
+        surface.blit(hdr, (sx + 24, sy + 18))
 
         # Close label
         cls = self.fonts["small"].render("[ESC] Exit Shop", True, COLOR_GRAY)
-        surface.blit(cls, (sx + sw - cls.get_width() - 24, sy + 28))
+        surface.blit(cls, (sx + sw - cls.get_width() - 24, sy + 24))
 
         # LEFT PANEL: SILAS SELLS
-        left_box = pygame.Rect(sx + 24, sy + 68, 300, 300)
+        left_box = pygame.Rect(sx + 20, sy + 60, 340, 420)
         pygame.draw.rect(surface, COLOR_DARK_GRAY, left_box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, left_box, 1, border_radius=6)
 
         lbl_s = self.fonts["medium"].render("Silas' Wares (Buy)", True, COLOR_WHITE)
-        surface.blit(lbl_s, (sx + 36, sy + 80))
+        surface.blit(lbl_s, (sx + 32, sy + 72))
 
         # Render Active Market Tax/Discount Modifier Badge from Living World Decisions
         if hasattr(player, "game") and hasattr(player.game, "living_world"):
@@ -1726,14 +1727,20 @@ class UIManager:
                 badge_str = f"Tax: +{perc}%" if perc > 0 else f"Discount: {perc}%"
                 badge_c = (255, 100, 100) if perc > 0 else (100, 240, 140)
                 badge_lbl = self.fonts["small"].render(f"[{badge_str}]", True, badge_c)
-                surface.blit(badge_lbl, (sx + 185, sy + 82))
+                surface.blit(badge_lbl, (sx + 200, sy + 74))
 
         m_pos = pygame.mouse.get_pos()
         self.slot_rects["shop"].clear()
 
+        # Calculate row height dynamically to fit all shop items cleanly
+        n_items = max(1, len(self.shop_goods))
+        avail_h = 360
+        row_step = min(44, avail_h // n_items)
+        row_h = min(36, row_step - 4)
+
         for idx, item_name in enumerate(self.shop_goods):
-            by = sy + 116 + idx * 46
-            row_rect = pygame.Rect(sx + 36, by, 276, 40)
+            by = sy + 104 + idx * row_step
+            row_rect = pygame.Rect(sx + 32, by, 316, row_h)
 
             # Hover check
             is_hover = row_rect.collidepoint(m_pos)
@@ -1745,13 +1752,13 @@ class UIManager:
             mock_item = create_item(item_name)
             if mock_item:
                 icon_img = pygame.transform.scale(mock_item.icon, (24, 24))
-                surface.blit(icon_img, (sx + 42, by + 8))
+                surface.blit(icon_img, (sx + 38, by + (row_h - 24) // 2))
                 if is_hover:
                     self.hovered_item = mock_item
 
             # Name
             name_lbl = self.fonts["small"].render(item_name, True, COLOR_WHITE)
-            surface.blit(name_lbl, (sx + 74, by + 12))
+            surface.blit(name_lbl, (sx + 70, by + (row_h - name_lbl.get_height()) // 2))
 
             # Price (modified dynamically by Living Economy + Factions + Settlement)
             base_buy, _ = self.shop_prices[item_name]
@@ -1762,21 +1769,21 @@ class UIManager:
             buy_price = max(1, int(base_buy * price_scalar))
             prc_color = COLOR_YELLOW if player.gold >= buy_price else COLOR_RED
             prc_lbl = self.fonts["medium"].render(f"{buy_price}g", True, prc_color)
-            surface.blit(prc_lbl, (sx + 300 - prc_lbl.get_width() - 46, by + 10))
+            surface.blit(prc_lbl, (sx + 336 - prc_lbl.get_width() - 12, by + (row_h - prc_lbl.get_height()) // 2))
 
             # Store bounds for click buy actions
             self.slot_rects["shop"].append((row_rect, idx))
 
         # RIGHT PANEL: PLAYER INVENTORY BACKPACK
-        right_box = pygame.Rect(sx + 356, sy + 68, 300, 300)
+        right_box = pygame.Rect(sx + 380, sy + 60, 340, 420)
         pygame.draw.rect(surface, COLOR_DARK_GRAY, right_box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, right_box, 1, border_radius=6)
 
         lbl_p = self.fonts["medium"].render("Sell Items", True, COLOR_WHITE)
-        surface.blit(lbl_p, (sx + 368, sy + 80))
+        surface.blit(lbl_p, (sx + 392, sy + 72))
 
         # Sell All Materials Button
-        sell_all_rect = pygame.Rect(sx + 510, sy + 76, 134, 24)
+        sell_all_rect = pygame.Rect(sx + 546, sy + 68, 160, 26)
         m_pos = pygame.mouse.get_pos()
         is_sa_hover = sell_all_rect.collidepoint(m_pos)
         pygame.draw.rect(surface, (80, 50, 20) if is_sa_hover else (50, 30, 15), sell_all_rect, border_radius=3)
@@ -1786,10 +1793,10 @@ class UIManager:
         self.slot_rects["sell_all"] = [(sell_all_rect, 0)]
 
         # Render mini inventory backpack (6 cols, 4 rows)
-        grid_start_x = sx + 368
-        grid_start_y = sy + 116
-        slot_sz = 36
-        spacing = 6
+        grid_start_x = sx + 392
+        grid_start_y = sy + 110
+        slot_sz = 42
+        spacing = 10
 
         for r in range(4):
             for c in range(6):
@@ -1808,8 +1815,8 @@ class UIManager:
 
                 item = player.inventory.slots[idx]
                 if item:
-                    icon_img = pygame.transform.scale(item.icon, (24, 24))
-                    surface.blit(icon_img, (x + 6, y + 6))
+                    icon_img = pygame.transform.scale(item.icon, (28, 28))
+                    surface.blit(icon_img, (x + 7, y + 7))
 
                     rarity_c = RARITY_COLORS.get(item.rarity, COLOR_UI_BORDER)
                     pygame.draw.rect(surface, rarity_c, slot_rect, 2, border_radius=3)

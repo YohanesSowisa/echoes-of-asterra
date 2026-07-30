@@ -174,6 +174,10 @@ class NPC(BaseSprite):
 
     def draw_indicator(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         """Renders floating quest marker [!] or interaction prompt [E] above NPC head."""
+        # Hide indicator prompts while UI overlays (dialogue/shop/pause) are active
+        if self.game and getattr(self.game, "game_state", None) in [STATE_SHOP, STATE_DIALOGUE, STATE_PAUSED]:
+            return
+
         x = self.rect.centerx - camera_offset.x
         y = self.rect.top - 20 - camera_offset.y
 
