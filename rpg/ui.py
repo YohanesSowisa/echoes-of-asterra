@@ -446,10 +446,10 @@ class UIManager:
         box_gap = 46
 
         skills_layout = [
-            ("F1", "Fireball", player.skill_manager.skills[SKILL_FIREBALL]),
-            ("F2", "Ice Spike", player.skill_manager.skills[SKILL_ICE_SPIKE]),
-            ("F3", "Heal", player.skill_manager.skills[SKILL_HEALING]),
-            ("F4", "Dash", player.skill_manager.skills[SKILL_DASH])
+            ("Q", "Fireb", player.skill_manager.skills[SKILL_FIREBALL]),
+            ("E", "IceSp", player.skill_manager.skills[SKILL_ICE_SPIKE]),
+            ("C", "Heal", player.skill_manager.skills[SKILL_HEALING]),
+            ("X", "Dash", player.skill_manager.skills[SKILL_DASH])
         ]
 
         for idx, (key, label, skill) in enumerate(skills_layout):
@@ -833,13 +833,14 @@ class UIManager:
                 ("Dodge Roll (I-Frames)", "Spacebar"),
                 ("Melee Attack", "Left Click or J"),
                 ("Shield Block / Parry", "Right Click or K"),
-                ("Quick Spells / Skills", "1, 2, 3, 4"),
-                ("Interaction", "Press [E] (NPCs, Chests, Portals)")
+                ("Valorant Spells / Skills", "Q, E, C, X"),
+                ("Quick Item Consumables", "Hotbar Keys 1, 2, 3, 4"),
+                ("Interaction", "Press [F] (NPCs, Chests, Portals)")
             ]
             right_controls = [
                 ("Backpack Inventory", "Toggle [I]"),
-                ("Character Attributes", "Toggle [C]"),
-                ("Quest Journal", "Toggle [Q]"),
+                ("Character Attributes", "Toggle [V]"),
+                ("Quest Journal", "Toggle [N]"),
                 ("Crafting Forge", "Toggle [G]"),
                 ("Exploration Log / World Map", "Toggle [R]"),
                 ("Radar Minimap", "Toggle [M]"),
@@ -911,7 +912,7 @@ class UIManager:
             sections = [
                 ("1. Ancient Waypoint Crystals & Fast Travel", [
                     "• Ornate Waypoint Obelisks are located in major regions (Village, Forest, Lake, Cave, Mountain, Ruins).",
-                    "• Approach an obelisk and press [E] to permanently activate its waypoint.",
+                    "• Approach an obelisk and press [F] to permanently activate its waypoint.",
                     "• Fast Travel via Minimap: Click any activated Cyan Diamond on the Minimap radar (M key).",
                     "• Fast Travel via World Map: Open Exploration Log (R key), select an activated region, and click [★ Fast Travel].",
                     "• (Fast travel is disabled during active combat and inside subterranean Crypt depths)."
@@ -1320,7 +1321,7 @@ class UIManager:
         surface.blit(hdr, (cx + 16, cy + 16))
 
         # Close label & Nav hint
-        cls = self.fonts["small"].render("[1/2/3/Tab] Tabs | [C] Close", True, COLOR_GRAY)
+        cls = self.fonts["small"].render("[1/2/3/Tab] Tabs | [V] Close", True, COLOR_GRAY)
         surface.blit(cls, (cx + cw - cls.get_width() - 16, cy + 18))
 
         # Draw Equipment Slots
@@ -1563,8 +1564,8 @@ class UIManager:
 
     def draw_quests_panel(self, surface: pygame.Surface, quest_manager: Any) -> None:
         """Renders active side/main quests tasks checklist."""
-        qx, qy = 40, 120
-        qw, qh = 340, 380
+        qx, qy = 40, 100
+        qw, qh = 480, 440
 
         box = pygame.Rect(qx, qy, qw, qh)
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
@@ -1573,7 +1574,7 @@ class UIManager:
         hdr = self.fonts["medium"].render("Quest Journal", True, COLOR_UI_HIGHLIGHT)
         surface.blit(hdr, (qx + 16, qy + 16))
 
-        cls = self.fonts["small"].render("[Q] Close", True, COLOR_GRAY)
+        cls = self.fonts["small"].render("[N] Close", True, COLOR_GRAY)
         surface.blit(cls, (qx + qw - cls.get_width() - 16, qy + 18))
 
         active_quests = quest_manager.get_active_quests()
@@ -1596,7 +1597,14 @@ class UIManager:
                 pygame.draw.rect(surface, (50, 65, 85), row_rect, border_radius=3)
 
             # Quest Title
-            title_lbl = self.fonts["medium"].render(f"{title_prefix}{quest.title}", True, title_color)
+            title_str = f"{title_prefix}{quest.title}"
+            avail_t_w = qw - 100
+            if self.fonts["medium"].size(title_str)[0] > avail_t_w:
+                while title_str and self.fonts["medium"].size(title_str + "...")[0] > avail_t_w:
+                    title_str = title_str[:-1]
+                title_str += "..."
+
+            title_lbl = self.fonts["medium"].render(title_str, True, title_color)
             surface.blit(title_lbl, (qx + 16, curr_y))
 
             if is_tracked:
@@ -1611,19 +1619,25 @@ class UIManager:
                 chk = "[v]" if obj.is_complete() else "[ ]"
                 obj_text = f"{chk} {obj.text} ({obj.current_count}/{obj.required_count})"
 
+                avail_obj_w = qw - 44
+                if self.fonts["small"].size(obj_text)[0] > avail_obj_w:
+                    while obj_text and self.fonts["small"].size(obj_text + "...")[0] > avail_obj_w:
+                        obj_text = obj_text[:-1]
+                    obj_text += "..."
+
                 color = COLOR_GREEN if obj.is_complete() else COLOR_LIGHT_GRAY
                 obj_lbl = self.fonts["small"].render(obj_text, True, color)
                 surface.blit(obj_lbl, (qx + 28, curr_y))
-                curr_y += 18
+                curr_y += 20
 
-            curr_y += 12  # spacer between quests
+            curr_y += 10  # spacer between quests
 
     # --- CRAFTING PANEL ---
 
     def draw_crafting_panel(self, surface: pygame.Surface, player: Any) -> None:
         """Lists recipes and consumes materials to craft items."""
-        cx, cy = 40, 120
-        cw, ch = 340, 380
+        cx, cy = 40, 100
+        cw, ch = 460, 440
 
         box = pygame.Rect(cx, cy, cw, ch)
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
@@ -1637,13 +1651,13 @@ class UIManager:
 
         recipes = CraftingSystem.get_recipes_list()
 
-        grid_start_y = cy + 52
+        grid_start_y = cy + 50
         m_pos = pygame.mouse.get_pos()
 
         # Vertical lists of craftable items
         for idx, recipe_name in enumerate(recipes):
-            y_pos = grid_start_y + idx * 30
-            recipe_rect = pygame.Rect(cx + 16, y_pos, cw - 32, 26)
+            y_pos = grid_start_y + idx * 36
+            recipe_rect = pygame.Rect(cx + 16, y_pos, cw - 32, 32)
 
             # Hover check
             is_hover = recipe_rect.collidepoint(m_pos)
@@ -1660,7 +1674,7 @@ class UIManager:
 
             # Draw name
             name_lbl = self.fonts["small"].render(recipe_name, True, text_c)
-            surface.blit(name_lbl, (cx + 24, y_pos + 5))
+            surface.blit(name_lbl, (cx + 24, y_pos + 7))
 
             # Draw required items inline (e.g. Iron: 5/3)
             recipe_data = CRAFTING_RECIPES[recipe_name]
@@ -1684,10 +1698,10 @@ class UIManager:
                 ing_strs.append(f"{ing_name[:4]}:{curr_qty}/{req_qty}")
 
             ing_lbl_txt = ", ".join(ing_strs)
-            ing_color = COLOR_GREEN if can_craft else (COLOR_RED if not is_hover else COLOR_DARK_GRAY)
+            ing_color = COLOR_GREEN if can_craft else (COLOR_RED if not is_hover else (180, 50, 50))
 
             ing_lbl = self.fonts["small"].render(ing_lbl_txt, True, ing_color)
-            surface.blit(ing_lbl, (cx + cw - ing_lbl.get_width() - 24, y_pos + 5))
+            surface.blit(ing_lbl, (cx + cw - ing_lbl.get_width() - 24, y_pos + 7))
 
     # --- SILAS MERCHANT SHOP UI ---
 
@@ -1837,6 +1851,12 @@ class UIManager:
 
     def draw_floor_interaction_prompts(self, surface: pygame.Surface, game: Any) -> None:
         """Renders subtle floor key hints ([E] Talk, [E] Open Chest) over nearby interactable entities."""
+        if getattr(game, "game_state", None) != STATE_PLAYING:
+            return
+        if self.open_panels:
+            return
+        if hasattr(game, "dialogue_manager") and getattr(game.dialogue_manager, "current_node", None) is not None:
+            return
         if not hasattr(game, "player") or not hasattr(game, "camera"):
             return
 
@@ -1852,7 +1872,7 @@ class UIManager:
                     if dist <= 54.0:
                         screen_p = npc.pos - cam_offset
                         name_str = getattr(npc, "name", "NPC")
-                        prompt_txt = f"[E] Talk to {name_str}"
+                        prompt_txt = f"[F] Talk to {name_str}"
 
                         lbl = font.render(prompt_txt, True, (255, 215, 0))
                         bg_w = lbl.get_width() + 16
@@ -1879,7 +1899,7 @@ class UIManager:
                             txt_col = (160, 160, 160)
                             border_col = (80, 80, 80)
                         else:
-                            prompt_txt = "[E] Open Chest"
+                            prompt_txt = "[F] Open Chest"
                             txt_col = (255, 215, 0)
                             border_col = (255, 180, 0)
 
@@ -2093,7 +2113,15 @@ class UIManager:
                 pygame.draw.rect(surface, bg_c, choice_rect, border_radius=4)
                 pygame.draw.rect(surface, border_c, choice_rect, 2, border_radius=4)
 
-                lbl = self.fonts["small"].render(choice.text, True, text_c)
+                # Fit choice text cleanly inside choice_rect without overflowing
+                avail_choice_w = choice_w - 24
+                choice_str = choice.text
+                if self.fonts["small"].size(choice_str)[0] > avail_choice_w:
+                    while choice_str and self.fonts["small"].size(choice_str + "...")[0] > avail_choice_w:
+                        choice_str = choice_str[:-1]
+                    choice_str += "..."
+
+                lbl = self.fonts["small"].render(choice_str, True, text_c)
                 surface.blit(lbl, (choice_x + 12, cy + 15 - lbl.get_height() // 2))
         elif dialogue_manager.typing_finished:
             hint = self.fonts["small"].render("[Space/Enter] Continue", True, (130, 100, 70))
@@ -2455,8 +2483,8 @@ class UIManager:
             if "crafting" in self.open_panels:
                 recipes = CraftingSystem.get_recipes_list()
                 for idx, recipe_name in enumerate(recipes):
-                    y_pos = cy_crafting(cy=120) + 52 + idx * 30
-                    recipe_rect = pygame.Rect(40 + 16, y_pos, 340 - 32, 26)
+                    y_pos = 100 + 50 + idx * 36
+                    recipe_rect = pygame.Rect(40 + 16, y_pos, 460 - 32, 32)
                     if recipe_rect.collidepoint(mouse_pos) and not right_click:
                         if CraftingSystem.craft(recipe_name, player.inventory):
                             player.sound_manager.play_sound("levelup")

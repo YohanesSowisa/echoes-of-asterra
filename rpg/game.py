@@ -8,9 +8,13 @@ import sys
 from typing import List, Tuple, Any
 from rpg.constants import (
     STATE_MENU, STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY, STATE_DIALOGUE, STATE_SHOP, STATE_SETTINGS,
-    STATE_TUTORIAL, MAP_VILLAGE, COLOR_BLACK
+    STATE_TUTORIAL, MAP_VILLAGE, COLOR_BLACK,
+    SKILL_FIREBALL, SKILL_ICE_SPIKE, SKILL_HEALING, SKILL_DASH
 )
-from rpg.settings import SCREEN_WIDTH, SCREEN_HEIGHT, TARGET_FPS, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT
+from rpg.settings import (
+    SCREEN_WIDTH, SCREEN_HEIGHT, TARGET_FPS, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT,
+    KEY_CHARACTER, KEY_QUEST, KEY_INTERACT
+)
 from rpg.sound import SoundManager
 from rpg.input import InputHandler
 from rpg.ui import UIManager
@@ -521,24 +525,38 @@ class Game:
                             self.sound_manager.play_sound("click")
                             continue
 
-                    # Quick-Use Hotbar Item Keys (1-4) during gameplay when no panel is open
-                    if not self.ui_manager.open_panels and event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
-                        slot_num = event.key - pygame.K_1 + 1
-                        if self.player.inventory.use_quick_slot(slot_num, self.player):
-                            item_name = self.player.inventory.quick_slots.get(slot_num, "Item")
-                            from rpg.combat import DamageNumber
-                            DamageNumber(self.player.rect.center, f"Used {item_name} [{slot_num}]", (100, 220, 255), [self.ui_sprites], size=16)
-                            continue
+                    # Quick-Use Hotbar Item / Skill Keys (1-4, F1-F4) during gameplay when no panel is open
+                    if not self.ui_manager.open_panels and event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_F1, pygame.K_F2, pygame.K_F3, pygame.K_F4]:
+                        if event.key in [pygame.K_1, pygame.K_F1]: slot_num = 1
+                        elif event.key in [pygame.K_2, pygame.K_F2]: slot_num = 2
+                        elif event.key in [pygame.K_3, pygame.K_F3]: slot_num = 3
+                        else: slot_num = 4
+
+                        skill_names = {1: SKILL_FIREBALL, 2: SKILL_ICE_SPIKE, 3: SKILL_HEALING, 4: SKILL_DASH}
+                        target_skill = skill_names.get(slot_num)
+                        is_skill_unlocked = self.player.skill_manager.is_unlocked(target_skill) if target_skill else False
+
+                        # If F-key was pressed or if numerical key was pressed and the corresponding skill IS unlocked -> Cast skill
+                        if event.key in [pygame.K_F1, pygame.K_F2, pygame.K_F3, pygame.K_F4] or is_skill_unlocked:
+                            if self.player.handle_skill_casts_for_slot(slot_num):
+                                continue
+                        else:
+                            # Skill is locked or unavailable -> Use quick slot item!
+                            if self.player.inventory.use_quick_slot(slot_num, self.player):
+                                item_name = self.player.inventory.quick_slots.get(slot_num, "Item")
+                                from rpg.combat import DamageNumber
+                                DamageNumber(self.player.rect.center, f"Used {item_name} [{slot_num}]", (100, 220, 255), [self.ui_sprites], size=16)
+                                continue
 
 
                     # Key panel quick toggles
                     if event.key == pygame.K_i:
                         self.ui_manager.toggle_panel("inventory", self)
                         self.sound_manager.play_sound("click")
-                    elif event.key == pygame.K_c:
+                    elif event.key == KEY_CHARACTER:
                         self.ui_manager.toggle_panel("character", self)
                         self.sound_manager.play_sound("click")
-                    elif event.key == pygame.K_q:
+                    elif event.key == KEY_QUEST:
                         self.ui_manager.toggle_panel("quests", self)
                         self.sound_manager.play_sound("click")
                     elif event.key == pygame.K_g:
@@ -554,7 +572,7 @@ class Game:
                     elif event.key == pygame.K_l:
                         # Debug cheat: gain enough XP to level up instantly
                         self.player.gain_xp(self.player.xp_needed - self.player.xp)
-                    elif event.key == pygame.K_e:
+                    elif event.key == KEY_INTERACT:
                         self.handle_interaction()
                     elif event.key == pygame.K_ESCAPE:
                         if self.ui_manager.open_panels:
@@ -734,7 +752,7 @@ class Game:
                             self.sound_manager.play_sound("click")
 
                 elif self.game_state == STATE_DIALOGUE:
-                    if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_e]:
+                    if event.key in [pygame.K_SPACE, pygame.K_RETURN, KEY_INTERACT]:
                         prev_st = self.game_state
                         self.dialogue_manager.advance()
                         # Only revert if dialogue closed and callback didn't transition state (e.g. to STATE_SHOP)

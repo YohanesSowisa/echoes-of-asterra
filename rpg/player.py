@@ -317,22 +317,38 @@ class Player(BaseSprite):
         self.sound_manager.play_sound("sword")
 
 
+    def handle_skill_casts_for_slot(self, slot_num: int) -> bool:
+        """Casts the skill associated with hotbar slot_num (1-4). Returns True if cast succeeded."""
+        if self.state in ["roll", "dead"]:
+            return False
+
+        skill_map = {1: SKILL_FIREBALL, 2: SKILL_ICE_SPIKE, 3: SKILL_HEALING, 4: SKILL_DASH}
+        skill_name = skill_map.get(slot_num)
+        if not skill_name:
+            return False
+
+        if self.skill_manager.cast(skill_name, self):
+            self.execute_skill_effect(skill_name)
+            if hasattr(self, "game") and hasattr(self.game, "event_bus"):
+                self.game.event_bus.emit("skill_casted", skill_name=skill_name, player=self)
+            return True
+        return False
+
     def handle_skill_casts(self, input_handler: Any) -> None:
-        """Maps quick skill casting keys (1-4) to skill effects."""
+        """Maps quick skill casting keys (F1-F4) to skill effects."""
         if self.state in ["roll", "dead"]:
             return
 
         # Map active key triggers
         skill_name = None
 
-
-        if input_handler.consume_action("skill_4"):  # K_4: Dash
+        if input_handler.consume_action("skill_4"):  # F4: Dash
             skill_name = SKILL_DASH
-        elif input_handler.consume_action("skill_3"): # K_3: Healing
+        elif input_handler.consume_action("skill_3"): # F3: Healing
             skill_name = SKILL_HEALING
-        elif input_handler.consume_action("skill_1"): # K_1: Fireball
+        elif input_handler.consume_action("skill_1"): # F1: Fireball
             skill_name = SKILL_FIREBALL
-        elif input_handler.consume_action("skill_2"): # K_2: Ice Spike
+        elif input_handler.consume_action("skill_2"): # F2: Ice Spike
             skill_name = SKILL_ICE_SPIKE
 
         if not skill_name:

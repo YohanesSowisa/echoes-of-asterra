@@ -47,8 +47,26 @@ class SettlementManager:
         """Returns the current level (1-3) of a facility."""
         return self.facility_levels.get(facility_id, 1)
 
+    def get_facility_upgrade_cost_summary(self, facility_id: str, player: Any) -> str:
+        """Returns a complete, simultaneous summary string of all upgrade costs and player's current amounts."""
+        curr_lvl = self.get_facility_level(facility_id)
+        next_lvl = curr_lvl + 1
+        if next_lvl > 3:
+            return "Max Level (Lvl 3)"
+        
+        cost_info = self.FACILITY_UPGRADE_COSTS.get(facility_id, {}).get(next_lvl)
+        if not cost_info:
+            return "No Upgrade Available"
+
+        parts = [f"{cost_info['gold']}g ({player.gold}g)"]
+        for mat_name, req_qty in cost_info["materials"].items():
+            has_qty = player.inventory.get_item_count(mat_name)
+            parts.append(f"{mat_name} {has_qty}/{req_qty}")
+
+        return f"Req: {', '.join(parts)}"
+
     def can_upgrade_facility(self, facility_id: str, player: Any) -> Tuple[bool, str]:
-        """Checks if player meets gold & material costs to upgrade facility."""
+        """Checks if player meets ALL gold & material costs simultaneously."""
         curr_lvl = self.get_facility_level(facility_id)
         next_lvl = curr_lvl + 1
         if next_lvl > 3:
@@ -58,14 +76,17 @@ class SettlementManager:
         if not cost_info:
             return False, "No further upgrade available!"
 
-        # Check gold
+        missing = []
         if player.gold < cost_info["gold"]:
-            return False, f"Need {cost_info['gold']} gold (you have {player.gold}g)"
+            missing.append(f"{cost_info['gold'] - player.gold}g gold")
 
-        # Check materials in inventory
         for mat_name, req_qty in cost_info["materials"].items():
-            if not player.inventory.has_item(mat_name, req_qty):
-                return False, f"Need {mat_name} x{req_qty}"
+            has_qty = player.inventory.get_item_count(mat_name)
+            if has_qty < req_qty:
+                missing.append(f"{mat_name} x{req_qty - has_qty}")
+
+        if missing:
+            return False, f"Missing: {', '.join(missing)}"
 
         return True, f"Ready to upgrade {facility_id.title()} to Level {next_lvl}!"
 

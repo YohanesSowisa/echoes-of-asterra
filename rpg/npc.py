@@ -12,7 +12,7 @@ from rpg.constants import (
     DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
     COLOR_WHITE, COLOR_YELLOW, COLOR_DARK_GRAY,
     QUEST_NOT_STARTED, QUEST_ACTIVE, QUEST_COMPLETED,
-    STATE_DIALOGUE, STATE_SHOP
+    STATE_DIALOGUE, STATE_SHOP, STATE_PAUSED
 )
 from rpg.dialogue import DialogueNode, DialogueChoice
 
@@ -174,9 +174,14 @@ class NPC(BaseSprite):
 
     def draw_indicator(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         """Renders floating quest marker [!] or interaction prompt [E] above NPC head."""
-        # Hide indicator prompts while UI overlays (dialogue/shop/pause) are active
-        if self.game and getattr(self.game, "game_state", None) in [STATE_SHOP, STATE_DIALOGUE, STATE_PAUSED]:
-            return
+        # Suppress indicator prompts while UI overlays or open panels (crafting/inv/etc) are active
+        if self.game:
+            if getattr(self.game, "game_state", None) in [STATE_SHOP, STATE_DIALOGUE, STATE_PAUSED]:
+                return
+            if hasattr(self.game, "ui_manager") and self.game.ui_manager.open_panels:
+                return
+            if hasattr(self.game, "dialogue_manager") and getattr(self.game.dialogue_manager, "current_node", None) is not None:
+                return
 
         x = self.rect.centerx - camera_offset.x
         y = self.rect.top - 20 - camera_offset.y
@@ -200,12 +205,12 @@ class NPC(BaseSprite):
         if not self.show_indicator:
             return
             
-        # Interaction prompt [E]
+        # Interaction prompt [F]
         try:
             font = pygame.font.Font("assets/fonts/game_font.ttf", 12)
         except Exception:
             font = pygame.font.SysFont("Arial", 12, bold=True)
-        lbl = font.render("[E]", True, COLOR_YELLOW)
+        lbl = font.render("[F]", True, COLOR_YELLOW)
         
         bg_rect = pygame.Rect(x - 10, y, 20, 16)
         pygame.draw.rect(surface, COLOR_DARK_GRAY, bg_rect, border_radius=3)
@@ -440,7 +445,8 @@ class BlacksmithDennis(NPC):
         if settlement:
             lvl = settlement.get_facility_level("blacksmith")
             if lvl < 3:
-                choices.append(DialogueChoice(f"[UPGRADE FORGE] Upgrade Blacksmith to Level {lvl + 1}", None, upgrade_forge))
+                summary = settlement.get_facility_upgrade_cost_summary("blacksmith", player)
+                choices.append(DialogueChoice(f"[UPGRADE FORGE] Level {lvl + 1} ({summary})", None, upgrade_forge))
             else:
                 choices.append(DialogueChoice("[FORGE] Blacksmith is Max Level (Lvl 3)", None))
 
