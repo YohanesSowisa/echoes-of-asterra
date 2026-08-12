@@ -118,6 +118,11 @@ class SkillManager:
         for skill in self.skills.values():
             skill.update(dt)
 
+    def is_unlocked(self, name: str) -> bool:
+        """Returns True if the specified skill exists and is unlocked."""
+        skill = self.skills.get(name)
+        return skill.unlocked if skill else False
+
     def check_unlocks(self, player_level: int) -> List[str]:
         """
         Unlocks skills whose level requirement has been met.

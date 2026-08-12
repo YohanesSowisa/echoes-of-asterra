@@ -99,8 +99,9 @@ class Player(BaseSprite):
         self.is_invincible = False
         self.attack_cooldown_timer = 0.0
 
-        # --- PARRY SYSTEM ---
+        # --- PARRY & PERFECT DODGE SYSTEM ---
         self.parry_window_timer = 0.0
+        self.perfect_dodge_window = 0.0
         self._was_blocking_last_frame = False
 
         # --- COMBO SYSTEM ---
@@ -116,6 +117,10 @@ class Player(BaseSprite):
 
         # Skill buffs/shields
         self.has_shield_active = False
+
+        # --- ELEMENTAL STATUS VULNERABILITY ---
+        self.elemental_statuses: dict = {}  # element_name -> remaining_duration
+        self.dot_tick_timer: float = 0.0    # DOT damage tick interval
 
         # --- GRAPHICS FRAME ---
         self.frame_index = 0.0
@@ -199,6 +204,26 @@ class Player(BaseSprite):
             self.action_timer = 2.0  # dead animation duration before game over
             self.sound_manager.play_sound("gameover")
 
+    def apply_elemental_status(self, element: str, duration: float, attacker=None) -> None:
+        """Applies an elemental status effect to the player (fire DOT, ice slow, poison DOT)."""
+        from rpg.constants import ELEMENT_FIRE, ELEMENT_ICE, ELEMENT_POISON
+        # Refresh or apply new status
+        self.elemental_statuses[element] = max(
+            self.elemental_statuses.get(element, 0.0), duration
+        )
+        # Immediate slow effect for ice
+        if element == ELEMENT_ICE and hasattr(self, 'apply_slow_effect'):
+            self.apply_slow_effect(duration * 0.5)
+
+        from rpg.combat import DamageNumber
+        elem_labels = {
+            ELEMENT_FIRE: ("BURNING!", (255, 100, 30)),
+            ELEMENT_ICE: ("FROZEN!", (60, 200, 255)),
+            ELEMENT_POISON: ("POISONED!", (140, 255, 60)),
+        }
+        label, color = elem_labels.get(element, (f"{element.upper()}!", (200, 200, 200)))
+        DamageNumber(self.rect.center, label, color, [self.game.ui_sprites], size=16)
+
 
     def perform_attack(self) -> None:
         """Triggers weapon combo strikes and finishers."""
@@ -259,12 +284,19 @@ class Player(BaseSprite):
                 sweep_rect.midleft = self.hitbox.midright
                 sweep_rect.x += 4
 
-        # Finisher notification
+        # Finisher notification with weapon-class specific name
         dmg_mult = wc.finisher_damage_mult if is_finisher else 1.0
         if is_finisher:
-            DamageNumber(self.rect.center, "FINISHER!", (255, 200, 40), [self.game.ui_sprites], size=22)
+            finisher_label = wc.finisher_name.upper() if wc.finisher_name else "FINISHER"
+            DamageNumber(self.rect.center, f"{finisher_label}!", (255, 200, 40), [self.game.ui_sprites], size=22)
             if hasattr(self.game, "camera"):
                 self.game.camera.trigger_shake(6.0, 150)
+            # Finisher invincibility (Dagger: Shadow Strike)
+            if wc.finisher_invincibility_ms > 0:
+                self.trigger_invincibility(wc.finisher_invincibility_ms)
+            # Finisher crit bonus (Spear: guaranteed crit, Dagger: +50%)
+            if wc.finisher_crit_bonus > 0:
+                self.crit_chance += wc.finisher_crit_bonus
 
         # Apply Sword Mastery passive bonus if unlocked
         atk_boost = 4 if self.skill_manager.skills[SKILL_SWORD_MASTERY].unlocked else 0
@@ -280,13 +312,23 @@ class Player(BaseSprite):
                     is_magic=False,
                     armor_pierce=wc.armor_pierce,
                     damage_multiplier=dmg_mult,
-                    stun_duration=wc.stun_duration
+                    stun_duration=wc.stun_duration if is_finisher else 0.0
                 )
                 if hit_success:
                     hit_count += 1
+                    # Apply finisher poise multiplier
+                    if is_finisher and hasattr(enemy, 'take_poise_damage') and wc.finisher_poise_mult > 1.0:
+                        bonus_poise = 12.0 * (wc.finisher_poise_mult - 1.0)
+                        enemy.take_poise_damage(bonus_poise)
 
         # ONLY update combo count if attack successfully hit an enemy
         if hit_count > 0:
+            # Wire style scoring events
+            if hasattr(self, 'game') and hasattr(self.game, 'style_scoring'):
+                self.game.style_scoring.on_combo_hit(self.combo_count)
+                if is_finisher:
+                    self.game.style_scoring.on_finisher()
+
             if is_finisher:
                 self.combo_count = 0
                 self.combo_timer = 0.0
@@ -295,9 +337,12 @@ class Player(BaseSprite):
                 self.combo_timer = self.COMBO_WINDOW
 
         self.atk -= atk_boost
+        # Restore crit chance if finisher bonus was applied
+        if is_finisher and wc.finisher_crit_bonus > 0:
+            self.crit_chance -= wc.finisher_crit_bonus
 
     def perform_roll(self) -> None:
-        """Initiates a dodge roll maneuver (supports attack animation canceling)."""
+        """Initiates a dodge roll maneuver (supports attack animation canceling & perfect dodge timing)."""
         if self.state in ["roll", "dead"]:
             return
         if self.stamina < 15:
@@ -308,9 +353,14 @@ class Player(BaseSprite):
         self.frame_index = 0.0
         self.action_timer = PLAYER_ROLL_DURATION / 1000.0
         self.roll_cooldown_timer = PLAYER_ROLL_COOLDOWN / 1000.0
+        self.perfect_dodge_window = 0.22  # 220ms perfect dodge window
 
         # Grant invincibility frames during roll
         self.trigger_invincibility(PLAYER_ROLL_DURATION)
+
+        # Wire style scoring: perfect dodge (roll during enemy attack window)
+        if self.perfect_dodge_window > 0 and hasattr(self, 'game') and hasattr(self.game, 'style_scoring'):
+            self.game.style_scoring.on_perfect_dodge()
 
         # Trigger wind shockwaves & cyan motion ghost afterimage
         self.particles.create_dash_trail(self.rect.topleft, self.direction, self.image)
@@ -517,7 +567,11 @@ class Player(BaseSprite):
             self.action_timer -= dt
             if self.action_timer <= 0:
                 if self.state == "dead":
-                    # Trigger Game Over state in core loop
+                    # Trigger Game Over state in core loop and record run in Mythos
+                    if hasattr(self.game, "mythos_manager") and self.game.mythos_manager:
+                        ws = getattr(self.game, "world_state", None)
+                        day_c = getattr(ws, "day", 1) if ws else 1
+                        self.game.mythos_manager.record_run(self.game, end_cause=f"Fallen in combat on Day {day_c}")
                     self.game.game_state = STATE_GAME_OVER
                 else:
                     self.state = "idle"
@@ -536,6 +590,9 @@ class Player(BaseSprite):
         if self.parry_window_timer > 0:
             self.parry_window_timer -= dt
 
+        if self.perfect_dodge_window > 0:
+            self.perfect_dodge_window -= dt
+
         if self.i_frames_timer > 0:
 
             self.i_frames_timer -= dt
@@ -546,6 +603,32 @@ class Player(BaseSprite):
             self.combo_timer -= dt
             if self.combo_timer <= 0:
                 self.combo_count = 0
+
+        # Tick elemental status effects (DOT damage + expiry)
+        expired_statuses = []
+        for elem, remaining in self.elemental_statuses.items():
+            self.elemental_statuses[elem] = remaining - dt
+            if self.elemental_statuses[elem] <= 0:
+                expired_statuses.append(elem)
+        for elem in expired_statuses:
+            del self.elemental_statuses[elem]
+
+        # Apply DOT damage from fire/poison (every 0.5s tick)
+        from rpg.constants import ELEMENT_FIRE, ELEMENT_POISON
+        if ELEMENT_FIRE in self.elemental_statuses or ELEMENT_POISON in self.elemental_statuses:
+            self.dot_tick_timer -= dt
+            if self.dot_tick_timer <= 0:
+                self.dot_tick_timer = 0.5
+                if ELEMENT_FIRE in self.elemental_statuses and self.hp > 0:
+                    fire_dot = 3
+                    self.hp = max(1, self.hp - fire_dot)  # Fire DOT won't kill
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, f"-{fire_dot}", (255, 100, 30), [self.game.ui_sprites], size=12)
+                if ELEMENT_POISON in self.elemental_statuses and self.hp > 0:
+                    poison_dot = 2
+                    self.hp = max(1, self.hp - poison_dot)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, f"-{poison_dot}", (140, 255, 60), [self.game.ui_sprites], size=12)
 
         # Update skill timers
         self.skill_manager.update(dt)
@@ -570,8 +653,15 @@ class Player(BaseSprite):
 
         if in_active_combat:
             self.out_of_combat_timer = 0.0
+            # Tick style scoring during active combat
+            if hasattr(self, 'game') and hasattr(self.game, 'style_scoring'):
+                self.game.style_scoring.update(dt)
         else:
             self.out_of_combat_timer += dt
+            # Reset style scoring when combat ends (after 3s of peace)
+            if self.out_of_combat_timer >= 3.0 and hasattr(self, 'game') and hasattr(self.game, 'style_scoring'):
+                if self.game.style_scoring.kills > 0 or self.game.style_scoring.combo_hits > 0:
+                    self.game.style_scoring.reset()
 
         # Apply HP regen after 4.0 seconds of peace (Out of Combat)
         if self.out_of_combat_timer >= 4.0 and self.hp < self.max_hp and self.state != "dead":

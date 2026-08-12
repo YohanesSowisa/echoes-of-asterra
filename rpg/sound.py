@@ -334,6 +334,32 @@ class SoundManager:
             return stereo_pan(val, 0.0)
         self.sounds["gameover"] = self._generate_wav("gameover", gameover_wave, 1.8, 0.4)
 
+        # Ambient Weather Procedural SFX
+        def thunder_wave(t: float) -> Tuple[float, float]:
+            freq = 45.0 - 20.0 * (t / 1.2)
+            sub = math.sin(2.0 * math.pi * freq * t) * math.exp(-2.2 * t)
+            noise = hash_noise(t) * math.exp(-3.0 * t) * 0.25
+            val = (sub * 0.75 + noise) * adsr(t, 1.2, attack=0.04, decay=0.3, sustain=0.4, release=0.5)
+            return stereo_pan(val, 0.0)
+        self.sounds["thunder"] = self._generate_wav("thunder", thunder_wave, 1.2, 0.6)
+
+        def wind_gust_wave(t: float) -> Tuple[float, float]:
+            sweep = math.sin(math.pi * (t / 1.5))
+            noise = hash_noise(t) * sweep * 0.35
+            tone = math.sin(2.0 * math.pi * (140.0 + 80.0 * sweep) * t) * sweep * 0.15
+            val = noise + tone
+            return stereo_pan(val, 0.0)
+        self.sounds["wind_gust"] = self._generate_wav("wind_gust", wind_gust_wave, 1.5, 0.35)
+
+        def crickets_wave(t: float) -> Tuple[float, float]:
+            chirp_pulse = math.sin(2.0 * math.pi * 14.0 * t)
+            if chirp_pulse > 0.6:
+                val = math.sin(2.0 * math.pi * 4200.0 * t) * 0.2 * math.exp(-12.0 * (t % 0.08))
+            else:
+                val = 0.0
+            return stereo_pan(val, 0.2)
+        self.sounds["crickets"] = self._generate_wav("crickets", crickets_wave, 1.0, 0.25)
+
         # ---------------------------------------------------------------------
         # BACKGROUND MUSIC LOOPS (16-Second Compositions, Zero Beating / Zero Noise)
         # ---------------------------------------------------------------------

@@ -4,7 +4,7 @@ Defines the base enemy class, specific enemy archetypes, and dropped loot items.
 """
 import random
 import pygame
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Any
 from rpg.sprite import BaseSprite
 from rpg.constants import (
     DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
@@ -166,12 +166,19 @@ class Enemy(BaseSprite):
         self.slow_timer = 0.0
         self.slow_multiplier = 0.5
         self.hit_flash_timer = 0.0
+        self.elemental_statuses: Dict[str, float] = {}  # element_name -> remaining_duration
 
         # --- AI CONTROLLER & UNLOCKED ABILITIES ---
         self.ai = EnemyAI(self.pos)
         self.level = 1
         self.enemy_key = "slime"
         self.unlocked_abilities: List[str] = []
+        self.behaviors: List[Any] = []  # BehaviorTag enums from balance system
+
+        # --- BEHAVIOR STATE FLAGS ---
+        self.berserk_active: bool = False
+        self.guard_state: bool = False
+        self.guard_cooldown: float = 0.0
 
         # --- ANIMATIONS & INJURY TRACKING ---
         self.frame_index = 0.0
@@ -205,6 +212,9 @@ class Enemy(BaseSprite):
             # Archetype AI Abilities unlock
             self.unlocked_abilities = [ability for lvl, ability in bal.abilities_by_level.items() if self.level >= lvl]
 
+            # Store behavior tags for AI system
+            self.behaviors = list(bal.behaviors)
+
         # Tiered stagger durations based on enemy archetype
         if enemy_key in ["boss", "demon_lord", "dragon"]:
             self.stagger_duration = 3.0
@@ -225,6 +235,42 @@ class Enemy(BaseSprite):
     def apply_slow_effect(self, duration: float) -> None:
         """Applies speed slow debuff (e.g. from Ice Spikes)."""
         self.slow_timer = duration
+
+    def apply_elemental_status(self, element: str, duration: float, attacker: Any = None) -> None:
+        """Applies elemental status effect and resolves compound elemental status reactions."""
+        from rpg.constants import ELEMENT_FIRE, ELEMENT_ICE, ELEMENT_LIGHTNING, ELEMENT_WIND, ELEMENT_POISON
+
+        # Check compound reactions with existing active statuses
+        if element == ELEMENT_FIRE and ELEMENT_LIGHTNING in self.elemental_statuses:
+            self.elemental_statuses.pop(ELEMENT_LIGHTNING, None)
+            DamageNumber(self.rect.center, "THERMAL BLAST!", (255, 140, 20), [self.game.ui_sprites], size=22)
+            self.take_damage(30)
+            self.take_poise_damage(35.0)
+            if hasattr(self.game, "camera"):
+                self.game.camera.trigger_shake(6.0, 150)
+            if hasattr(self.game, "particles"):
+                self.game.particles.create_kill_splash(self.rect.center)
+            return
+
+        if element == ELEMENT_LIGHTNING and ELEMENT_FIRE in self.elemental_statuses:
+            self.elemental_statuses.pop(ELEMENT_FIRE, None)
+            DamageNumber(self.rect.center, "THERMAL BLAST!", (255, 140, 20), [self.game.ui_sprites], size=22)
+            self.take_damage(30)
+            self.take_poise_damage(35.0)
+            if hasattr(self.game, "camera"):
+                self.game.camera.trigger_shake(6.0, 150)
+            if hasattr(self.game, "particles"):
+                self.game.particles.create_kill_splash(self.rect.center)
+            return
+
+        if element in [ELEMENT_WIND, ELEMENT_FIRE] and ELEMENT_POISON in self.elemental_statuses:
+            self.elemental_statuses.pop(ELEMENT_POISON, None)
+            self.defense = max(0, int(self.defense * 0.70))  # Melt 30% defense permanently
+            DamageNumber(self.rect.center, "CORROSIVE BLAST!", (100, 240, 80), [self.game.ui_sprites], size=22)
+            self.take_damage(20)
+            return
+
+        self.elemental_statuses[element] = duration
 
     def take_poise_damage(self, amount: float) -> None:
         """Deducts poise; triggers stagger state when poise breaks."""
@@ -269,6 +315,16 @@ class Enemy(BaseSprite):
         if player and hasattr(player, "pos"):
             attack_box = self.hitbox.inflate(36, 36)
             if player.hp > 0 and attack_box.colliderect(player.hitbox):
+                # Perfect Dodge / Witch-Time check
+                if getattr(player, "perfect_dodge_window", 0.0) > 0 and player.state == "roll":
+                    player.stamina = min(player.max_stamina, player.stamina + 20)
+                    self.apply_slow_effect(1.5)
+                    DamageNumber(player.rect.center, "PERFECT DODGE!", (60, 240, 240), [self.game.ui_sprites], size=20)
+                    player.sound_manager.play_sound("sword")
+                    if hasattr(self.game, "camera"):
+                        self.game.camera.trigger_shake(4.0, 100)
+                    return
+
                 if getattr(player, "greed_curse_active", False):
                     self.atk = int(self.atk * 1.5)
                 CombatSystem.execute_hit(self, player, [self.game.ui_sprites])
@@ -309,9 +365,23 @@ class Enemy(BaseSprite):
         if hasattr(self.game, "event_bus"):
             self.game.event_bus.emit("enemy_killed", enemy_type=kill_type, enemy_name=self.name, pos=self.rect.center)
 
-        # Process drops
+        # Evaluate Style Score for loot quality modifier
+        style_mult = 1.0
+        style_grade = "B"
+        if hasattr(self.game, "style_scoring"):
+            self.game.style_scoring.on_kill()
+            style_grade = self.game.style_scoring.evaluate()
+            style_mult = self.game.style_scoring.get_loot_modifier()
+            grade_color = self.game.style_scoring.get_grade_color()
+            # Display style grade banner on kill
+            DamageNumber(
+                (self.rect.centerx, self.rect.top - 20),
+                f"RANK {style_grade}", grade_color, [self.game.ui_sprites], size=18
+            )
+
+        # Process drops with style scoring modifier
         for item_name, base_chance in self.loot_table.items():
-            final_chance = min(1.0, base_chance * hunter_mult * greed_mult)
+            final_chance = min(1.0, base_chance * hunter_mult * greed_mult * style_mult)
             if random.random() <= final_chance:
                 loot = create_item(item_name)
                 if loot:
@@ -357,6 +427,30 @@ class Enemy(BaseSprite):
 
         if self.hit_flash_timer > 0:
             self.hit_flash_timer -= dt
+
+        # Tick down elemental status durations (BUG FIX: previously never decremented)
+        expired_elements = []
+        for elem, remaining in self.elemental_statuses.items():
+            self.elemental_statuses[elem] = remaining - dt
+            if self.elemental_statuses[elem] <= 0:
+                expired_elements.append(elem)
+        for elem in expired_elements:
+            del self.elemental_statuses[elem]
+
+        # Berserk activation (from BehaviorTag system)
+        from rpg.balance import BehaviorTag
+        if not self.berserk_active and BehaviorTag.BERSERK in self.behaviors:
+            if self.hp > 0 and self.hp / max(1, self.max_hp) < 0.30:
+                self.berserk_active = True
+                self.atk = int(self.atk * 1.40)
+                self.speed *= 1.25
+                self.attack_cooldown = max(0.3, self.attack_cooldown * 0.60)
+                DamageNumber(self.rect.center, "BERSERK!", (255, 60, 30), [self.game.ui_sprites], size=20)
+                self.game.camera.trigger_shake(5.0, 120)
+
+        # Guard cooldown tick
+        if self.guard_cooldown > 0:
+            self.guard_cooldown -= dt
 
         # 2. Check Death
         if self.hp <= 0:
@@ -586,6 +680,62 @@ class Enemy(BaseSprite):
         xp_shadow = font_tiny.render(xp_text, True, (10, 10, 10))
         surface.blit(xp_shadow, (xp_rect.x + 1, xp_rect.y + 1))
         surface.blit(xp_surf, xp_rect)
+
+        # 4. Draw Elemental Status Effect Icons with countdown arcs
+        self._draw_status_icons(surface, center_x, xp_offset_y + 10)
+
+    def _draw_status_icons(self, surface: pygame.Surface, center_x: int, base_y: int) -> None:
+        """Renders small elemental status icons with circular countdown arcs beneath enemy UI."""
+        if not self.elemental_statuses:
+            return
+
+        from rpg.constants import ELEMENT_FIRE, ELEMENT_ICE, ELEMENT_LIGHTNING, ELEMENT_WIND, ELEMENT_POISON
+        import math
+
+        icon_colors = {
+            ELEMENT_FIRE: (255, 100, 30),
+            ELEMENT_ICE: (60, 200, 255),
+            ELEMENT_LIGHTNING: (255, 255, 60),
+            ELEMENT_WIND: (120, 255, 180),
+            ELEMENT_POISON: (140, 255, 60),
+        }
+        icon_symbols = {
+            ELEMENT_FIRE: "F",
+            ELEMENT_ICE: "I",
+            ELEMENT_LIGHTNING: "L",
+            ELEMENT_WIND: "W",
+            ELEMENT_POISON: "P",
+        }
+
+        icon_size = 12
+        spacing = 14
+        total_w = len(self.elemental_statuses) * spacing
+        start_x = center_x - total_w // 2
+
+        _, font_tiny = get_enemy_ui_fonts()
+
+        for i, (element, remaining) in enumerate(self.elemental_statuses.items()):
+            ix = start_x + i * spacing
+            iy = base_y
+            color = icon_colors.get(element, (200, 200, 200))
+
+            # Background circle
+            pygame.draw.circle(surface, (20, 20, 25), (ix, iy), icon_size // 2 + 1)
+
+            # Timer arc (sweeps from full to empty as duration decreases)
+            max_duration = 5.0  # Normalize arc to 5s max
+            arc_ratio = min(1.0, remaining / max_duration)
+            if arc_ratio > 0:
+                arc_rect = pygame.Rect(ix - icon_size // 2, iy - icon_size // 2, icon_size, icon_size)
+                start_angle = math.pi / 2
+                end_angle = start_angle + (2 * math.pi * arc_ratio)
+                pygame.draw.arc(surface, color, arc_rect, start_angle, end_angle, 2)
+
+            # Element letter symbol
+            sym = icon_symbols.get(element, "?")
+            sym_surf = font_tiny.render(sym, True, color)
+            sym_rect = sym_surf.get_rect(center=(ix, iy))
+            surface.blit(sym_surf, sym_rect)
 
 
 # --- ENEMY SUBCLASSES ---

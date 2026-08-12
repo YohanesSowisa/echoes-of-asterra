@@ -439,11 +439,11 @@ class UIManager:
             cb_lbl = self.fonts["large"].render(cb_str, True, COLOR_YELLOW)
             surface.blit(cb_lbl, (SCREEN_WIDTH // 2 - cb_lbl.get_width() // 2, 88))
 
-        # 5e. Quick Skill Hotkeys (Far Right: F1-F4)
-        hx = SCREEN_WIDTH - 190
-        hy = 18
-        box_sz = 40
-        box_gap = 46
+        # 5e. Quick Skill Hotkeys (Far Right: Q, E, C, X)
+        box_sz = 34
+        box_gap = 38
+        hx = SCREEN_WIDTH - 162
+        hy = 14
 
         skills_layout = [
             ("Q", "Fireb", player.skill_manager.skills[SKILL_FIREBALL]),
@@ -465,17 +465,17 @@ class UIManager:
                 cooldown_ratio = skill.timer / skill.cooldown
                 shader_h = int(box_sz * cooldown_ratio)
                 pygame.draw.rect(surface, (100, 10, 10, 180), (sx, sy + box_sz - shader_h, box_sz, shader_h), border_radius=4)
-                cd_lbl = self.fonts["small"].render(f"{skill.timer:.1f}s", True, COLOR_RED)
-                surface.blit(cd_lbl, (sx + box_sz // 2 - cd_lbl.get_width() // 2, sy + 12))
+                cd_lbl = self.fonts["tiny"].render(f"{skill.timer:.1f}s", True, COLOR_RED)
+                surface.blit(cd_lbl, (sx + box_sz // 2 - cd_lbl.get_width() // 2, sy + 10))
             else:
-                lbl = self.fonts["tiny"].render(label[:5], True, COLOR_UI_TEXT if skill.unlocked else COLOR_GRAY)
-                surface.blit(lbl, (sx + box_sz // 2 - lbl.get_width() // 2, sy + 16))
+                lbl = self.fonts["tiny"].render(label[:4], True, COLOR_UI_TEXT if skill.unlocked else COLOR_GRAY)
+                surface.blit(lbl, (sx + box_sz // 2 - lbl.get_width() // 2, sy + 14))
 
             num_lbl = self.fonts["tiny"].render(key, True, COLOR_WHITE)
-            surface.blit(num_lbl, (sx + 3, sy + 2))
+            surface.blit(num_lbl, (sx + 2, sy + 1))
 
         # 5f. Quick Item Consumable Hotbar (Keys 1-4, positioned directly to the left of Skills)
-        item_hx = hx - 194
+        item_hx = hx - 160
         item_hy = hy
         if hasattr(player.inventory, "quick_slots"):
             for s_num in range(1, 5):
@@ -493,8 +493,8 @@ class UIManager:
                             break
 
                 if found_item:
-                    icon_img = pygame.transform.scale(found_item.icon, (24, 24))
-                    surface.blit(icon_img, (sx + 8, sy + 10))
+                    icon_img = pygame.transform.scale(found_item.icon, (20, 20))
+                    surface.blit(icon_img, (sx + 7, sy + 7))
                     pygame.draw.rect(surface, (255, 215, 0), box, 1, border_radius=4)
                     if found_item.quantity > 1:
                         q_lbl = self.fonts["tiny"].render(str(found_item.quantity), True, COLOR_WHITE)
@@ -503,11 +503,103 @@ class UIManager:
                     pygame.draw.rect(surface, (60, 65, 75), box, 1, border_radius=4)
                     if bound_name:
                         name_sub = self.fonts["tiny"].render(bound_name[:3], True, (130, 130, 130))
-                        surface.blit(name_sub, (sx + 4, sy + 16))
+                        surface.blit(name_sub, (sx + 3, sy + 14))
 
                 key_lbl = self.fonts["tiny"].render(f"[{s_num}]", True, (255, 215, 0) if found_item else (150, 150, 150))
                 surface.blit(key_lbl, (sx + 2, sy + 1))
 
+        # 6. Dynamic Boss HP & Posture Stagger Bar (when boss enemy is present)
+        if game and hasattr(game, "enemies"):
+            boss = next((e for e in game.enemies if getattr(e, "enemy_key", "") in ["boss", "demon_lord", "dragon"] or getattr(e, "name", "").startswith("Shadow") or getattr(e, "is_boss", False)), None)
+            if boss and getattr(boss, "hp", 0) > 0:
+                bw, bh = 420, 16
+                bx = SCREEN_WIDTH // 2 - bw // 2
+                by = SCREEN_HEIGHT - 65
+                self._draw_hud_bar(surface, bx, by, bw, bh, boss.hp, boss.max_hp, COLOR_RED, f"BOSS: {boss.name.upper()}")
+                stagger_pct = max(0.0, min(1.0, boss.poise / max(1.0, boss.max_poise)))
+                stagger_bar_box = pygame.Rect(bx, by + 18, bw, 8)
+                pygame.draw.rect(surface, (40, 40, 20), stagger_bar_box, border_radius=2)
+                fill_w = int(bw * (1.0 - stagger_pct))
+                if getattr(boss, "is_staggered", False):
+                    pygame.draw.rect(surface, COLOR_YELLOW, (bx, by + 18, bw, 8), border_radius=2)
+                    stg_lbl = self.fonts["tiny"].render("STAGGERED! (TAKING 2x DAMAGE)", True, COLOR_YELLOW)
+                    surface.blit(stg_lbl, (bx + bw // 2 - stg_lbl.get_width() // 2, by + 28))
+                else:
+                    pygame.draw.rect(surface, (255, 180, 40), (bx, by + 18, fill_w, 8), border_radius=2)
+                pygame.draw.rect(surface, COLOR_UI_BORDER, stagger_bar_box, 1, border_radius=2)
+
+        # 7. Style Scoring Combat HUD (only during active combat)
+        if game and hasattr(game, "style_scoring"):
+            self._draw_style_scoring_hud(surface, player, game)
+
+    def _draw_style_scoring_hud(self, surface: pygame.Surface, player: Any, game: Any) -> None:
+        """
+        Renders a compact combat style meter in the top-right area (below skill hotbar).
+        Shows current grade letter, combo count, and style meter fill.
+        Only visible when player is in active combat.
+        """
+        if not hasattr(game, "style_scoring"):
+            return
+
+        # Only show during active combat
+        if getattr(player, "out_of_combat_timer", 5.0) > 2.0:
+            return
+
+        ss = game.style_scoring
+        grade = ss.evaluate()
+        grade_color = ss.get_grade_color()
+
+        # Position: below skill hotbar on the right
+        panel_w, panel_h = 110, 50
+        px = SCREEN_WIDTH - panel_w - 12
+        py = 68
+
+        # Semi-transparent panel background
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        panel_surf.fill((15, 18, 25, 180))
+        pygame.draw.rect(panel_surf, grade_color + (160,), (0, 0, panel_w, panel_h), 1, border_radius=5)
+        surface.blit(panel_surf, (px, py))
+
+        # Grade letter (large, left side)
+        grade_lbl = self.fonts["large"].render(grade, True, grade_color)
+        surface.blit(grade_lbl, (px + 8, py + 6))
+
+        # "RANK" tiny label above grade
+        rank_lbl = self.fonts["tiny"].render("RANK", True, (140, 150, 170))
+        surface.blit(rank_lbl, (px + 8, py + 2))
+
+        # Combo counter (right side)
+        combo = getattr(player, "combo_count", 0)
+        if combo > 0:
+            combo_lbl = self.fonts["medium"].render(f"x{combo}", True, COLOR_YELLOW)
+            surface.blit(combo_lbl, (px + 48, py + 8))
+
+        # Style meter bar (bottom strip)
+        bar_x = px + 4
+        bar_y = py + panel_h - 10
+        bar_w = panel_w - 8
+        bar_h = 5
+
+        # Calculate score as 0-100 for the bar fill
+        score = 0.0
+        score += min(25.0, ss.max_combo * 5.0)
+        score += min(20.0, ss.perfect_dodges * 10.0)
+        score += min(20.0, ss.parries * 10.0)
+        score += min(15.0, ss.elemental_reactions * 7.5)
+        score += min(10.0, ss.finishers_landed * 5.0)
+        score -= ss.hits_taken * 5.0
+        score = max(0.0, min(100.0, score))
+
+        ratio = score / 100.0
+        pygame.draw.rect(surface, (30, 30, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=2)
+        fill_w = int(bar_w * ratio)
+        if fill_w > 0:
+            pygame.draw.rect(surface, grade_color, (bar_x, bar_y, fill_w, bar_h), border_radius=2)
+
+        # Kills counter
+        if ss.kills > 0:
+            kill_lbl = self.fonts["tiny"].render(f"Kills:{ss.kills}", True, (180, 200, 220))
+            surface.blit(kill_lbl, (px + 48, py + 30))
 
     def _draw_harvest_moon_clock(self, surface: pygame.Surface, game: Any) -> None:
         """
@@ -533,8 +625,8 @@ class UIManager:
         day_of_season = (day - 1) % 30 + 1
         year = (day - 1) // 120 + 1
 
-        # Position box at top center
-        box_w, box_h = 190, 52
+        # Position unified Clock & Weather box at top center (Compact 188x44)
+        box_w, box_h = 188, 44
         bx = SCREEN_WIDTH // 2 - box_w // 2
         by = 10
 
@@ -552,30 +644,47 @@ class UIManager:
         }
         s_color = season_colors.get(season, (200, 200, 200))
 
-        # 1. Season & Day Line (e.g., "SPRING · Day 12 (Yr 1)")
-        season_str = f"{season} · Day {day_of_season} (Yr {year})"
-        s_lbl = self.fonts["small"].render(season_str, True, s_color)
-        surface.blit(s_lbl, (bx + 12, by + 8))
+        # 1. Season & Day Line (e.g., "SPRING 12")
+        season_str = f"{season[:3]} {day_of_season} · Yr {year}"
+        s_lbl = self.fonts["tiny"].render(season_str, True, s_color)
+        surface.blit(s_lbl, (bx + 8, by + 5))
 
         # 2. Digital Clock Line (e.g., "08:30 AM")
-        t_lbl = self.fonts["medium"].render(clock_str, True, COLOR_WHITE)
-        surface.blit(t_lbl, (bx + 12, by + 26))
+        t_lbl = self.fonts["small"].render(clock_str, True, COLOR_WHITE)
+        surface.blit(t_lbl, (bx + 8, by + 22))
 
-        # 3. Sun / Moon Icon Badge (Right side of clock card)
-        icon_cx = bx + box_w - 24
-        icon_cy = by + box_h // 2
+        # 3. Sun / Moon Icon
+        icon_cx = bx + 96
+        icon_cy = by + 28
         is_day = 6 <= hours < 18
 
         if is_day:
-            # Draw Sun (Golden circle with rays)
-            pygame.draw.circle(surface, (255, 220, 50), (icon_cx, icon_cy), 9)
-            pygame.draw.circle(surface, (255, 240, 150), (icon_cx, icon_cy), 5)
+            pygame.draw.circle(surface, (255, 220, 50), (icon_cx, icon_cy), 5)
+            pygame.draw.circle(surface, (255, 240, 150), (icon_cx, icon_cy), 3)
         else:
-            # Draw Moon (Cyan/White Crescent)
-            pygame.draw.circle(surface, (200, 230, 255), (icon_cx, icon_cy), 9)
-            pygame.draw.circle(surface, (25, 22, 30), (icon_cx - 4, icon_cy - 2), 7)
+            pygame.draw.circle(surface, (200, 230, 255), (icon_cx, icon_cy), 5)
+            pygame.draw.circle(surface, (25, 22, 30), (icon_cx - 2, icon_cy - 1), 4)
 
-        # 4. Render Active Greed Curse HUD Badge if player challenged Greed Altar
+        # Subtle Vertical Divider
+        pygame.draw.line(surface, (65, 70, 85), (bx + 110, by + 6), (bx + 110, by + 38), 1)
+
+        # 4. Integrated Weather Pill (Right side of card)
+        w_info = game.weather.get_weather_info() if hasattr(game, "weather") else {
+            "name": "Clear Weather", "label": "CLEAR", "icon": "☀️",
+            "color": (255, 220, 100), "effects": ["☀️ Sunlit baseline environment"]
+        }
+        w_rect = pygame.Rect(bx + 114, by + 5, 68, 34)
+        pygame.draw.rect(surface, (18, 20, 28), w_rect, border_radius=4)
+        pygame.draw.rect(surface, w_info["color"], w_rect, 1, border_radius=4)
+
+        w_txt = f"{w_info['icon']} {w_info['label'][:5]}"
+        w_lbl = self.fonts["tiny"].render(w_txt, True, w_info["color"])
+        surface.blit(w_lbl, (w_rect.x + (w_rect.w - w_lbl.get_width()) // 2, w_rect.y + 4))
+
+        sub_lbl = self.fonts["tiny"].render("WEATHER", True, (140, 150, 170))
+        surface.blit(sub_lbl, (w_rect.x + (w_rect.w - sub_lbl.get_width()) // 2, w_rect.y + 18))
+
+        # 5. Active Greed Curse HUD Badge (if player challenged Greed Altar)
         if hasattr(game, "player") and getattr(game.player, "greed_curse_active", False):
             gb_rect = pygame.Rect(bx + box_w + 10, by + 10, 160, 32)
             pygame.draw.rect(surface, (45, 12, 18), gb_rect, border_radius=4)
@@ -584,6 +693,34 @@ class UIManager:
             sub_txt = self.fonts["small"].render("ATK +50% | Loot x2", True, (255, 220, 220))
             surface.blit(g_txt, (gb_rect.x + 8, gb_rect.y + 2))
             surface.blit(sub_txt, (gb_rect.x + 8, gb_rect.y + 16))
+
+        # 6. Weather Hover Tooltip Window Check (Triggers when hovering over Weather Pill or Clock Card)
+        mx, my = pygame.mouse.get_pos()
+        if w_rect.collidepoint(mx, my) or frame_rect.collidepoint(mx, my):
+            effects = w_info["effects"]
+            tw = 230
+            th = 34 + len(effects) * 20 + 8
+            tx = max(10, min(SCREEN_WIDTH - tw - 10, bx + box_w // 2 - tw // 2))
+            ty = by + box_h + 6
+
+            tip_surf = pygame.Surface((tw, th), pygame.SRCALPHA)
+            tip_surf.fill((15, 18, 26, 240))
+            surface.blit(tip_surf, (tx, ty))
+
+            pygame.draw.rect(surface, w_info["color"], (tx, ty, tw, th), 2, border_radius=6)
+
+            # Tooltip Header
+            hdr_lbl = self.fonts["small"].render(w_info["name"].upper(), True, w_info["color"])
+            surface.blit(hdr_lbl, (tx + 10, ty + 8))
+
+            pygame.draw.line(surface, (70, 80, 100), (tx + 8, ty + 28), (tx + tw - 8, ty + 28), 1)
+
+            # Tooltip Bullet Points
+            ey = ty + 34
+            for eff in effects:
+                e_lbl = self.fonts["tiny"].render(eff, True, COLOR_WHITE)
+                surface.blit(e_lbl, (tx + 12, ey))
+                ey += 20
 
     def draw_quest_tracker_widget(self, surface: pygame.Surface, game: Any) -> None:
         """Renders small active quest overlay widget on the right side of the screen."""
@@ -1705,6 +1842,16 @@ class UIManager:
 
     # --- SILAS MERCHANT SHOP UI ---
 
+    def _get_item_econ_category(self, item_name: str) -> str:
+        """Maps shop item names to Living Economy resource stock categories."""
+        if "Potion" in item_name or "Herb" in item_name:
+            return "herbs"
+        elif "Bread" in item_name or "Apple" in item_name or "Food" in item_name:
+            return "food"
+        elif "Ore" in item_name or "Stone" in item_name or "Ingot" in item_name:
+            return "ore"
+        return "goods"
+
     def draw_shop_interface(self, surface: pygame.Surface, player: Any) -> None:
         """Buy and Sell panels interface with Merchant Silas."""
         # Large centered dual window (740x500)
@@ -1756,37 +1903,70 @@ class UIManager:
             by = sy + 104 + idx * row_step
             row_rect = pygame.Rect(sx + 32, by, 316, row_h)
 
-            # Hover check
-            is_hover = row_rect.collidepoint(m_pos)
-            bg_c = (80, 85, 95) if is_hover else (45, 48, 55)
+            # Check Living Economy stock levels for scarcity
+            econ_cat = self._get_item_econ_category(item_name)
+            stock_ratio = 1.0
+            price_scalar = 1.0
+
+            if hasattr(player, "game") and hasattr(player.game, "living_world"):
+                current_map = getattr(player.game.world_manager, "current_map_name", "village")
+                price_scalar = player.game.living_world.get_combined_price_multiplier(econ_cat, current_map)
+                stocks = getattr(player.game.living_world.economy, "stocks", {})
+                if econ_cat in stocks:
+                    res = stocks[econ_cat]
+                    stock_ratio = res.current_stock / max(1.0, res.max_capacity)
+
+            is_out_of_stock = (stock_ratio < 0.30)
+
+            # Hover & background rendering
+            is_hover = row_rect.collidepoint(m_pos) and not is_out_of_stock
+            if is_out_of_stock:
+                bg_c = (35, 37, 42)
+            else:
+                bg_c = (80, 85, 95) if is_hover else (45, 48, 55)
+
             pygame.draw.rect(surface, bg_c, row_rect, border_radius=4)
-            pygame.draw.rect(surface, COLOR_UI_BORDER, row_rect, 1, border_radius=4)
+            pygame.draw.rect(surface, (60, 62, 70) if is_out_of_stock else COLOR_UI_BORDER, row_rect, 1, border_radius=4)
 
             # Icon
             mock_item = create_item(item_name)
             if mock_item:
                 icon_img = pygame.transform.scale(mock_item.icon, (24, 24))
+                if is_out_of_stock:
+                    icon_img.set_alpha(100)
                 surface.blit(icon_img, (sx + 38, by + (row_h - 24) // 2))
                 if is_hover:
                     self.hovered_item = mock_item
 
-            # Name
-            name_lbl = self.fonts["small"].render(item_name, True, COLOR_WHITE)
+            # Name label
+            name_color = (130, 135, 145) if is_out_of_stock else COLOR_WHITE
+            name_lbl = self.fonts["small"].render(item_name, True, name_color)
             surface.blit(name_lbl, (sx + 70, by + (row_h - name_lbl.get_height()) // 2))
 
-            # Price (modified dynamically by Living Economy + Factions + Settlement)
+            # Price / Out of Stock badge
             base_buy, _ = self.shop_prices[item_name]
-            price_scalar = 1.0
-            if hasattr(player, "game") and hasattr(player.game, "living_world"):
-                current_map = getattr(player.game.world_manager, "current_map_name", "village")
-                price_scalar = player.game.living_world.get_combined_price_multiplier("goods", current_map)
             buy_price = max(1, int(base_buy * price_scalar))
-            prc_color = COLOR_YELLOW if player.gold >= buy_price else COLOR_RED
-            prc_lbl = self.fonts["medium"].render(f"{buy_price}g", True, prc_color)
-            surface.blit(prc_lbl, (sx + 336 - prc_lbl.get_width() - 12, by + (row_h - prc_lbl.get_height()) // 2))
 
-            # Store bounds for click buy actions
-            self.slot_rects["shop"].append((row_rect, idx))
+            if is_out_of_stock:
+                stock_lbl = self.fonts["small"].render("OUT OF STOCK", True, (220, 80, 80))
+                surface.blit(stock_lbl, (sx + 336 - stock_lbl.get_width() - 12, by + (row_h - stock_lbl.get_height()) // 2))
+            else:
+                # Color code price based on market conditions & player gold
+                if player.gold < buy_price:
+                    prc_color = COLOR_RED
+                elif price_scalar < 0.90:
+                    prc_color = (100, 240, 140)  # Green = discounted
+                elif price_scalar > 1.15:
+                    prc_color = (255, 140, 60)   # Orange = high demand/tax
+                else:
+                    prc_color = COLOR_YELLOW
+
+                prc_lbl = self.fonts["medium"].render(f"{buy_price}g", True, prc_color)
+                surface.blit(prc_lbl, (sx + 336 - prc_lbl.get_width() - 12, by + (row_h - prc_lbl.get_height()) // 2))
+
+            # Store bounds for click buy actions (only if in stock)
+            if not is_out_of_stock:
+                self.slot_rects["shop"].append((row_rect, idx))
 
         # RIGHT PANEL: PLAYER INVENTORY BACKPACK
         right_box = pygame.Rect(sx + 380, sy + 60, 340, 420)
@@ -2374,11 +2554,25 @@ class UIManager:
                 if rect.collidepoint(mouse_pos) and not right_click:
                     goods_name = self.shop_goods[idx]
                     buy_price_base, _ = self.shop_prices[goods_name]
+                    econ_cat = self._get_item_econ_category(goods_name)
+
                     price_mod = 1.0
-                    if hasattr(game, "factions"):
-                        price_mod *= game.factions.get_price_modifier()
-                    if hasattr(game, "world_state"):
-                        price_mod *= game.world_state.get_price_modifier()
+                    stock_ratio = 1.0
+                    current_map = getattr(game.world_manager, "current_map_name", "village") if hasattr(game, "world_manager") else "village"
+
+                    if hasattr(game, "living_world"):
+                        price_mod = game.living_world.get_combined_price_multiplier(econ_cat, current_map)
+                        stocks = getattr(game.living_world.economy, "stocks", {})
+                        if econ_cat in stocks:
+                            res = stocks[econ_cat]
+                            stock_ratio = res.current_stock / max(1.0, res.max_capacity)
+
+                    if stock_ratio < 0.30:
+                        if hasattr(self, "notification_manager"):
+                            from rpg.notification import NotificationPriority
+                            self.notification_manager.push_toast(f"'{goods_name}' is currently Out of Stock!", priority=NotificationPriority.HIGH)
+                        return
+
                     buy_price = max(1, int(buy_price_base * price_mod))
 
                     if player.gold >= buy_price:
@@ -2391,6 +2585,10 @@ class UIManager:
                                 game.event_bus.emit("item_bought", item_name=goods_name, price=buy_price)
                             # Sync quest logs count
                             game.quest_manager.handle_inventory_change(player.inventory)
+                    else:
+                        if hasattr(self, "notification_manager"):
+                            from rpg.notification import NotificationPriority
+                            self.notification_manager.push_toast("Not enough gold!", priority=NotificationPriority.HIGH)
                     return
 
             # Sell All Materials Button click

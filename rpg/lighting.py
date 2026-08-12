@@ -113,6 +113,16 @@ class LightingSystem:
             if enemy.name == "Shadow Overlord" and enemy.hp > 0 and enemy.ai.state != "patrol":
                 light_nodes.append((enemy.rect.center, 384))
 
+        # Environmental Hazard Tile Glow (lava pools emit warm light at night)
+        hazard_group = getattr(game, "hazard_tiles", None)
+        if hazard_group:
+            for hazard in hazard_group:
+                if hasattr(hazard, "hazard_type"):
+                    if hazard.hazard_type == "lava_pool":
+                        light_nodes.append((hazard.rect.center, 128))
+                    elif hazard.hazard_type == "spike_trap":
+                        light_nodes.append((hazard.rect.center, 64))
+
         # 3. Carve light circles out of mask using blending multiplier
         for pos, radius in light_nodes:
             # Retrieve cached glow circle texture

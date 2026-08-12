@@ -400,6 +400,34 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "max_stack": 5,
         "stats": {},
         "description": "A heavy copper key inscribed with skull markings."
+    },
+    "Rune of Fire": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 20,
+        "stats": {"atk": 5},
+        "description": "An elemental rune that adds +5 Attack Power when socketed."
+    },
+    "Rune of Vitality": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 20,
+        "stats": {"hp": 25},
+        "description": "A life rune that adds +25 Max Health when socketed."
+    },
+    "Rune of Precision": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 20,
+        "stats": {"crit": 5},
+        "description": "A sharp rune that adds +5% Crit Chance when socketed."
+    },
+    "Rune of Shielding": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 20,
+        "stats": {"def": 4},
+        "description": "A protective rune that adds +4 Defense when socketed."
     }
 }
 

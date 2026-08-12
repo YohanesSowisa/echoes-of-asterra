@@ -38,6 +38,10 @@ class LivingWorldManager:
         self.ecology = EcologyManager()
         self.director = GameDirector()
         self.progression = ProgressionManager()
+        from rpg.consequences import ConsequenceManager
+        self.consequences = ConsequenceManager(self.event_bus)
+        from rpg.rumors import RumorBoard
+        self.rumors = RumorBoard(self.event_bus)
         
         # Backward compatibility alias
         self.ai_director = self.director
@@ -51,6 +55,11 @@ class LivingWorldManager:
         self.settlement.register_event_listeners(self.event_bus)
         self.ecology.register_event_listeners(self.event_bus)
         self.progression.register_event_listeners(self.event_bus)
+        self.consequences.register_event_listeners(self.event_bus)
+        self.rumors.register_event_listeners(self.event_bus)
+        
+        from rpg.emergent_quests import EmergentQuestGenerator
+        self.emergent_quests = EmergentQuestGenerator(self.event_bus)
         
         # Subscribe Director and Subsystems to Scheduler Ticks
         self.scheduler.subscribe(TickType.DAY.value, self._on_scheduler_day_tick)
@@ -64,6 +73,10 @@ class LivingWorldManager:
         # 2. Generate immutable WorldSnapshot and trigger GameDirector evaluation
         snapshot = self.world_state.create_snapshot(self.game_reference)
         self.director.evaluate(snapshot, self.event_bus)
+
+        # 3. Evaluate Emergent Quest triggers
+        if self.game_reference and hasattr(self.game_reference, "quest_manager"):
+            self.emergent_quests.evaluate_world(self.world_state, self.game_reference.quest_manager, day)
 
     def _on_director_recommendation(self, action: str, effects: Dict[str, Any], **kwargs: Any) -> None:
         """Applies Director recommendations to existing simulation systems without direct private mutation."""
@@ -105,6 +118,8 @@ class LivingWorldManager:
         
         # 5. Update Faction Warfare & Skirmish timers
         self.faction_war.update(dt)
+        if hasattr(self, "consequences"):
+            self.consequences.game = self.game_reference
 
     def get_combined_price_multiplier(self, category: str = "goods", map_name: str = "village") -> float:
         """Calculates total combined item price scalar (Economy + Faction Tax + Settlement Discount)."""
@@ -125,7 +140,9 @@ class LivingWorldManager:
             "settlement": self.settlement.to_dict(),
             "ecology": self.ecology.to_dict(),
             "director": self.director.to_dict(),
-            "progression": self.progression.to_dict()
+            "progression": self.progression.to_dict(),
+            "consequences": self.consequences.to_dict() if hasattr(self, "consequences") else {},
+            "rumors": self.rumors.to_dict() if hasattr(self, "rumors") else {}
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -154,3 +171,7 @@ class LivingWorldManager:
             self.director.from_dict(data["ai_director"])
         if "progression" in data:
             self.progression.from_dict(data["progression"])
+        if "consequences" in data and hasattr(self, "consequences"):
+            self.consequences.from_dict(data["consequences"])
+        if "rumors" in data and hasattr(self, "rumors"):
+            self.rumors.from_dict(data["rumors"])

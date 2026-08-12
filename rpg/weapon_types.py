@@ -21,57 +21,72 @@ class WeaponClassData:
     finisher_aoe: bool         # Whether finisher hits in 360 radius
     stun_duration: float       # Stun duration in seconds applied to defender
     armor_pierce: float        # Fraction (0.0 to 1.0) of enemy defense ignored
+    finisher_name: str = ""    # Display name of the finisher move
+    finisher_poise_mult: float = 1.0  # Poise damage multiplier on finisher
+    finisher_crit_bonus: int = 0      # Extra crit chance % on finisher
+    finisher_invincibility_ms: float = 0.0  # Brief i-frames on finisher
 
 WEAPON_CLASSES: Dict[str, WeaponClassData] = {
     WEAPON_SWORD: WeaponClassData(
         name="Sword",
         attack_speed=0.25,
         range_multiplier=1.0,
-        combo_length=5,
+        combo_length=3,
         finisher_damage_mult=1.5,
         finisher_aoe=True,
         stun_duration=0.0,
-        armor_pierce=0.0
+        armor_pierce=0.0,
+        finisher_name="Cross Slash",
+        finisher_poise_mult=1.5,
     ),
     WEAPON_AXE: WeaponClassData(
         name="Axe",
         attack_speed=0.45,
         range_multiplier=1.0,
-        combo_length=5,
+        combo_length=3,
         finisher_damage_mult=2.0,
         finisher_aoe=False,
         stun_duration=0.0,
-        armor_pierce=0.50  # Pierces 50% defense
+        armor_pierce=0.50,  # Pierces 50% defense
+        finisher_name="Cleave",
+        finisher_poise_mult=2.5,  # Devastating poise damage
     ),
     WEAPON_HAMMER: WeaponClassData(
         name="Hammer",
         attack_speed=0.60,
         range_multiplier=0.85,
-        combo_length=5,
+        combo_length=3,
         finisher_damage_mult=2.0,
         finisher_aoe=True,
-        stun_duration=0.60,  # 0.6s stun
-        armor_pierce=0.20
+        stun_duration=1.5,  # 1.5s stun on finisher
+        armor_pierce=0.20,
+        finisher_name="Ground Slam",
+        finisher_poise_mult=2.0,
     ),
     WEAPON_SPEAR: WeaponClassData(
         name="Spear",
         attack_speed=0.35,
         range_multiplier=1.60,  # Extended thrust range
-        combo_length=5,
+        combo_length=3,
         finisher_damage_mult=1.8,
         finisher_aoe=False,
         stun_duration=0.0,
-        armor_pierce=0.15
+        armor_pierce=0.15,
+        finisher_name="Piercing Thrust",
+        finisher_crit_bonus=100,  # Guaranteed critical on finisher
     ),
     WEAPON_DAGGER: WeaponClassData(
         name="Dagger",
         attack_speed=0.14,  # Rapid attacks
         range_multiplier=0.70,
-        combo_length=5,
-        finisher_damage_mult=1.4,
+        combo_length=4,     # Requires more hits due to speed
+        finisher_damage_mult=2.5,
         finisher_aoe=False,
         stun_duration=0.0,
-        armor_pierce=0.0
+        armor_pierce=0.0,
+        finisher_name="Shadow Strike",
+        finisher_crit_bonus=50,
+        finisher_invincibility_ms=300.0,  # Brief invincibility
     ),
 }
 

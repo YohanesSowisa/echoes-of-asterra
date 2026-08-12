@@ -108,6 +108,11 @@ class EcologyManager:
         adjusted_count = max(1, int(base_count * max(0.3, min(1.5, ratio))))
         return adjusted_count
 
+    def get_population(self, enemy_type: str) -> int:
+        """Returns current population count for a species."""
+        sp = self.species.get(enemy_type)
+        return sp.current_population if sp else 0
+
     def _on_enemy_killed(self, enemy_type: str = "", **kwargs: Any) -> None:
         """Decrements current population when hero slays monsters."""
         sp = self.species.get(enemy_type)

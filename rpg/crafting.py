@@ -2,7 +2,7 @@
 Echoes of Asterra - Crafting System
 Defines recipes, required materials, and coordinates the assembly of items.
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 from rpg.items import create_item
 from rpg.inventory import Inventory
 
@@ -18,11 +18,15 @@ CRAFTING_RECIPES: Dict[str, Tuple[Dict[str, int], int, int]] = {
     "Blue Potion": ({"Forest Apple": 1, "Beast Leather": 1}, 1, 2),
     "Asterra Sword": ({"Iron Ore": 10, "Beast Leather": 5, "Timber": 5}, 1, 3),
     "Dragon Horn Helmet": ({"Iron Ore": 8, "Beast Leather": 4}, 1, 3),
+    "Rune of Fire": ({"Iron Ore": 2, "Red Potion": 1}, 1, 1),
+    "Rune of Vitality": ({"Beast Leather": 2, "Forest Apple": 2}, 1, 1),
+    "Rune of Precision": ({"Iron Ore": 3}, 1, 2),
+    "Rune of Shielding": ({"Timber": 3, "Iron Ore": 1}, 1, 1),
 }
 
 class CraftingSystem:
     """
-    Validates material counts and processes the creation of items.
+    Validates material counts and processes the creation, socketing, and disenchanting of items.
     """
     @staticmethod
     def get_recipes_list() -> List[str]:
@@ -86,4 +90,58 @@ class CraftingSystem:
             inventory.add_item(result_item)
             return True
 
+        return False
+
+    @staticmethod
+    def socket_rune(target_item: Any, rune_name: str, inventory: Inventory) -> bool:
+        """Sockets a rune item into an open socket of target_item, granting stat bonuses."""
+        from rpg.items import RUNE_DATABASE
+        if not target_item or len(target_item.socketed_runes) >= target_item.sockets:
+            return False
+
+        if not inventory.has_item(rune_name, 1):
+            return False
+
+        rune_info = RUNE_DATABASE.get(rune_name)
+        if not rune_info:
+            return False
+
+        if inventory.remove_item(rune_name, 1):
+            target_item.add_socket_rune(rune_name)
+            stat_name = rune_info["stat"]
+            stat_val = rune_info["value"]
+            curr = target_item.stats.get(stat_name, 0)
+            target_item.stats[stat_name] = curr + stat_val
+            return True
+        return False
+
+    @staticmethod
+    def disenchant_equipment(target_item: Any, inventory: Inventory) -> bool:
+        """Disenchants unwanted equipment into raw materials based on item rarity."""
+        from rpg.constants import (
+            ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY,
+            RARITY_RARE, RARITY_EPIC, RARITY_LEGENDARY
+        )
+        if not target_item or target_item.item_type not in [
+            ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY
+        ]:
+            return False
+
+        # Determine salvage yields
+        if target_item.rarity in [RARITY_LEGENDARY, RARITY_EPIC]:
+            yield_mat = "Iron Ore"
+            yield_qty = 3
+        elif target_item.rarity == RARITY_RARE:
+            yield_mat = "Iron Ore"
+            yield_qty = 2
+        else:
+            yield_mat = "Timber"
+            yield_qty = 2
+
+        # Remove item from inventory
+        inventory.remove_item(target_item.name, 1)
+        salvage = create_item(yield_mat, yield_qty)
+        if salvage:
+            inventory.add_item(salvage)
+            return True
         return False

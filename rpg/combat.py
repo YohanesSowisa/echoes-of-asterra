@@ -72,10 +72,10 @@ class CombatSystem:
     Coordinates combat collisions and damage resolutions.
     """
     @staticmethod
-    def calculate_damage(attacker: Any, defender: Any, is_magic: bool = False, armor_pierce: float = 0.0, damage_multiplier: float = 1.0) -> Tuple[int, bool]:
+    def calculate_damage(attacker: Any, defender: Any, is_magic: bool = False, armor_pierce: float = 0.0, damage_multiplier: float = 1.0, weather_mods: dict = None) -> Tuple[int, bool]:
         """
         Calculates damage based on attacker's ATK/Magic and defender's Defense.
-        Applies armor piercing and damage multipliers.
+        Applies armor piercing, damage multipliers, and weather-based elemental scaling.
         Returns: (damage_amount, is_critical)
         """
         is_crit = False
@@ -89,6 +89,20 @@ class CombatSystem:
             defense_reduc = defender.defense * max(0.0, 1.0 - armor_pierce)
             
         base_dmg = int(base_dmg * damage_multiplier)
+
+        # Apply weather-based elemental damage modifiers
+        weapon_element = getattr(attacker, '_current_attack_element', None)
+        if not weapon_element:
+            # Check equipped weapon element
+            if hasattr(attacker, 'equipment'):
+                eq_weapon = attacker.equipment.slots.get('weapon')
+                if eq_weapon:
+                    weapon_element = getattr(eq_weapon, 'element', 'none')
+
+        if weapon_element and weapon_element != 'none' and weather_mods:
+            elem_key = f"{weapon_element}_mult"
+            elem_mult = weather_mods.get(elem_key, 1.0)
+            base_dmg = int(base_dmg * elem_mult)
 
         # Critical Hit check
         crit_chance = getattr(attacker, "crit_chance", 5)
@@ -142,10 +156,26 @@ class CombatSystem:
                 defender.game.trigger_hit_stop(0.12)
             if hasattr(defender, "particles"):
                 defender.particles.create_block_sparks(defender.rect.center)
+            # Wire style scoring: parry event
+            if hasattr(defender, 'game') and hasattr(defender.game, 'style_scoring'):
+                defender.game.style_scoring.on_parry()
             return True
 
-        # Calculate damage
-        dmg, is_crit = CombatSystem.calculate_damage(attacker, defender, is_magic, armor_pierce, damage_multiplier)
+        # Calculate damage with weather modifiers
+        weather_mods = None
+        if hasattr(attacker, 'game') and hasattr(attacker.game, 'weather'):
+            weather_mods = attacker.game.weather.get_combat_modifiers()
+
+        dmg, is_crit = CombatSystem.calculate_damage(attacker, defender, is_magic, armor_pierce, damage_multiplier, weather_mods)
+
+        # --- ENEMY GUARD STATE: Damage reduction for DEFENSIVE_PARRY enemies ---
+        if getattr(defender, 'guard_state', False) and not getattr(defender, 'is_blocking', False):
+            dmg = max(1, int(dmg * 0.40))  # Guard reduces damage by 60%
+            DamageNumber(defender.rect.center, "BLOCKED!", (200, 200, 255), ui_group, size=16)
+            if hasattr(defender, 'game') and hasattr(defender.game, 'particles'):
+                defender.game.particles.create_block_sparks(defender.rect.center)
+            if hasattr(attacker, 'game'):
+                attacker.game.camera.trigger_shake(2.0, 80)
         
         # Apply Shield Skill absorption (if active)
         if hasattr(defender, "has_shield_active") and defender.has_shield_active:
@@ -167,6 +197,9 @@ class CombatSystem:
             defender.particles.create_block_sparks(defender.rect.center)
             # Trigger short I-frames
             defender.trigger_invincibility(200)
+            # Wire style scoring: block counts as parry
+            if hasattr(defender, 'game') and hasattr(defender.game, 'style_scoring'):
+                defender.game.style_scoring.on_parry()
             # Apply light knockback
             knockback_strength = 3.0
             sound_name = "click"
@@ -186,6 +219,12 @@ class CombatSystem:
             
         # Deduct Health
         defender.take_damage(dmg)
+
+        # Wire style scoring: player hit taken
+        if hasattr(defender, 'game') and hasattr(defender.game, 'style_scoring'):
+            # Only track if defender is the player (has out_of_combat_timer)
+            if hasattr(defender, 'out_of_combat_timer'):
+                defender.game.style_scoring.on_hit_taken(dmg)
 
         # Apply Poise Damage (weapon-class based)
         if hasattr(defender, "take_poise_damage") and hasattr(attacker, "equipment"):
@@ -225,9 +264,12 @@ class CombatSystem:
                 defender.knockback_vector = diff_vec.normalize() * knockback_strength
                 defender.knockback_duration = 0.15 # seconds
                 
-        # Trigger hit-stop effect in camera / graphics (shakes, pauses)
+        # Trigger hit-stop effect — enhanced for finisher hits (damage_multiplier > 1.2)
         if hasattr(attacker, "game"):
-            attacker.game.trigger_hit_stop(0.08)  # Stop frame updating briefly
+            if damage_multiplier > 1.2:
+                attacker.game.trigger_hit_stop(0.18)  # Enhanced finisher hit-stop
+            else:
+                attacker.game.trigger_hit_stop(0.08)  # Normal hit-stop
             
         if is_crit and hasattr(attacker, "game"):
             attacker.game.camera.trigger_shake(8.0, 150) # Big screen shake
@@ -244,7 +286,37 @@ class CombatSystem:
         defender.trigger_invincibility(500) # 0.5 seconds default
         if hasattr(defender, "state") and getattr(defender, "hp", 1) > 0:
             defender.state = "hurt"
-            
+
+        # Apply weapon elemental status effect to defender (bridges weapon elements into status system)
+        if hasattr(defender, 'apply_elemental_status') and hasattr(attacker, 'equipment'):
+            from rpg.constants import ITEM_WEAPON, ELEMENT_NONE
+            eq_weapon = attacker.equipment.slots.get(ITEM_WEAPON)
+            if eq_weapon:
+                weapon_elem = getattr(eq_weapon, 'element', ELEMENT_NONE)
+                if weapon_elem and weapon_elem != ELEMENT_NONE:
+                    base_duration = 3.0
+                    # Apply weather ice duration bonus
+                    if weapon_elem == 'ice' and weather_mods:
+                        base_duration += weather_mods.get('ice_duration_bonus', 0.0)
+                    defender.apply_elemental_status(weapon_elem, base_duration, attacker)
+
+                    # Weather-boost floating text notification
+                    if weather_mods:
+                        elem_key = f"{weapon_elem}_mult"
+                        elem_mult = weather_mods.get(elem_key, 1.0)
+                        if elem_mult > 1.0:
+                            weather_labels = {'rain': '🌧 RAIN', 'snow': '❄ SNOW', 'fog': '🌫 FOG'}
+                            w_name = ''
+                            if hasattr(attacker, 'game') and hasattr(attacker.game, 'weather'):
+                                w_name = weather_labels.get(attacker.game.weather.state, '')
+                            if w_name:
+                                boost_pct = int((elem_mult - 1.0) * 100)
+                                DamageNumber(
+                                    (defender.rect.centerx, defender.rect.top - 10),
+                                    f"{w_name} +{boost_pct}%",
+                                    (100, 220, 255), ui_group, size=14
+                                )
+
         return True
 
 def player_attacker(attacker: Any) -> Any:

@@ -196,6 +196,8 @@ class Boss(Enemy):
                     self.game.world_state.completed_event_ids.add("boss_shadow_overlord")
                 if hasattr(self.game, "event_bus"):
                     self.game.event_bus.emit("boss_defeated", boss_id="shadow_overlord", boss_name=self.name)
+                if hasattr(self.game, "mythos_manager") and self.game.mythos_manager:
+                    self.game.mythos_manager.record_run(self.game, end_cause="Vanquished the Shadow Overlord")
                 
                 # Trigger LEGENDARY celebration banner instead of forcing main menu kick
                 if hasattr(self.game, "ui_manager") and hasattr(self.game.ui_manager, "celebration"):

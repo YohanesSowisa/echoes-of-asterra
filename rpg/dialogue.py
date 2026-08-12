@@ -67,11 +67,46 @@ class DialogueManager:
             self.typing_finished = False
             self.selected_choice_idx = 0
 
-            # Guarantee at least one neutral "Leave / Back" choice for any dialogue with options
+            # Guarantee rumor choice and neutral "Leave / Back" choice for dialogue with options
             if node.choices:
+                # 1. Inject "Heard any rumors?" option if not present and game rumors system active
+                if hasattr(self, "game") and self.game and hasattr(self.game, "living_world") and hasattr(self.game.living_world, "rumors"):
+                    if not node.id.endswith("_rumor_response") and not any("rumor" in c.text.lower() for c in node.choices):
+                        npc_key = node.speaker_name.split()[-1].lower()
+                        speaker_title = node.speaker_name
+                        
+                        def make_rumor_cb(spk=speaker_title, key=npc_key):
+                            def rumor_callback():
+                                rumor_info = self.game.living_world.rumors.get_npc_rumor(key)
+                                if rumor_info:
+                                    topic, content, distortion = rumor_info
+                                    prefix = "⚡ [DISTORTED RUMOR] " if distortion >= 0.4 else "🗣️ [TOWN RUMOR] "
+                                    r_node = DialogueNode(
+                                        f"{key}_rumor_response",
+                                        spk,
+                                        f"{prefix}Regarding {topic}: \"{content}\"",
+                                        [DialogueChoice("Interesting...", None)]
+                                    )
+                                    self.add_node(r_node)
+                                    self.set_node(f"{key}_rumor_response")
+                                else:
+                                    r_node = DialogueNode(
+                                        f"{key}_rumor_response",
+                                        spk,
+                                        "Quiet days in Asterra... I haven't heard any new rumors today.",
+                                        [DialogueChoice("Fair enough.", None)]
+                                    )
+                                    self.add_node(r_node)
+                                    self.set_node(f"{key}_rumor_response")
+                            return rumor_callback
+
+                        rumor_choice = DialogueChoice("🗣️ Heard any rumors?", None, make_rumor_cb())
+                        node.choices.insert(max(0, len(node.choices) - 1), rumor_choice)
+
+                # 2. Guarantee at least one neutral "Leave / Back" choice
                 has_neutral_exit = any(
                     (c.callback is None and c.next_node_id is None) or
-                    any(kw in c.text.lower() for kw in ["leave", "back", "close", "goodbye", "later", "not now", "keluar", "kembali", "tutup"])
+                    any(kw in c.text.lower() for kw in ["leave", "back", "close", "goodbye", "later", "not now", "keluar", "kembali", "tutup", "interesting", "fair enough"])
                     for c in node.choices
                 )
                 if not has_neutral_exit:

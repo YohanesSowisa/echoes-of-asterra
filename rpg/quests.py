@@ -33,6 +33,7 @@ class QuestObjective:
 class Quest:
     """
     Holds quest text, status, objective progress, and payout details.
+    Supports mutual exclusion between branching quest paths.
     """
     def __init__(
         self,
@@ -41,7 +42,8 @@ class Quest:
         description: str,
         objectives: List[QuestObjective],
         rewards: Dict[str, Any],
-        prerequisite: Optional[str] = None
+        prerequisite: Optional[str] = None,
+        exclusive_with: Optional[str] = None
     ) -> None:
         self.id = quest_id
         self.title = title
@@ -49,6 +51,7 @@ class Quest:
         self.objectives = objectives
         self.rewards = rewards
         self.prerequisite = prerequisite
+        self.exclusive_with = exclusive_with
         self.status = QUEST_NOT_STARTED
 
     def check_objectives_completed(self) -> bool:
@@ -165,7 +168,6 @@ class QuestManager:
         )
 
         # 7. Side Quest: Bridge Repair (Town Board / Elder Eldrin)
-        # Completing this quest emits the 'bridge_rebuilt' construction flag for MAP_LAKE Vector A
         self.quests["bridge_repair_quest"] = Quest(
             quest_id="bridge_repair_quest",
             title="Northern Bridge Reconstruction",
@@ -182,7 +184,6 @@ class QuestManager:
         )
 
         # 8. Side Quest: Watchtower Construction (Town Board / Elder Eldrin)
-        # Completing this quest emits the 'watchtower_built' construction flag for MAP_CAVE
         self.quests["watchtower_quest"] = Quest(
             quest_id="watchtower_quest",
             title="Watchtower Construction",
@@ -199,7 +200,6 @@ class QuestManager:
         )
 
         # 9. Side Quest: Ruins Reconnaissance Expedition (Scholar Mira)
-        # Required for MAP_CRYPT unlock
         self.quests["ruins_expedition"] = Quest(
             quest_id="ruins_expedition",
             title="Ruins Reconnaissance Expedition",
@@ -216,19 +216,51 @@ class QuestManager:
             prerequisite="scholar_quest"
         )
 
+        # 10. Mutually Exclusive Fork 1: The Knight's Path (Alliance)
+        self.quests["knight_path_quest"] = Quest(
+            quest_id="knight_path_quest",
+            title="The Knight's Vow (Alliance)",
+            description="Pledge your allegiance to the Knights of Asterra. Clear the roads and fortify village defenses.",
+            objectives=[
+                QuestObjective("Defeat 4 Goblins", "kill", "goblin", 4),
+                QuestObjective("Deliver 3 Iron Ores", "collect", "Iron Ore", 3)
+            ],
+            rewards={"exp": 300, "gold": 150, "items": [("Iron Aegis", 1)]},
+            prerequisite="main_quest",
+            exclusive_with="shadow_path_quest"
+        )
+
+        # 11. Mutually Exclusive Fork 2: The Shadow's Path (Alliance)
+        self.quests["shadow_path_quest"] = Quest(
+            quest_id="shadow_path_quest",
+            title="The Void Covenant (Alliance)",
+            description="Embrace the shadows for power. Cleave corrupt knights and harness ancient relics.",
+            objectives=[
+                QuestObjective("Defeat 2 Knights", "kill", "knight", 2),
+                QuestObjective("Find 1 Ancient Scroll", "collect", "Ancient Scroll", 1)
+            ],
+            rewards={"exp": 350, "gold": 200, "items": [("Blue Potion", 3)]},
+            prerequisite="main_quest",
+            exclusive_with="knight_path_quest"
+        )
+
     def is_quest_available(self, quest_id: str) -> bool:
-        """Checks if a quest is eligible to be accepted based on prerequisites."""
+        """Checks if a quest is eligible to be accepted based on prerequisites and mutual exclusions."""
         quest = self.quests.get(quest_id)
         if not quest or quest.status != QUEST_NOT_STARTED:
             return False
+
+        if quest.exclusive_with:
+            excl = self.quests.get(quest.exclusive_with)
+            if excl and excl.status in [QUEST_ACTIVE, QUEST_COMPLETED]:
+                return False
+
         if quest.prerequisite:
             prereq = self.quests.get(quest.prerequisite)
             if not prereq:
                 return False
-            # Special case for forest_patrol: main_quest must be active and step 1 (talk to Eldrin) done
-            if quest_id == "forest_patrol":
+            if quest_id == "forest_patrol" or quest_id in ["knight_path_quest", "shadow_path_quest"]:
                 return prereq.status in [QUEST_ACTIVE, QUEST_COMPLETED] and prereq.objectives[0].is_complete()
-            # General case: prerequisite quest must be COMPLETED
             return prereq.status == QUEST_COMPLETED
         return True
 
@@ -236,9 +268,14 @@ class QuestManager:
         """Sets an available quest status to active."""
         quest = self.quests.get(quest_id)
         if quest and quest.status == QUEST_NOT_STARTED:
+            if not self.is_quest_available(quest_id):
+                return
             quest.status = QUEST_ACTIVE
             if hasattr(self, "event_bus") and self.event_bus:
                 self.event_bus.emit("first_quest_accepted", quest_id=quest_id)
+                if quest_id in ["knight_path_quest", "shadow_path_quest"]:
+                    alliance = "knights" if quest_id == "knight_path_quest" else "cult"
+                    self.event_bus.emit("alliance_chosen", alliance=alliance)
 
 
     def handle_kill(self, enemy_type: str) -> None:

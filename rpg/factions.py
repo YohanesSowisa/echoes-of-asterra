@@ -49,6 +49,18 @@ class FactionManager:
         event_bus.subscribe("enemy_killed", self._on_enemy_killed)
         event_bus.subscribe("quest_completed", self._on_quest_completed)
         event_bus.subscribe("item_bought", self._on_item_bought)
+        event_bus.subscribe("alliance_chosen", self._on_alliance_chosen)
+
+    def _on_alliance_chosen(self, alliance: str = "", **kwargs: Any) -> None:
+        """Applies major faction standing shifts when player pledges an alliance."""
+        if alliance == "knights":
+            self.modify_reputation(FACTION_KNIGHTS, 30)
+            self.modify_reputation(FACTION_CULTISTS, -35)
+            self.modify_reputation(FACTION_BANDITS, -20)
+        elif alliance == "cult":
+            self.modify_reputation(FACTION_CULTISTS, 35)
+            self.modify_reputation(FACTION_BANDITS, 20)
+            self.modify_reputation(FACTION_KNIGHTS, -40)
 
     def modify_reputation(self, faction_id: str, amount: int) -> None:
         """Adjusts reputation score for a specific faction (clamped -100 to +100)."""

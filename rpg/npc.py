@@ -87,6 +87,44 @@ class NPC(BaseSprite):
                 return False
         return True
 
+    def inject_rumor_choice(self, node: DialogueNode, npc_short_id: str) -> None:
+        """Injects 'Heard any rumors?' choice into a dialogue node."""
+        if not self.game or not hasattr(self.game, "living_world") or not hasattr(self.game.living_world, "rumors"):
+            return
+
+        if any("rumor" in c.text.lower() for c in node.choices):
+            return
+
+        def rumor_callback():
+            rumor_info = self.game.living_world.rumors.get_npc_rumor(npc_short_id.lower())
+            dm = self.game.dialogue_manager
+            if rumor_info:
+                topic, content, distortion = rumor_info
+                prefix = "⚡ [DISTORTED RUMOR] " if distortion >= 0.4 else "🗣️ [TOWN RUMOR] "
+                r_node = DialogueNode(
+                    f"{npc_short_id}_rumor_response",
+                    self.name,
+                    f"{prefix}Regarding {topic}: \"{content}\"",
+                    [DialogueChoice("Interesting...", None)]
+                )
+                dm.add_node(r_node)
+                dm.set_node(f"{npc_short_id}_rumor_response")
+            else:
+                r_node = DialogueNode(
+                    f"{npc_short_id}_rumor_response",
+                    self.name,
+                    "Quiet days in Asterra... I haven't heard any new rumors today.",
+                    [DialogueChoice("Fair enough.", None)]
+                )
+                dm.add_node(r_node)
+                dm.set_node(f"{npc_short_id}_rumor_response")
+
+        rumor_choice = DialogueChoice("🗣️ Heard any rumors?", None, rumor_callback)
+        if node.choices:
+            node.choices.insert(max(0, len(node.choices) - 1), rumor_choice)
+        else:
+            node.choices.append(rumor_choice)
+
     def update(self, dt: float) -> None:
         """Updates standing idle/walking animation loops and autonomous wandering movement."""
         # Pause wandering during active dialogue or when player is in interaction range

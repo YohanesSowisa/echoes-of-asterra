@@ -66,6 +66,7 @@ class Game:
 
         self.factions = FactionManager()
         self.factions.register_event_listeners(self.event_bus)
+        self.living_world.faction_war.faction_manager = self.factions
 
         self.npc_memory = NPCMemoryManager()
         self.npc_memory.register_event_listeners(self.event_bus)
@@ -85,6 +86,7 @@ class Game:
         self.particles = ParticleSystem()
 
         self.weather = WeatherSystem()
+        self.weather.sound_manager = self.sound_manager
         self.lighting = LightingSystem()
         from rpg.bestiary import BestiaryManager
 
@@ -123,14 +125,23 @@ class Game:
 
         # Mythos Inheritance Engine (Warisan Mitos & Legacy)
         from rpg.mythos import MythosManager
+        from rpg.mythos_reader import MythosReader
         from rpg.telemetry import EventTelemetry
         from rpg.achievements import AchievementManager
         self.mythos_manager = MythosManager()
+        self.mythos_reader = MythosReader(self)
+        self.mythos_reader.apply_historical_world_buffs()
+        if hasattr(self, "dialogue_manager"):
+            self.mythos_reader.inject_legend_into_dialogue_manager(self.dialogue_manager)
+
         self.telemetry = EventTelemetry()
         self.telemetry.register_event_bus(self.event_bus)
         self.achievement_manager = AchievementManager(self.event_bus)
         self.difficulty_profile = "normal"
         self.tutorial_flags = set()
+
+        from rpg.style_scoring import StyleScoring
+        self.style_scoring = StyleScoring()
 
         # Subscribe onboarding tips and living world feedback to EventBus
         self.event_bus.subscribe("first_inventory_open", self._show_inventory_tip)
@@ -314,8 +325,13 @@ class Game:
         if hasattr(self, "living_world"):
             from rpg.living_world import LivingWorldManager
             self.living_world = LivingWorldManager(self.event_bus)
+            self.living_world.game_reference = self
             self.world_state = self.living_world.world_state
-            self.ecology = self.living_world.ecology
+            if hasattr(self, "factions"):
+                self.living_world.faction_war.faction_manager = self.factions
+        if hasattr(self, "mythos_reader"):
+            self.mythos_reader.apply_historical_world_buffs()
+            self.mythos_reader.inject_legend_into_dialogue_manager(self.dialogue_manager)
 
 
 
@@ -1048,11 +1064,11 @@ class Game:
             # 3. Draw particles
             self.particles.draw(self.screen, camera_offset)
 
-            # 4. Draw weather overlay
-            self.weather.draw_fog_overlay(self.screen)
-
-            # 5. Draw night light mask overlays
+            # 4. Draw night light mask overlays
             self.lighting.draw_lighting(self.screen, camera_offset, self)
+
+            # 5. Draw weather overlay (sky tints, raindrops, ripples, snowflakes, leaves, fog)
+            self.weather.draw_weather_overlay(self.screen, camera_offset)
 
             # 6. Draw floating combat damage indicators
             self.ui_sprites.draw_sorted(self.screen, camera_offset)

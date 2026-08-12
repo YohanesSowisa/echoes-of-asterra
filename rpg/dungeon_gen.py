@@ -176,13 +176,25 @@ class DungeonGenerator:
         # 6. Populate Loot Chests
         chests = []
         num_chests = random.randint(1, 3)
-        for _ in range(num_chests):
+        for i in range(num_chests):
             c_room = random.choice(rooms[1:])
             cx = (c_room.left + 1) * TILE_SIZE
             cy = (c_room.top + 1) * TILE_SIZE
 
             # Scale loot quality with depth
             loot_list = [("Red Potion", 1)]
+            if i == 0 and depth == 1:
+                try:
+                    from rpg.mythos import MythosManager
+                    from rpg.mythos_reader import MythosReader
+                    mm = MythosManager()
+                    mr = MythosReader(None)
+                    mr.game = None
+                    relic_loot = mr.get_ancestral_relic_loot()
+                    loot_list.extend(relic_loot)
+                except Exception:
+                    pass
+
             if depth >= 3:
                 loot_list.append(("Iron Ore", random.randint(1, 3)))
             if depth >= 5:
@@ -191,6 +203,27 @@ class DungeonGenerator:
                 loot_list.append(("Asterra Heart", 1))
 
             chests.append({"pos": (cx, cy), "loot": loot_list})
+
+        # 7. Populate Environmental Hazard Tiles
+        from rpg.hazards import THEME_HAZARDS
+        hazards = []
+        theme_hazard_defs = THEME_HAZARDS.get(theme, [])
+        for room in rooms[1:]:  # Skip entrance room (safe zone)
+            for hazard_def in theme_hazard_defs:
+                density = hazard_def.get("density", 0.05)
+                room_area = (room.width - 2) * (room.height - 2)
+                num_hazards = max(0, int(room_area * density))
+                for _ in range(num_hazards):
+                    hx = random.randint(room.left + 1, max(room.left + 1, room.right - 2)) * TILE_SIZE
+                    hy = random.randint(room.top + 1, max(room.top + 1, room.bottom - 2)) * TILE_SIZE
+                    hazards.append({
+                        "type": hazard_def["type"],
+                        "pos": (hx, hy),
+                        "damage": hazard_def.get("damage", 10),
+                        "cooldown": hazard_def.get("cooldown", 3.0),
+                        "element": hazard_def.get("element", ""),
+                        "duration": hazard_def.get("duration", 0.0),
+                    })
 
         random.seed()  # Reset RNG seed
 
@@ -201,6 +234,7 @@ class DungeonGenerator:
             "enemies": enemies,
             "npcs": [],
             "chests": chests,
+            "hazards": hazards,
             "depth": depth,
             "theme": theme
         }
