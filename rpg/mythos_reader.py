@@ -244,8 +244,9 @@ class MythosReader:
             elif hasattr(self.game.living_world.settlement, "prosperity"):
                 try:
                     self.game.living_world.settlement.prosperity += 5.0
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger("MythosReader").warning("Could not increment settlement prosperity: %s", e, exc_info=True)
             summary["prosperity_bonus"] = 5
 
         return summary

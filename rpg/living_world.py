@@ -162,6 +162,46 @@ class LivingWorldManager:
         # Strict safety bounds: never explode (> 3.0x) and never negative/free (< 0.30x)
         return max(0.30, min(3.00, raw_multiplier))
 
+    def calculate_final_price(
+        self,
+        base_price: int,
+        category: str = "goods",
+        map_name: str = "village",
+        merchant_reputation: float = 0.0,
+        friendship_tier: float = 0.0,
+        is_scarce: bool = False
+    ) -> int:
+        """
+        Explicit single source of truth for Silas Shop pricing.
+        Combines:
+        1. Base price
+        2. Faction reputation modifier (Trade Consortium standing)
+        3. Settlement tier level + Specialization discount (Military/Trade/Sanctuary)
+        4. Scarcity badge modifier (if commodity is scarce / out of stock)
+        5. Map regional tax
+        6. Personal friendship discount
+        Clamped safely within [0.30x, 3.00x] multiplier boundaries and minimum 1 Gold.
+        """
+        econ_modifier = self.economy.get_price_multiplier(category) if hasattr(self, "economy") and self.economy else 1.0
+        scarcity_scalar = 1.35 if is_scarce else 1.0
+        econ_scalar = max(0.0, econ_modifier * scarcity_scalar)
+
+        tax_modifier = self.faction_war.get_map_tax_modifier(map_name) if hasattr(self, "faction_war") and self.faction_war else 0.0
+        tax_scalar = max(0.0, 1.0 + tax_modifier)
+
+        settlement_discount = self.settlement.get_tier_discount() if hasattr(self, "settlement") and self.settlement else 0.0
+        trade_spec_discount = self.settlement.get_trade_discount() if hasattr(self, "settlement") and self.settlement else 0.0
+        total_settlement_discount = min(0.40, settlement_discount + trade_spec_discount)
+
+        faction_discount = min(0.20, max(-0.25, merchant_reputation / 500.0))
+        friend_discount = min(0.15, max(0.0, friendship_tier / 100.0))
+
+        raw_multiplier = econ_scalar * tax_scalar * (1.0 - total_settlement_discount) * (1.0 - faction_discount) * (1.0 - friend_discount)
+
+        # Strict safety bounds: never explode (> 3.0x) and never negative/free (< 0.30x)
+        final_mult = max(0.30, min(3.00, raw_multiplier))
+        return max(1, int(base_price * final_mult))
+
     def get_final_shop_price(
         self,
         base_price: int,
@@ -171,8 +211,7 @@ class LivingWorldManager:
         friendship_tier: float = 0.0
     ) -> int:
         """Calculates final integer buy price, guaranteed to be at least 1 Gold and bounded."""
-        mult = self.get_combined_price_multiplier(category, map_name, merchant_reputation, friendship_tier)
-        return max(1, int(base_price * mult))
+        return self.calculate_final_price(base_price, category, map_name, merchant_reputation, friendship_tier)
 
     def reset(self) -> None:
         """Resets all living world subsystems for a fresh game session."""

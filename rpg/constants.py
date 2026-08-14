@@ -147,6 +147,8 @@ EVENT_FOREST_CORRUPTION = "forest_corruption"
 EVENT_HARVEST_SEASON = "harvest_season"
 EVENT_BLOOD_MOON = "blood_moon"
 EVENT_BLESSING_ASTERRA = "blessing_of_asterra"
+EVENT_GUARD_DRILL = "guard_drill"
+EVENT_MANA_SURGE = "mana_surge"
 
 # NPC Relationship Levels
 REL_ENEMY = "enemy"

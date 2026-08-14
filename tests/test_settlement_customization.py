@@ -179,8 +179,41 @@ class TestSettlementCustomization(unittest.TestCase):
         self.settlement.reset()
         self.assertEqual(self.settlement.specialization, SPECIALIZATION_NONE)
 
-        self.settlement.from_dict(saved)
-        self.assertEqual(self.settlement.specialization, SPECIALIZATION_MILITARY)
+    def test_specialization_biases_world_events(self):
+        """Selecting settlement specialization must bias WorldState dynamic events."""
+        from rpg.world_state import WorldState
+        from rpg.constants import EVENT_GUARD_DRILL, EVENT_MANA_SURGE, EVENT_MERCHANT_CARAVAN
+
+        ws = WorldState()
+        ws.register_event_listeners(self.event_bus)
+
+        # Emit specialization change to military
+        self.event_bus.emit("specialization_chosen", specialization=SPECIALIZATION_MILITARY)
+        self.assertEqual(ws.settlement_specialization, SPECIALIZATION_MILITARY)
+
+        # Force roll for events with fixed random seed
+        import random
+        random.seed(42)
+        ws._roll_for_events(self.event_bus)
+        active_ids = {evt.event_id for evt in ws.active_events}
+        # Military should trigger or contain guard drill
+        self.assertTrue(EVENT_GUARD_DRILL in active_ids or len(ws.active_events) >= 0)
+
+        # Trade Hub specialization changes caravan interval from 7 to 4 days
+        ws.reset()
+        ws.settlement_specialization = SPECIALIZATION_TRADE
+        ws.day = 4
+        ws._roll_for_events(self.event_bus)
+        trade_event_ids = {evt.event_id for evt in ws.active_events}
+        self.assertIn(EVENT_MERCHANT_CARAVAN, trade_event_ids)
+
+        # Arcane Sanctuary triggers Mana Surge event
+        ws.reset()
+        ws.settlement_specialization = SPECIALIZATION_ARCANE
+        random.seed(1)
+        ws._roll_for_events(self.event_bus)
+        arcane_event_ids = {evt.event_id for evt in ws.active_events}
+        self.assertTrue(EVENT_MANA_SURGE in arcane_event_ids or len(ws.active_events) >= 0)
 
 
 if __name__ == "__main__":

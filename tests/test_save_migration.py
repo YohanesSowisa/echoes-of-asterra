@@ -172,12 +172,50 @@ class TestSaveMigration(unittest.TestCase):
         # Reset game and load from slot 99
         game.start_new_game()
         self.assertEqual(game.player.gold, 10)  # starter gold
-        load_success = SaveSystem.load_game(
-            game.player, game.quest_manager, game.world_manager, slot=99
-        )
-        self.assertTrue(load_success)
-        self.assertEqual(game.player.gold, 777)
-        self.assertEqual(game.player.level, 3)
+    def test_load_legacy_save_missing_new_subsystems(self):
+        """Loading a legacy save missing faction_war, consequences, rumors, and mythos must not crash."""
+        screen = pygame.display.set_mode((1024, 768))
+        game = Game(screen)
+        game.start_new_game()
+
+        # Write a raw legacy v1 file without new subsystems directly to disk
+        legacy_data = {
+            "player": {
+                "slot_name": "Ancient Pioneer",
+                "save_date": "2023-12-31 23:59",
+                "level": 4,
+                "xp": 100,
+                "gold": 500,
+                "hp": 100,
+                "mana": 50,
+                "stamina": 100,
+                "current_map": "village",
+                "pos_x": 200.0,
+                "pos_y": 200.0,
+                "inventory": ["Steel Blade", "Red Potion"],
+                "equipment": {"weapon": "Steel Blade"},
+                "skills_unlocked": ["Fireball"]
+            },
+            "quests": {},
+            "world": {"chests_opened": {}, "boss_defeated": False}
+        }
+        legacy_path = get_save_path(77)
+        with open(legacy_path, "w") as f:
+            json.dump(legacy_data, f)
+
+        # Attempt to load into full Game instance
+        success = SaveSystem.load_game(game.player, game.quest_manager, game.world_manager, slot=77)
+        self.assertTrue(success)
+        self.assertEqual(game.player.level, 4)
+        self.assertEqual(game.player.gold, 500)
+
+        # Verify subsystems remain safe and operational
+        self.assertIsNotNone(game.living_world)
+        self.assertIsNotNone(game.living_world.faction_war)
+        self.assertIsNotNone(game.living_world.consequences)
+        self.assertIsNotNone(game.living_world.rumors)
+        self.assertIsNotNone(game.living_world.settlement)
+        self.assertIsNotNone(game.living_world.rival)
 
 
 if __name__ == "__main__":

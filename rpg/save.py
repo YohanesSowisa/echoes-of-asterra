@@ -145,7 +145,23 @@ def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
         w.setdefault("boss_defeated", False)
         w.setdefault("activated_waypoints", [])
 
-        # 4. Normalize Managers & Subsystems
+        # 4. Normalize Managers & Living World Subsystems
+        if "living_world" not in data or not isinstance(data["living_world"], dict):
+            data["living_world"] = {}
+        lw = data["living_world"]
+        lw.setdefault("faction_war", {})
+        lw.setdefault("consequences", {})
+        lw.setdefault("rumors", {})
+        lw.setdefault("rival", {})
+        lw.setdefault("settlement", {})
+        lw.setdefault("ecology", {})
+        lw.setdefault("economy", {})
+        lw.setdefault("caravans", {})
+        lw.setdefault("director", {})
+        lw.setdefault("progression", {})
+        lw.setdefault("scheduler", {})
+        lw.setdefault("world_state", {})
+
         data.setdefault("factions", {})
         data.setdefault("npc_memories", {})
         data.setdefault("social_reputation", {})
@@ -153,6 +169,7 @@ def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
         data.setdefault("ecology", {})
         data.setdefault("tutorial_flags", [])
         data.setdefault("difficulty_profile", "Normal")
+        data.setdefault("mythos", {})
 
         # Upgrade schema version
         data["save_schema_version"] = SAVE_SCHEMA_VERSION

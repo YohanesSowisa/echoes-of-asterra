@@ -560,7 +560,9 @@ class ProgressionManager:
                 st_str = r_info.get("state", RegionState.UNKNOWN.value)
                 try:
                     prof.state = RegionState(st_str)
-                except ValueError:
+                except ValueError as e:
+                    import logging
+                    logging.getLogger("Progression").warning("Unknown region state '%s', fallback to UNKNOWN: %s", st_str, e)
                     prof.state = RegionState.UNKNOWN
                 if "mastery" in r_info:
                     prof.mastery = RegionMastery.from_dict(r_info["mastery"])

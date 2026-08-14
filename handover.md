@@ -33,12 +33,12 @@ echoes-of-asterra/
 ├── tests/                 # Comprehensive test suite (18+ test modules)
 └── rpg/                   # Core game engine package
     ├── services/          # Service layer (Asset, Tilemap, Navigation, Noise, Container, Admin UI, Tween, Profiling, Data)
-    ├── main.py, game.py   # Launcher and Engine Orchestrator
+    ├── game.py            # Engine Orchestrator and main state machine
     ├── settings.py        # Display, keybindings, player speed & system constants
     ├── constants.py       # Color palettes, UI states, item & quest status constants
     ├── player.py          # Hero physics, combat combos, inventory & control state
     ├── ui.py              # HUD gauges, overlays, menus, tooltips & shop interface
-    ├── npc.py, npc_memory.py, npc_schedule.py # NPC objects, relationship memory, schedules
+    ├── npc.py, npc_memory.py, npc_schedule.py, rival.py # NPC objects, relationship memory, schedules, rival adventurer
     ├── memory.py, social.py, bard.py, mythos.py, mythos_reader.py # Memory, Social, Titles, Mythos legacy
     ├── consequences.py, rumors.py, emergent_quests.py # Delayed causal engine, Rumor board, Dynamic emergency quests
     ├── factions.py, faction_war.py # Faction standings & regional territory warfare
@@ -47,8 +47,8 @@ echoes-of-asterra/
     ├── enemy.py, boss.py, ai.py, director.py # Enemy archetypes, boss mechanics & AI state machines
     ├── combat.py, weapon_types.py, skills.py, hazards.py # Hit resolution, combos, spell trees, traps
     ├── dungeon_gen.py, map_loader.py, world.py # BSP dungeon generation, map loading & world manager
-    ├── items.py, inventory.py, equipment.py, crafting.py # Items, backpack, gear sockets & forge
-    ├── save.py, events.py, scheduler.py # Serialization, EventBus pub/sub, day tick scheduler
+    ├── items.py, inventory.py, equipment.py, crafting.py, settlement.py # Items, backpack, gear sockets, forge, settlement
+    ├── save.py, events.py, scheduler.py # Serialization (Schema v2), EventBus pub/sub, day tick scheduler
     ├── camera.py, collision.py, particles.py, weather.py, lighting.py, sound.py # Viewport, AABB physics, SFX, Weather & Lighting
 ```
 
@@ -74,11 +74,11 @@ echoes-of-asterra/
   - Mythos Inheritance mengekspor gelar & memori utama ke patung pahlawan untuk generasi berikutnya.
 
 ### B. UI & Kontrol Karakter (Harvest Moon Freeze & Exclusive Single Panel)
-- **Harvest Moon-style Control Freeze (`player.py`)**:
-  - Ketika jendela UI apa pun (**`'C'`**, **`'I'`**, **`'Q'`**, **`'G'`**), Dialog NPC, atau Toko Silas terbuka, kontrol gerakan (WASD), serangan (J), dash (Spasi), dan skill **dibekukan total** (`velocity = (0,0)`).
-- **Exclusive Single Active Panel (`ui.py`)**:
+- **Harvest Moon-style Control Freeze (`rpg/player.py`)**:
+  - Ketika jendela UI apa pun (**`'V'`**, **`'I'`**, **`'N'`**, **`'G'`**), Dialog NPC, atau Toko Silas terbuka, kontrol gerakan (WASD), serangan (J), dash (Spasi), dan skill **dibekukan total** (`velocity = (0,0)`).
+- **Exclusive Single Active Panel (`rpg/ui.py`)**:
   - Membuka satu panel UI otomatis menutup panel lain. Hanya 1 panel aktif di layar (mencegah tab overlapping).
-- **Character Sheet UI (`'C'`)**:
+- **Character Sheet UI (`'V'`)**:
   - Lebar panel `680px`, navigasi tab keyboard (`A`/`D`, `Tab`, `1`/`2`, Tombol Panah), dan menampilkan **Gelar Aktif Player** pada header window.
 - **In-Game Target FPS Setting**:
   - Opsi ganti FPS langsung di menu **Settings** (30, 60, 120, 144, Uncapped) dengan default **`MAX (UNCAPPED)`**.

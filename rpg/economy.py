@@ -29,10 +29,10 @@ class ResourceStock:
             return 1.6
         elif ratio < 0.5:
             return 1.25
-        elif ratio > 0.8:
-            return 0.75
         elif ratio > 0.95:
             return 0.6
+        elif ratio > 0.8:
+            return 0.75
         return 1.0
 
 class EconomyManager:

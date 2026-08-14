@@ -9,7 +9,7 @@ from typing import List, Set, Dict, Any, Optional, Tuple
 from rpg.constants import (
     SEASON_SPRING, SEASON_SUMMER, SEASON_AUTUMN, SEASON_WINTER,
     EVENT_VILLAGE_FESTIVAL, EVENT_MERCHANT_CARAVAN, EVENT_BANDIT_INVASION,
-    EVENT_HARVEST_SEASON
+    EVENT_HARVEST_SEASON, EVENT_GUARD_DRILL, EVENT_MANA_SURGE
 )
 from rpg.settings import DAY_LENGTH_SECONDS
 from rpg.events import EventBus
@@ -101,6 +101,9 @@ class WorldState:
         self.active_events: List[WorldEvent] = []
         self.completed_event_ids: Set[str] = set()
         
+        # Settlement Specialization Biasing
+        self.settlement_specialization: str = ""
+
         # Track daily counters for drift calculations
         self._enemies_killed_today: int = 0
         self._quests_completed_today: int = 0
@@ -118,6 +121,10 @@ class WorldState:
         event_bus.subscribe("enemy_killed", self._on_enemy_killed)
         event_bus.subscribe("quest_completed", self._on_quest_completed)
         event_bus.subscribe("player_died", self._on_player_died)
+        event_bus.subscribe("specialization_chosen", self._on_specialization_chosen)
+
+    def _on_specialization_chosen(self, specialization: str = "", **kwargs: Any) -> None:
+        self.settlement_specialization = specialization
 
     def _on_enemy_killed(self, **kwargs: Any) -> None:
         self._enemies_killed_today += 1
@@ -186,12 +193,14 @@ class WorldState:
         event_bus.emit("day_changed", day=self.day, season=self.season)
 
     def _roll_for_events(self, event_bus: EventBus) -> None:
-        """Evaluates conditions for new world events to trigger."""
+        """Evaluates conditions for new world events to trigger, biased by settlement specialization."""
         active_ids = {evt.event_id for evt in self.active_events}
+        spec = self.settlement_specialization
 
-        # 1. Village Festival: prosperity > 70 in Spring
+        # 1. Village Festival: prosperity > 70 in Spring (Biased higher by Trade Hub)
+        festival_chance = 0.50 if spec == "trade_hub" else 0.25
         if self.season == SEASON_SPRING and self.prosperity >= 70 and EVENT_VILLAGE_FESTIVAL not in active_ids:
-            if random.random() < 0.25:
+            if random.random() < festival_chance:
                 evt = WorldEvent(
                     event_id=EVENT_VILLAGE_FESTIVAL,
                     name="Village Festival",
@@ -203,8 +212,9 @@ class WorldState:
                 self.active_events.append(evt)
                 event_bus.emit("world_event_started", event_id=evt.event_id)
 
-        # 2. Merchant Caravan: every 7th day
-        if self.day % 7 == 0 and EVENT_MERCHANT_CARAVAN not in active_ids:
+        # 2. Merchant Caravan: every 7th day (or every 4th day for Trade Hub)
+        caravan_interval = 4 if spec == "trade_hub" else 7
+        if self.day % caravan_interval == 0 and EVENT_MERCHANT_CARAVAN not in active_ids:
             evt = WorldEvent(
                 event_id=EVENT_MERCHANT_CARAVAN,
                 name="Merchant Caravan",
@@ -216,9 +226,10 @@ class WorldState:
             self.active_events.append(evt)
             event_bus.emit("world_event_started", event_id=evt.event_id)
 
-        # 3. Bandit Invasion: high danger (> 60)
+        # 3. Bandit Invasion: high danger (> 60), reduced by Military Fortress
+        bandit_chance = 0.10 if spec == "military_fortress" else 0.30
         if self.danger_level > 60 and EVENT_BANDIT_INVASION not in active_ids:
-            if random.random() < 0.3:
+            if random.random() < bandit_chance:
                 evt = WorldEvent(
                     event_id=EVENT_BANDIT_INVASION,
                     name="Bandit Outbreak",
@@ -230,7 +241,35 @@ class WorldState:
                 self.active_events.append(evt)
                 event_bus.emit("world_event_started", event_id=evt.event_id)
 
-        # 4. Harvest Season: Autumn + prosperity > 40
+        # 4. Fortress Guard Drills: Specialized to Military Fortress
+        if spec == "military_fortress" and EVENT_GUARD_DRILL not in active_ids:
+            if random.random() < 0.35:
+                evt = WorldEvent(
+                    event_id=EVENT_GUARD_DRILL,
+                    name="Fortress Guard Drills",
+                    description="Elite fortress guards conduct synchronized patrols, securing wilderness roads.",
+                    duration_days=3,
+                    remaining_days=3,
+                    effects={"danger_mult": 0.7, "road_safety_boost": 20}
+                )
+                self.active_events.append(evt)
+                event_bus.emit("world_event_started", event_id=evt.event_id)
+
+        # 5. Arcane Leyline Convergence: Specialized to Arcane Sanctuary
+        if spec == "arcane_sanctuary" and EVENT_MANA_SURGE not in active_ids:
+            if random.random() < 0.35:
+                evt = WorldEvent(
+                    event_id=EVENT_MANA_SURGE,
+                    name="Arcane Leyline Convergence",
+                    description="Bioluminescent leyline springs erupt with celestial magic, doubling mana recovery.",
+                    duration_days=3,
+                    remaining_days=3,
+                    effects={"mana_regen_mult": 2.0}
+                )
+                self.active_events.append(evt)
+                event_bus.emit("world_event_started", event_id=evt.event_id)
+
+        # 6. Harvest Season: Autumn + prosperity > 40
         if self.season == SEASON_AUTUMN and self.prosperity >= 40 and EVENT_HARVEST_SEASON not in active_ids:
             evt = WorldEvent(
                 event_id=EVENT_HARVEST_SEASON,
@@ -376,7 +415,8 @@ class WorldState:
             "combat_wins": self._combat_wins,
             "combat_losses": self._combat_losses,
             "active_events": [evt.to_dict() for evt in self.active_events],
-            "completed_event_ids": list(self.completed_event_ids)
+            "completed_event_ids": list(self.completed_event_ids),
+            "settlement_specialization": self.settlement_specialization
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -398,6 +438,7 @@ class WorldState:
         self._combat_losses = data.get("combat_losses", 0)
         self.active_events = [WorldEvent.from_dict(d) for d in data.get("active_events", [])]
         self.completed_event_ids = set(data.get("completed_event_ids", []))
+        self.settlement_specialization = data.get("settlement_specialization", "")
 
     def reset(self) -> None:
         """Resets world state simulation metrics to starting defaults."""
@@ -420,3 +461,4 @@ class WorldState:
         self._quests_completed_today = 0
         self.active_events.clear()
         self.completed_event_ids.clear()
+        self.settlement_specialization = ""
