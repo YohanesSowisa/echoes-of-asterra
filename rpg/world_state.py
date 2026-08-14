@@ -398,3 +398,25 @@ class WorldState:
         self._combat_losses = data.get("combat_losses", 0)
         self.active_events = [WorldEvent.from_dict(d) for d in data.get("active_events", [])]
         self.completed_event_ids = set(data.get("completed_event_ids", []))
+
+    def reset(self) -> None:
+        """Resets world state simulation metrics to starting defaults."""
+        self.day = 1
+        self.season = SEASON_SPRING
+        self.time_accumulator = 0.0
+        self.prosperity = 50.0
+        self.danger_level = 20.0
+        self.guard_strength = 60.0
+        self.bandit_strength = 40.0
+        self.road_safety = 50.0
+        self.trade_activity = 50.0
+        self.population = 120
+        self.monster_density = 30.0
+        self.faction_stability = 65.0
+        self.recent_deaths = 0
+        self._combat_wins = 0
+        self._combat_losses = 0
+        self._enemies_killed_today = 0
+        self._quests_completed_today = 0
+        self.active_events.clear()
+        self.completed_event_ids.clear()

@@ -165,7 +165,7 @@ def init_assets() -> None:
     # 4. Load or Generate Entities
     required_entities = [
         "player", "npc_eldrin", "npc_silas", "npc_dennis", "npc_faye", "npc_mira",
-        "npc_garth", "npc_kai", "npc_finn", "npc_spirit", "villager_male",
+        "npc_garth", "npc_kai", "npc_finn", "npc_spirit", "npc_rival", "villager_male",
         "villager_female", "guard_village", "hunter_forest", "skeleton",
         "goblin", "mage", "knight", "slime", "slime_blue", "slime_red", "wolf", "boss"
     ]
@@ -963,6 +963,10 @@ def _generate_entities() -> None:
     _cache_humanoid_entity("npc_spirit", {
         "skin": (160, 240, 255), "hair": (200, 250, 255), "body": (100, 210, 240), "legs": (80, 180, 220), "boots": (60, 150, 200)
     }, accessory="star_halo")
+
+    _cache_humanoid_entity("npc_rival", {
+        "skin": (240, 195, 155), "hair": (45, 30, 20), "body": (175, 45, 45), "legs": (50, 45, 60), "boots": (60, 40, 30)
+    }, cape_color=(135, 25, 25), accessory="sword_sheath")
 
     # 3. GENERIC BACKGROUND VILLAGER VARIANTS
     _cache_humanoid_entity("villager_male", {

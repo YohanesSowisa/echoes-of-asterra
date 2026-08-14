@@ -18,7 +18,7 @@ pygame.init()
 pygame.display.set_mode((1, 1))
 
 from rpg.events import EventBus
-from rpg.quests import QuestManager, QUEST_ACTIVE, QUEST_COMPLETED
+from rpg.quests import QuestManager, QUEST_ACTIVE
 from rpg.factions import FactionManager, FACTION_KNIGHTS, FACTION_CULTISTS
 
 

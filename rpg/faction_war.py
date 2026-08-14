@@ -6,7 +6,7 @@ Territory control is influenced by player faction reputation and zone activity,
 directly altering guard presence, travel safety, regional danger, and shop taxes.
 """
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Any, Optional
 
 from rpg.constants import FACTION_KNIGHTS, FACTION_BANDITS, FACTION_CULTISTS, FACTION_HUNTERS
@@ -180,3 +180,55 @@ class FactionWarManager:
         for zone, count in zk.items():
             if zone in self.zone_kills:
                 self.zone_kills[zone] = count
+
+    def reset(self) -> None:
+        """Resets control points and zone kill counters to default starting states."""
+        for zone in self.zone_kills:
+            self.zone_kills[zone] = 0
+        defaults = {
+            "forest_crossroads": FACTION_KNIGHTS,
+            "cave_depths": FACTION_HUNTERS,
+            "ruins_plaza": FACTION_BANDITS,
+            "lake_pier": FACTION_KNIGHTS
+        }
+        for k, cp in self.control_points.items():
+            cp.controlling_faction = defaults.get(k, FACTION_KNIGHTS)
+            cp.stability = 50.0
+            cp.contested = False
+
+    def apply_mythos_inheritance(self, mythos_manager: Any) -> Optional[str]:
+        """
+        Inherits territory dominance from previous run's winning faction in Mythos history.
+        The victorious faction starts the new run with fortified territory control and higher stability.
+        """
+        if not mythos_manager:
+            return None
+        dominant_faction = getattr(mythos_manager, "get_dominant_war_faction", lambda: None)()
+        if not dominant_faction:
+            return None
+
+        # Give dominant faction starting territory advantage
+        if dominant_faction == FACTION_KNIGHTS:
+            self.control_points["forest_crossroads"].controlling_faction = FACTION_KNIGHTS
+            self.control_points["forest_crossroads"].stability = 80.0
+            self.control_points["lake_pier"].controlling_faction = FACTION_KNIGHTS
+            self.control_points["lake_pier"].stability = 80.0
+            self.control_points["ruins_plaza"].controlling_faction = FACTION_KNIGHTS
+            self.control_points["ruins_plaza"].stability = 65.0
+        elif dominant_faction == FACTION_HUNTERS:
+            self.control_points["cave_depths"].controlling_faction = FACTION_HUNTERS
+            self.control_points["cave_depths"].stability = 80.0
+            self.control_points["forest_crossroads"].controlling_faction = FACTION_HUNTERS
+            self.control_points["forest_crossroads"].stability = 75.0
+        elif dominant_faction in [FACTION_BANDITS, FACTION_CULTISTS]:
+            self.control_points["ruins_plaza"].controlling_faction = dominant_faction
+            self.control_points["ruins_plaza"].stability = 85.0
+            self.control_points["cave_depths"].controlling_faction = dominant_faction
+            self.control_points["cave_depths"].stability = 75.0
+
+        if self.event_bus:
+            self.event_bus.emit(
+                "faction_war_mythos_inherited",
+                dominant_faction=dominant_faction
+            )
+        return dominant_faction

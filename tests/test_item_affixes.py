@@ -2,7 +2,7 @@
 Unit tests for Item Affixes, Sockets, and Crafting Disenchanting.
 """
 import unittest
-from rpg.items import create_item, roll_affixes, Item
+from rpg.items import create_item, roll_affixes
 from rpg.inventory import Inventory
 from rpg.crafting import CraftingSystem
 

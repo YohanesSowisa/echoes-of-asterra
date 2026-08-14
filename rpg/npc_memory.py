@@ -168,3 +168,7 @@ class NPCMemoryManager:
         self.memories.clear()
         for npc_id, mem_data in data.items():
             self.memories[npc_id] = NPCMemory.from_dict(mem_data)
+
+    def reset(self) -> None:
+        """Resets all NPC memories to blank state."""
+        self.memories.clear()

@@ -22,11 +22,7 @@ pygame.init()
 pygame.display.set_mode((64, 64))
 
 from rpg.config import GameConfig
-from rpg.services import (
-    ServiceContainer, DataService, AssetService,
-    NoiseService, TweenService, TilemapService,
-    NavigationService, ProfilingService
-)
+from rpg.services import ServiceContainer
 
 
 class TestEngineArchitectureServices(unittest.TestCase):

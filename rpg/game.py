@@ -311,21 +311,34 @@ class Game:
         self.quest_manager = type(self.quest_manager)()
         self.quest_manager.event_bus = self.event_bus
 
-        # Reset achievements, bestiary, factions, and npc_memory for new adventure
-        if hasattr(self, "achievement_manager"):
+        # Reset achievements, bestiary, factions, memories, reputation, and npc_memory for new adventure
+        if hasattr(self, "achievement_manager") and hasattr(self.achievement_manager, "reset"):
             self.achievement_manager.reset()
-        if hasattr(self, "bestiary_manager"):
+        if hasattr(self, "bestiary_manager") and hasattr(self.bestiary_manager, "reset"):
             self.bestiary_manager.reset()
+        if hasattr(self, "memory_manager") and hasattr(self.memory_manager, "reset"):
+            self.memory_manager.reset()
+        if hasattr(self, "reputation_manager") and hasattr(self.reputation_manager, "reset"):
+            self.reputation_manager.reset()
         if hasattr(self, "factions"):
-            self.factions = FactionManager()
-            self.factions.register_event_listeners(self.event_bus)
+            if hasattr(self.factions, "reset"):
+                self.factions.reset()
+            else:
+                self.factions = FactionManager()
+                self.factions.register_event_listeners(self.event_bus)
         if hasattr(self, "npc_memory"):
-            self.npc_memory = NPCMemoryManager()
-            self.npc_memory.register_event_listeners(self.event_bus)
+            if hasattr(self.npc_memory, "reset"):
+                self.npc_memory.reset()
+            else:
+                self.npc_memory = NPCMemoryManager()
+                self.npc_memory.register_event_listeners(self.event_bus)
         if hasattr(self, "living_world"):
-            from rpg.living_world import LivingWorldManager
-            self.living_world = LivingWorldManager(self.event_bus)
-            self.living_world.game_reference = self
+            if hasattr(self.living_world, "reset"):
+                self.living_world.reset()
+            else:
+                from rpg.living_world import LivingWorldManager
+                self.living_world = LivingWorldManager(self.event_bus)
+                self.living_world.game_reference = self
             self.world_state = self.living_world.world_state
             if hasattr(self, "factions"):
                 self.living_world.faction_war.faction_manager = self.factions

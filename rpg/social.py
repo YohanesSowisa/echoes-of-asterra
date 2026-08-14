@@ -156,9 +156,15 @@ class ReputationManager:
         if not data:
             return
         self.global_reputation = data.get("global_reputation", 0)
-        self.npc_relationships = data.get("npc_relationships", self.npc_relationships)
         self.unlocked_titles = data.get("unlocked_titles", [TITLE_WANDERER])
         self.active_title = data.get("active_title", TITLE_WANDERER)
+
+    def reset(self) -> None:
+        """Resets global reputation, personal NPC relationships, and titles."""
+        self.global_reputation = 0
+        self.npc_relationships = {npc: 0 for npc in self.npc_relationships}
+        self.unlocked_titles = [TITLE_WANDERER]
+        self.active_title = TITLE_WANDERER
 
     def save_social_data(self) -> None:
         """Legacy helper for backward compatibility (delegates to per-slot save payload)."""

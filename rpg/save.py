@@ -4,33 +4,178 @@ JSON-based serialization and deserialization of the game state.
 """
 import os
 import json
-from typing import Any, Dict
-
+import logging
+from typing import Any, Dict, List, Optional
 
 from rpg.items import create_item
 
+logger = logging.getLogger("SaveSystem")
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAVES_DIR = os.path.join(BASE_DIR, "saves")
+
+SAVE_SCHEMA_VERSION = 2
 
 
 def get_save_path(slot: int) -> str:
     os.makedirs(SAVES_DIR, exist_ok=True)
     return os.path.join(SAVES_DIR, f"savegame_{slot}.json")
 
+
+def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Upgrades older save game payloads to the latest schema version.
+    Ensures missing fields, legacy item representations, and manager dictionaries
+    are safely normalized without crashing or losing data.
+    """
+    if not isinstance(data, dict):
+        logger.warning("migrate_save received non-dict payload: %s", type(data))
+        data = {}
+
+    version = data.get("save_schema_version", 1)
+
+    if version < 2:
+        logger.info("Migrating save file from schema version %s to %s", version, SAVE_SCHEMA_VERSION)
+
+        # 1. Normalize Player Data
+        if "player" not in data or not isinstance(data["player"], dict):
+            data["player"] = {}
+
+        p = data["player"]
+        p.setdefault("slot_name", "Hero")
+        p.setdefault("save_date", "N/A")
+        p.setdefault("level", 1)
+        p.setdefault("xp", 0)
+        p.setdefault("gold", 0)
+        p.setdefault("base_max_hp", 100)
+        p.setdefault("base_max_mana", 50)
+        p.setdefault("base_atk", 10)
+        p.setdefault("base_def", 5)
+        p.setdefault("base_magic", 10)
+        p.setdefault("base_speed", 4.0)
+        p.setdefault("base_crit", 5)
+        p.setdefault("hp", p.get("base_max_hp", 100))
+        p.setdefault("mana", p.get("base_max_mana", 50))
+        p.setdefault("stamina", 100)
+        p.setdefault("pos_x", 100.0)
+        p.setdefault("pos_y", 100.0)
+        p.setdefault("current_map", "village")
+        p.setdefault("skills_unlocked", [])
+
+        # Normalize Inventory
+        raw_inventory = p.get("inventory", [])
+        if not isinstance(raw_inventory, list):
+            raw_inventory = []
+        normalized_inventory: List[Optional[Dict[str, Any]]] = []
+        for item in raw_inventory:
+            if not item:
+                normalized_inventory.append(None)
+            elif isinstance(item, str):
+                normalized_inventory.append({
+                    "name": item,
+                    "qty": 1,
+                    "rarity": "Common",
+                    "stats": {},
+                    "sockets": 0,
+                    "socketed_runes": [],
+                    "affixes": []
+                })
+            elif isinstance(item, dict):
+                item.setdefault("qty", 1)
+                item.setdefault("rarity", "Common")
+                item.setdefault("stats", {})
+                item.setdefault("sockets", 0)
+                item.setdefault("socketed_runes", [])
+                item.setdefault("affixes", [])
+                normalized_inventory.append(item)
+            else:
+                normalized_inventory.append(None)
+        
+        # Ensure standard inventory size (at least 20 slots)
+        while len(normalized_inventory) < 20:
+            normalized_inventory.append(None)
+        p["inventory"] = normalized_inventory
+
+        # Normalize Equipment
+        raw_equipment = p.get("equipment", {})
+        if not isinstance(raw_equipment, dict):
+            raw_equipment = {}
+        normalized_equipment: Dict[str, Optional[Dict[str, Any]]] = {}
+        for slot in ["weapon", "armor", "shield", "accessory"]:
+            item = raw_equipment.get(slot)
+            if not item:
+                normalized_equipment[slot] = None
+            elif isinstance(item, str):
+                normalized_equipment[slot] = {
+                    "name": item,
+                    "qty": 1,
+                    "rarity": "Common",
+                    "stats": {},
+                    "sockets": 0,
+                    "socketed_runes": [],
+                    "affixes": []
+                }
+            elif isinstance(item, dict):
+                item.setdefault("qty", 1)
+                item.setdefault("rarity", "Common")
+                item.setdefault("stats", {})
+                item.setdefault("sockets", 0)
+                item.setdefault("socketed_runes", [])
+                item.setdefault("affixes", [])
+                normalized_equipment[slot] = item
+            else:
+                normalized_equipment[slot] = None
+        p["equipment"] = normalized_equipment
+
+        # 2. Normalize Quest Data
+        if "quests" not in data or not isinstance(data["quests"], dict):
+            data["quests"] = {}
+        for q_id, q_val in list(data["quests"].items()):
+            if isinstance(q_val, int):
+                data["quests"][q_id] = {"status": q_val, "progress": []}
+            elif isinstance(q_val, dict):
+                q_val.setdefault("status", 0)
+                q_val.setdefault("progress", [])
+
+        # 3. Normalize World Data
+        if "world" not in data or not isinstance(data["world"], dict):
+            data["world"] = {}
+        w = data["world"]
+        w.setdefault("chests_opened", {})
+        w.setdefault("boss_defeated", False)
+        w.setdefault("activated_waypoints", [])
+
+        # 4. Normalize Managers & Subsystems
+        data.setdefault("factions", {})
+        data.setdefault("npc_memories", {})
+        data.setdefault("social_reputation", {})
+        data.setdefault("decay_memories", {})
+        data.setdefault("ecology", {})
+        data.setdefault("tutorial_flags", [])
+        data.setdefault("difficulty_profile", "Normal")
+
+        # Upgrade schema version
+        data["save_schema_version"] = SAVE_SCHEMA_VERSION
+
+    return data
+
+
 class SaveSystem:
     """
-    Handles saving and loading of game states.
+    Handles saving and loading of game states with schema versioning and auto-migration.
     """
+    migrate_save = staticmethod(migrate_save)
+
     @staticmethod
     def get_slot_meta(slot: int) -> Dict[str, Any]:
         """Reads basic slot metadata from savegame JSON without loading full state."""
-        import json
         filename = get_save_path(slot)
         if not os.path.exists(filename):
             return {"exists": False}
         try:
             with open(filename, 'r') as f:
-                data = json.load(f)
+                raw_data = json.load(f)
+            data = migrate_save(raw_data)
             player_data = data["player"]
             return {
                 "exists": True,
@@ -38,10 +183,11 @@ class SaveSystem:
                 "level": player_data.get("level", 1),
                 "gold": player_data.get("gold", 0),
                 "map": player_data.get("current_map", "Village").replace("_", " ").title(),
-                "date": player_data.get("save_date", "N/A")
+                "date": player_data.get("save_date", "N/A"),
+                "schema_version": data.get("save_schema_version", 1)
             }
         except Exception as e:
-            print(f"Warning: Failed reading slot metadata for slot {slot}: {e}")
+            logger.warning("Failed reading slot metadata for slot %s: %s", slot, e, exc_info=True)
             return {"exists": False}
 
     @staticmethod
@@ -53,13 +199,14 @@ class SaveSystem:
             return False
         try:
             with open(filename, 'r') as f:
-                data = json.load(f)
+                raw_data = json.load(f)
+            data = migrate_save(raw_data)
             data["player"]["slot_name"] = new_name
             with open(filename, 'w') as f:
                 json.dump(data, f, indent=4)
             return True
         except Exception as e:
-            print(f"Warning: Failed renaming save slot {slot}: {e}")
+            logger.warning("Failed renaming save slot %s: %s", slot, e, exc_info=True)
             return False
 
     @staticmethod
@@ -71,7 +218,7 @@ class SaveSystem:
                 os.remove(filename)
                 return True
             except Exception as e:
-                print(f"Warning: Failed deleting save slot {slot}: {e}")
+                logger.warning("Failed deleting save slot %s: %s", slot, e, exc_info=True)
                 return False
         return False
 
@@ -91,9 +238,9 @@ class SaveSystem:
             try:
                 with open(filename, 'r') as f:
                     old_data = json.load(f)
-                existing_name = old_data["player"].get("slot_name", existing_name)
+                existing_name = old_data.get("player", {}).get("slot_name", existing_name)
             except Exception as e:
-                print(f"Warning: Failed reading existing slot name from {filename}: {e}")
+                logger.warning("Failed reading existing slot name from %s: %s", filename, e, exc_info=True)
                 
         final_slot_name = slot_name if slot_name is not None else existing_name
         
@@ -157,6 +304,7 @@ class SaveSystem:
 
             # Combine
             save_payload = {
+                "save_schema_version": SAVE_SCHEMA_VERSION,
                 "player": player_data,
                 "quests": quest_data,
                 "world": world_data
@@ -192,13 +340,14 @@ class SaveSystem:
             return True
             
         except Exception as e:
+            logger.error("Failed to write save file %s: %s", filename, e, exc_info=True)
             print(f"Save Error: Failed to write save file. Details: {e}")
             return False
 
     @staticmethod
     def load_game(player: Any, quest_manager: Any, world_manager: Any, slot: int = 1) -> bool:
         """
-        Reads save file from disk, restores all player properties,
+        Reads save file from disk, auto-migrates older schemas, restores all player properties,
         rebuilds inventories, equips gear, updates quests, and spawns the map.
         Returns True if successful.
         """
@@ -209,7 +358,9 @@ class SaveSystem:
 
         try:
             with open(filename, 'r') as f:
-                save_payload = json.load(f)
+                raw_payload = json.load(f)
+
+            save_payload = migrate_save(raw_payload)
 
             player_data = save_payload["player"]
             quest_data = save_payload["quests"]
@@ -344,5 +495,6 @@ class SaveSystem:
             return True
 
         except Exception as e:
+            logger.error("Failed to restore save state from %s: %s", filename, e, exc_info=True)
             print(f"Load Error: Failed to restore save state. Details: {e}")
             return False

@@ -22,26 +22,34 @@
 ## 🏛️ 2. Arsitektur & Struktur Berkas Utama
 
 ```
-rpg/
-├── main.py                # Entry point game loop & inisialisasi Pygame
-├── game.py                # Game Engine orchestrator, state machine, clock, loop
-├── settings.py            # Konfigurasi konstanta layar, FPS (default=0 uncapped), & grid
-├── constants.py           # State game, warna UI, status quest, level relasi
-├── player.py              # Karakter utama (pergerakan, serangan, skill, UI freeze logic)
-├── ui.py                  # UI Manager (HUD, Character Sheet 680px, Inventory, Dialogue)
-├── npc.py                 # Objek NPC (Elder, Dennis, Silas, Faye, BardFinn, Statue, Altar)
-├── memory.py              # Phase 1: Centralized MemoryEngine & Memory Decay formula
-├── social.py              # Phase 2: Reputation Manager, Recognition Tiers & TitleEngine
-├── bard.py                # Phase 4: BardSongEngine (Penggubah lagu balada memori)
-├── mythos.py              # Mythos Inheritance System (Legasi pahlawan antar playthrough)
-├── balance.py             # Adaptive Level Scaling, Growth Profiles, & Living Danger Score
-├── telemetry.py           # Offline Developer Telemetry Logger (developer_metrics.json)
-├── enemy.py               # Arketipe musuh (Slime, Wolf, Skeleton, Mage, Boss)
-├── ai.py                  # Finite State Machine AI musuh & Enemy Recognition Hesitation
-├── world.py               # World Manager & Spawner peta (Village, Forest, Crypt)
-├── living_world.py        # Living World Simulation (Ekonomi, Karavan, Pertumbuhan Desa)
-├── update_logs.md         # Histori log perbaikan & fitur lengkap (Format WIB)
-└── saves/                 # Direktori penyimpanan JSON (memories, reputation, mythos)
+echoes-of-asterra/
+├── main.py                # Entry point launcher & Pygame display setup
+├── requirements.txt       # Project dependencies (pygame-ce)
+├── update_logs.md         # Full historical update and fix log (WIB format)
+├── handover.md            # Technical handover handbook
+├── README.md              # Project documentation
+├── assets/                # Maps (JSON) & audio assets
+├── saves/                 # Persistent state JSON files (achievements, bestiary, memories, mythos)
+├── tests/                 # Comprehensive test suite (18+ test modules)
+└── rpg/                   # Core game engine package
+    ├── services/          # Service layer (Asset, Tilemap, Navigation, Noise, Container, Admin UI, Tween, Profiling, Data)
+    ├── main.py, game.py   # Launcher and Engine Orchestrator
+    ├── settings.py        # Display, keybindings, player speed & system constants
+    ├── constants.py       # Color palettes, UI states, item & quest status constants
+    ├── player.py          # Hero physics, combat combos, inventory & control state
+    ├── ui.py              # HUD gauges, overlays, menus, tooltips & shop interface
+    ├── npc.py, npc_memory.py, npc_schedule.py # NPC objects, relationship memory, schedules
+    ├── memory.py, social.py, bard.py, mythos.py, mythos_reader.py # Memory, Social, Titles, Mythos legacy
+    ├── consequences.py, rumors.py, emergent_quests.py # Delayed causal engine, Rumor board, Dynamic emergency quests
+    ├── factions.py, faction_war.py # Faction standings & regional territory warfare
+    ├── ecology.py, economy.py, living_world.py, world_state.py # Living world ecosystem & economy simulation
+    ├── balance.py, telemetry.py, style_scoring.py # Difficulty scaling, telemetry, combat style evaluator
+    ├── enemy.py, boss.py, ai.py, director.py # Enemy archetypes, boss mechanics & AI state machines
+    ├── combat.py, weapon_types.py, skills.py, hazards.py # Hit resolution, combos, spell trees, traps
+    ├── dungeon_gen.py, map_loader.py, world.py # BSP dungeon generation, map loading & world manager
+    ├── items.py, inventory.py, equipment.py, crafting.py # Items, backpack, gear sockets & forge
+    ├── save.py, events.py, scheduler.py # Serialization, EventBus pub/sub, day tick scheduler
+    ├── camera.py, collision.py, particles.py, weather.py, lighting.py, sound.py # Viewport, AABB physics, SFX, Weather & Lighting
 ```
 
 ---

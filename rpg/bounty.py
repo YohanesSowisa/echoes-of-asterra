@@ -5,7 +5,7 @@ Contracts refresh on rest or map re-entry. Players can accept up to 3 simultaneo
 """
 import random
 from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

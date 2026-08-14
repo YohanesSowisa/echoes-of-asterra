@@ -17,7 +17,7 @@ pygame.init()
 pygame.display.set_mode((1, 1))
 
 from rpg.events import EventBus
-from rpg.faction_war import FactionWarManager, FACTION_KNIGHTS, FACTION_BANDITS, FACTION_CULTISTS, FACTION_HUNTERS
+from rpg.faction_war import FactionWarManager, FACTION_KNIGHTS, FACTION_BANDITS
 from rpg.factions import FactionManager
 from rpg.economy import EconomyManager
 from rpg.ui import UIManager

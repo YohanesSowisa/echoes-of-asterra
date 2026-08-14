@@ -1,12 +1,10 @@
 """
 Echoes of Asterra - Unit Tests for Bestiary Compendium & Save Export/Import
 """
-import os
 import unittest
 import shutil
 import tempfile
 from rpg.bestiary import BestiaryManager
-from rpg.save import SaveSystem, get_save_path
 
 
 class TestBestiaryAndExport(unittest.TestCase):

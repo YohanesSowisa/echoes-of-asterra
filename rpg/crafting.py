@@ -34,7 +34,18 @@ class CraftingSystem:
         return list(CRAFTING_RECIPES.keys())
 
     @staticmethod
-    def can_craft(recipe_name: str, inventory: Inventory, facility_level: int = 1) -> bool:
+    def get_recipe_ingredients(recipe_name: str, rune_discount: float = 0.0) -> Dict[str, int]:
+        """Returns ingredient requirements, applying discounts for Arcane Sanctuary rune crafting."""
+        recipe = CRAFTING_RECIPES.get(recipe_name)
+        if not recipe:
+            return {}
+        ingredients, _, _ = recipe
+        if "Rune" in recipe_name and rune_discount > 0.0:
+            return {mat: max(1, int(cnt * (1.0 - rune_discount))) for mat, cnt in ingredients.items()}
+        return dict(ingredients)
+
+    @staticmethod
+    def can_craft(recipe_name: str, inventory: Inventory, facility_level: int = 1, rune_discount: float = 0.0) -> bool:
         """
         Returns True if the inventory has enough ingredients to craft the item,
         facility meets min level, and there is room in the inventory.
@@ -43,9 +54,11 @@ class CraftingSystem:
         if not recipe:
             return False
 
-        ingredients, qty, min_lvl = recipe
+        _, qty, min_lvl = recipe
         if facility_level < min_lvl:
             return False
+
+        ingredients = CraftingSystem.get_recipe_ingredients(recipe_name, rune_discount)
 
         # Verify ingredients
         for item_name, req_qty in ingredients.items():
@@ -69,16 +82,17 @@ class CraftingSystem:
         return has_space
 
     @staticmethod
-    def craft(recipe_name: str, inventory: Inventory, facility_level: int = 1) -> bool:
+    def craft(recipe_name: str, inventory: Inventory, facility_level: int = 1, rune_discount: float = 0.0) -> bool:
         """
         Crafts the item. Consumes ingredients and adds the result to the inventory.
         Returns True if crafting succeeded, False otherwise.
         """
-        if not CraftingSystem.can_craft(recipe_name, inventory, facility_level):
+        if not CraftingSystem.can_craft(recipe_name, inventory, facility_level, rune_discount):
             return False
 
         recipe = CRAFTING_RECIPES[recipe_name]
-        ingredients, qty, _ = recipe
+        _, qty, _ = recipe
+        ingredients = CraftingSystem.get_recipe_ingredients(recipe_name, rune_discount)
 
         # Consume ingredients
         for item_name, req_qty in ingredients.items():

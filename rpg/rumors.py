@@ -5,7 +5,7 @@ NPCs share rumors with the player during dialogue interactions.
 """
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Set, Tuple
+from typing import Dict, Any, Optional, Set, Tuple
 from rpg.events import EventBus
 
 # Predefined initial world rumor templates (topic -> true content vs distorted version)
@@ -163,3 +163,8 @@ class RumorBoard:
                 r = self.rumors[k]
                 r.distortion_level = v.get("distortion_level", r.distortion_level)
                 r.known_by_npcs = set(v.get("known_by_npcs", list(r.known_by_npcs)))
+
+    def reset(self) -> None:
+        """Resets active rumors to default un-distorted templates."""
+        self.rumors.clear()
+        self._init_default_rumors()

@@ -4,7 +4,6 @@ Records meaningful player actions, calculates memory decay relevance scores,
 subscribes to EventBus notifications, and persists records to rpg/saves/memories.json.
 """
 import os
-import json
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -141,6 +140,11 @@ class MemoryManager:
         self.current_day = data.get("current_day", 1)
         raw = data.get("memories", [])
         self.memories = [SocialMemory.from_dict(m) for m in raw]
+
+    def reset(self) -> None:
+        """Resets all recorded social memories."""
+        self.memories.clear()
+        self.current_day = 1
 
     def get_active_memories(self, category_filter: Optional[str] = None) -> List[SocialMemory]:
         """Returns all non-expired memories ordered by highest relevance score."""

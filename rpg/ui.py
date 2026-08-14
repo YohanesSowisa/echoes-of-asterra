@@ -1816,7 +1816,6 @@ class UIManager:
             # Draw required items inline (e.g. Iron: 5/3)
             recipe_data = CRAFTING_RECIPES[recipe_name]
             ingredients = recipe_data[0]
-            qty = recipe_data[1]
             min_facility_lvl = recipe_data[2] if len(recipe_data) > 2 else 1
 
             ing_strs = []

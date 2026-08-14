@@ -638,8 +638,13 @@ class Player(BaseSprite):
             # Regenerate stamina
             self.stamina = min(self.max_stamina, self.stamina + self.stamina_regen_rate * dt)
 
-        # Always regenerate mana slowly
-        self.mana = min(self.max_mana, self.mana + self.mana_regen_rate * dt)
+        # Always regenerate mana slowly (+ safe zone Arcane Sanctuary bonus)
+        extra_mana_regen = 0.0
+        if hasattr(self, "game") and self.game and hasattr(self.game, "living_world") and hasattr(self.game.living_world, "settlement"):
+            current_map = getattr(self.game.world_manager, "current_map_name", "") if hasattr(self.game, "world_manager") else ""
+            extra_mana_regen = self.game.living_world.settlement.get_safe_zone_mana_regen(current_map)
+
+        self.mana = min(self.max_mana, self.mana + (self.mana_regen_rate + extra_mana_regen) * dt)
 
         # 2b. Out-of-Combat HP Regeneration Mechanics
         in_active_combat = False

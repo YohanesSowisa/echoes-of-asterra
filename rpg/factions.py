@@ -133,3 +133,17 @@ class FactionManager:
         for f_id, rep in data.items():
             if f_id in self.factions:
                 self.factions[f_id].reputation = max(-100, min(100, rep))
+
+    def reset(self) -> None:
+        """Resets all faction reputations to base starting scores."""
+        default_reps = {
+            FACTION_KNIGHTS: 10,
+            FACTION_MAGES: 5,
+            FACTION_HUNTERS: 10,
+            FACTION_MERCHANTS: 15,
+            FACTION_BANDITS: -10,
+            FACTION_CULTISTS: -25
+        }
+        for f_id, rep in default_reps.items():
+            if f_id in self.factions:
+                self.factions[f_id].reputation = rep

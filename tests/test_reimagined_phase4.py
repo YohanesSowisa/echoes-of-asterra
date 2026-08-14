@@ -20,7 +20,7 @@ pygame.init()
 pygame.display.set_mode((1, 1))
 
 from rpg.events import EventBus
-from rpg.rumors import RumorBoard, Rumor
+from rpg.rumors import RumorBoard
 from rpg.dialogue import DialogueManager, DialogueNode, DialogueChoice
 
 

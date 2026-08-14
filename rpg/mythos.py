@@ -101,17 +101,42 @@ class MythosManager:
         hero_name = getattr(player, "name", "Champion Asterra")
         
         # Active weapon
-        from rpg.constants import ITEM_WEAPON
+        # Active weapon & armor
+        from rpg.constants import ITEM_WEAPON, ITEM_ARMOR
         weapon_item = player.equipment.slots.get(ITEM_WEAPON)
         weapon_name = weapon_item.name if weapon_item else "Iron Dagger"
-        
+        armor_item = player.equipment.slots.get(ITEM_ARMOR)
+        armor_name = armor_item.name if armor_item else "Leather Tunic"
+
+        # Hero Title / Achievements
+        hero_title = "Hero of Asterra"
+        if hasattr(game, "reputation_manager") and getattr(game.reputation_manager, "active_title", None):
+            hero_title = game.reputation_manager.active_title
+
         # Faction alignment
         favored_faction = "knights"
         if hasattr(game, "factions"):
             k_rep = game.factions.get_reputation("knights")
             h_rep = game.factions.get_reputation("hunters")
-            if h_rep > k_rep:
+            m_rep = game.factions.get_reputation("merchants")
+            if h_rep > k_rep and h_rep > m_rep:
                 favored_faction = "hunters"
+            elif m_rep > k_rep and m_rep > h_rep:
+                favored_faction = "merchants"
+
+        # Faction Warfare Dominance
+        dominant_war_faction = favored_faction
+        controlled_territories = []
+        fw = getattr(game, "faction_war", None)
+        if not fw and hasattr(game, "living_world"):
+            fw = getattr(game.living_world, "faction_war", None)
+        if fw and hasattr(fw, "control_points"):
+            f_counts: Dict[str, int] = {}
+            for cp in fw.control_points.values():
+                f_counts[cp.controlling_faction] = f_counts.get(cp.controlling_faction, 0) + 1
+            if f_counts:
+                dominant_war_faction = max(f_counts, key=f_counts.get)
+            controlled_territories = [cp.name for cp in fw.control_points.values() if cp.controlling_faction == dominant_war_faction]
 
         # Structured Semantic Events Log
         events = []
@@ -142,23 +167,42 @@ class MythosManager:
                 "outcome": "Enemies ATK +50%, Chest & Boss Loot Doubled"
             })
 
+        p_atk = getattr(player, "atk", getattr(player, "base_atk", 10))
+        p_def = getattr(player, "defense", getattr(player, "base_def", 5))
+
+        relic_weapon = {
+            "name": f"Ancestral {weapon_name}",
+            "item_type": ITEM_WEAPON,
+            "rarity": "legendary",
+            "stats": {"atk": max(12, p_atk + 4), "crit": 10},
+            "description": f"The ancient blade wielded by Champion {hero_name}, the {hero_title} on Day {day_count}."
+        }
+
+        relic_armor = {
+            "name": f"{hero_name}'s Aegis of {hero_title.replace(' ', '')}",
+            "item_type": ITEM_ARMOR,
+            "rarity": "legendary",
+            "stats": {"def": max(8, p_def + 3), "hp": 25},
+            "description": f"Legendary protective armor passed down from {hero_name} ({hero_title})."
+        }
+
         record = {
             "hero_name": hero_name,
+            "hero_title": hero_title,
             "run_id": f"run_{len(self.records) + 1}",
             "days_lived": day_count,
             "end_cause": end_cause,
             "favored_weapon": weapon_name,
+            "favored_armor": armor_name,
             "favored_faction": favored_faction,
+            "dominant_war_faction": dominant_war_faction,
+            "controlled_territories": controlled_territories,
             "hero_level": player.level,
             "donated_shields": getattr(player, "donated_shields", False),
             "events": events,
-            "relic_weapon": {
-                "name": f"Ancestral {weapon_name}",
-                "item_type": ITEM_WEAPON,
-                "rarity": "legendary",
-                "stats": {"atk": player.atk + 4, "crit": 10},
-                "description": f"The ancient weapon wielded by Champion {hero_name} on Day {day_count}."
-            }
+            "relic_weapon": relic_weapon,
+            "relic_armor": relic_armor,
+            "legacy_artifacts": [relic_weapon, relic_armor]
         }
         
         self.records.append(record)
@@ -219,10 +263,27 @@ class MythosManager:
                 relics.append(r["relic_weapon"])
         return relics
 
+    def get_all_legacy_artifacts(self) -> List[Dict[str, Any]]:
+        """Returns list of all legacy weapons, armors, and relics across all runs."""
+        artifacts = []
+        for r in self.records:
+            if "legacy_artifacts" in r and isinstance(r["legacy_artifacts"], list):
+                artifacts.extend(r["legacy_artifacts"])
+            elif "relic_weapon" in r:
+                artifacts.append(r["relic_weapon"])
+        return artifacts
+
+    def get_dominant_war_faction(self) -> Optional[str]:
+        """Returns the winning/dominant faction from the most recent run."""
+        latest = self.get_latest_record()
+        if latest and "dominant_war_faction" in latest:
+            return latest["dominant_war_faction"]
+        return None
+
     def get_faction_victory_counts(self) -> Dict[str, int]:
         """Returns counts of historical faction victories for starting world gen alignment."""
-        counts = {"knights": 0, "hunters": 0}
+        counts = {"knights": 0, "hunters": 0, "merchants": 0}
         for r in self.records:
-            fac = r.get("favored_faction", "knights")
+            fac = r.get("dominant_war_faction") or r.get("favored_faction", "knights")
             counts[fac] = counts.get(fac, 0) + 1
         return counts

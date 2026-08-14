@@ -144,7 +144,7 @@ class TestComboFinisherSystem(unittest.TestCase):
         names = [wc.finisher_name for wc in WEAPON_CLASSES.values()]
         # All should be non-empty
         for name in names:
-            self.assertTrue(len(name) > 0, f"Weapon missing finisher_name")
+            self.assertTrue(len(name) > 0, "Weapon missing finisher_name")
         # All should be unique
         self.assertEqual(len(set(names)), len(names))
 
@@ -306,7 +306,7 @@ class TestBehaviorTagActivation(unittest.TestCase):
 
     def test_behavior_tags_defined_in_balance(self):
         """All enemy archetypes in balance.py should have behavior tags."""
-        from rpg.balance import ENEMY_BALANCES, BehaviorTag
+        from rpg.balance import ENEMY_BALANCES
         for key, bal in ENEMY_BALANCES.items():
             self.assertIsInstance(bal.behaviors, list, f"{key} missing behaviors list")
 

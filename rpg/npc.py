@@ -234,7 +234,9 @@ class NPC(BaseSprite):
             pygame.draw.rect(surface, (40, 30, 0), bg_rect, 1, border_radius=10)
             try:
                 font = pygame.font.Font("assets/fonts/game_font.ttf", 14)
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.getLogger("NPC").warning("TTF font load failed, using SysFont fallback: %s", e)
                 font = pygame.font.SysFont("Arial", 14, bold=True)
             lbl = font.render("!", True, (20, 20, 20))
             surface.blit(lbl, (x - lbl.get_width() // 2, y + bob_offset + 1))
@@ -246,7 +248,9 @@ class NPC(BaseSprite):
         # Interaction prompt [F]
         try:
             font = pygame.font.Font("assets/fonts/game_font.ttf", 12)
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger("NPC").warning("TTF font load failed, using SysFont fallback: %s", e)
             font = pygame.font.SysFont("Arial", 12, bold=True)
         lbl = font.render("[F]", True, COLOR_YELLOW)
         
@@ -256,6 +260,51 @@ class NPC(BaseSprite):
         surface.blit(lbl, (x - lbl.get_width() // 2, y + 1))
 
 # --- SPECIALIZED NPCs ---
+
+def create_settlement_specialization_dialogue(game: Any, return_node_id: str = "eldrin_start") -> DialogueNode:
+    """Builds interactive specialization selection dialogue tree."""
+    dm = game.dialogue_manager
+    player = game.player
+    settlement = getattr(game.living_world, "settlement", None) if hasattr(game, "living_world") else None
+    factions = getattr(game, "factions", None)
+
+    from rpg.settlement import SPECIALIZATION_MILITARY, SPECIALIZATION_TRADE, SPECIALIZATION_ARCANE
+
+    def choose_spec(spec_id: str):
+        if settlement:
+            success, msg = settlement.set_specialization(spec_id, player, factions)
+            from rpg.combat import DamageNumber
+            col = (100, 255, 100) if success else (255, 100, 100)
+            DamageNumber(player.rect.center, msg, col, [game.ui_sprites], size=18)
+            # Re-spawn map decorations if in Village
+            if game.world_manager and game.world_manager.current_map_name == "village":
+                game.world_manager.load_map("village", player, portal_spawn=False)
+            res_node = DialogueNode(
+                "settlement_spec_result",
+                "Town Specialization Proclaimed",
+                msg,
+                [DialogueChoice("Understood.", return_node_id)]
+            )
+            dm.add_node(res_node)
+            dm.start_dialogue("settlement_spec_result")
+
+    curr_title = settlement.get_specialization_title() if settlement else "Standard"
+    spec_choices = [
+        DialogueChoice("🛡️ Military Fortress (Knights: +15% ATK/+20% DEF Safe Zone, Patrols)", None, lambda: choose_spec(SPECIALIZATION_MILITARY)),
+        DialogueChoice("⚖️ Trade Hub (Merchants: +15% Shop Discount, Rare Goods, Caravans)", None, lambda: choose_spec(SPECIALIZATION_TRADE)),
+        DialogueChoice("🔮 Arcane Sanctuary (Mages: +5 Mana/s Village Regen, 25% Rune Discount)", None, lambda: choose_spec(SPECIALIZATION_ARCANE)),
+        DialogueChoice("Back to previous menu.", return_node_id)
+    ]
+
+    node = DialogueNode(
+        "settlement_specialization_menu",
+        "Town Specialization Proclamation",
+        f"Current Designation: [{curr_title}].\nSelect a strategic specialization for Asterra (75g or Friendly 20+ Faction Standing):",
+        spec_choices
+    )
+    dm.add_node(node)
+    return node
+
 
 class ElderEldrin(NPC):
     """Elder of Asterra. Guides the player along the Main Quest path."""
@@ -299,6 +348,10 @@ class ElderEldrin(NPC):
                     DamageNumber(self.rect.center, "Master Forge Unlocked! Tier 2 Weapons!", (255, 180, 60), [self.game.ui_sprites], size=18)
                     self.game.dialogue_manager.start_dialogue("eldrin_dennis")
 
+        def open_specialization_menu():
+            create_settlement_specialization_dialogue(self.game, "eldrin_start")
+            self.game.dialogue_manager.start_dialogue("settlement_specialization_menu")
+
         node_s = DialogueNode("eldrin_silas", self.name, "Wonderful investment! Silas has expanded the Royal Market. All shop prices in Asterra receive a 20% discount!", [DialogueChoice("Great news.", None)])
         node_w = DialogueNode("eldrin_watchtower", self.name, "The Village Watchtower is built! Watchmen now scout for monster raids and highway safety is fortified.", [DialogueChoice("Asterra is safe.", None)])
         node_d = DialogueNode("eldrin_dennis", self.name, "Dennis has upgraded his forge to a Master Anvil! You can now forge Tier 2 weapons and armor.", [DialogueChoice("To the forge!", None)])
@@ -309,6 +362,7 @@ class ElderEldrin(NPC):
 
         investment_choices = []
         if settlement:
+            investment_choices.append(DialogueChoice("🏛️ [SPECIALIZE] Proclaim Town Strategic Specialization", None, open_specialization_menu))
             if not settlement.is_investment_completed("silas_market") and player.gold >= 100:
                 investment_choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
             if not settlement.is_investment_completed("watchtower") and player.gold >= 50:
@@ -893,8 +947,13 @@ class TownNoticeboard(NPC):
         elif w_quest and w_quest.status == QUEST_COMPLETED:
             choices.append(DialogueChoice("[STATUS] Watchtower Erected!", None))
 
-        # --- Investment Options ---
+        def open_specialization_menu():
+            create_settlement_specialization_dialogue(self.game, "town_board")
+            self.game.dialogue_manager.start_dialogue("settlement_specialization_menu")
+
+        # --- Investment & Specialization Options ---
         if settlement:
+            choices.append(DialogueChoice("🏛️ [SPECIALIZE] Proclaim Town Strategic Specialization", None, open_specialization_menu))
             if not settlement.is_investment_completed("silas_market") and player.gold >= 100:
                 choices.append(DialogueChoice("[INVEST: SILAS] Fund Royal Market (100g -> -20% Shop Prices)", None, fund_silas))
             if not settlement.is_investment_completed("watchtower") and player.gold >= 50:
@@ -969,4 +1028,37 @@ class BardFinn(NPC):
         self.game.dialogue_manager.add_node(node)
         self.game.dialogue_manager.start_dialogue("bard_song")
         self.game.game_state = STATE_DIALOGUE
+
+
+class RivalAdventurerNPC(NPC):
+    """
+    Rival Adventurer NPC (Valen the Wanderer).
+    Autonomous rival who roams the zones, provides contextual dialogue,
+    spars with the player, exchanges supplies, and shares hunting accomplishments.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Valen", "npc_rival")
+        self.npc_id = "rival_valen"
+
+    def interact(self) -> None:
+        """Triggers dynamic rival dialogue connecting with NPCMemory and RivalManager."""
+        if not self.on_interact_start("valen"):
+            return
+        self.game.dialogue_manager.close()
+
+        if hasattr(self.game, "living_world") and hasattr(self.game.living_world, "rival"):
+            self.game.living_world.rival.build_dialogue_nodes(self.game, self)
+            self.game.dialogue_manager.start_dialogue("rival_valen_root")
+            self.game.game_state = STATE_DIALOGUE
+        else:
+            node = DialogueNode(
+                "valen_fallback",
+                self.name,
+                "Greetings, adventurer. Keep your blade sharp in these wilds.",
+                [DialogueChoice("Will do.", None)]
+            )
+            self.game.dialogue_manager.add_node(node)
+            self.game.dialogue_manager.start_dialogue("valen_fallback")
+            self.game.game_state = STATE_DIALOGUE
+
 

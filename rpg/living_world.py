@@ -42,6 +42,9 @@ class LivingWorldManager:
         self.consequences = ConsequenceManager(self.event_bus)
         from rpg.rumors import RumorBoard
         self.rumors = RumorBoard(self.event_bus)
+        from rpg.rival import RivalAdventurerManager
+        self.rival = RivalAdventurerManager(self.event_bus)
+        self.rival.game_reference = self.game_reference
         
         # Backward compatibility alias
         self.ai_director = self.director
@@ -57,6 +60,7 @@ class LivingWorldManager:
         self.progression.register_event_listeners(self.event_bus)
         self.consequences.register_event_listeners(self.event_bus)
         self.rumors.register_event_listeners(self.event_bus)
+        self.rival.register_event_listeners(self.event_bus)
         
         from rpg.emergent_quests import EmergentQuestGenerator
         self.emergent_quests = EmergentQuestGenerator(self.event_bus)
@@ -77,6 +81,10 @@ class LivingWorldManager:
         # 3. Evaluate Emergent Quest triggers
         if self.game_reference and hasattr(self.game_reference, "quest_manager"):
             self.emergent_quests.evaluate_world(self.world_state, self.game_reference.quest_manager, day)
+
+        # 4. Simulate Rival Adventurer parallel world progression
+        if hasattr(self, "rival"):
+            self.rival.simulate_day(self.world_state, day)
 
     def _on_director_recommendation(self, action: str, effects: Dict[str, Any], **kwargs: Any) -> None:
         """Applies Director recommendations to existing simulation systems without direct private mutation."""
@@ -121,12 +129,73 @@ class LivingWorldManager:
         if hasattr(self, "consequences"):
             self.consequences.game = self.game_reference
 
-    def get_combined_price_multiplier(self, category: str = "goods", map_name: str = "village") -> float:
-        """Calculates total combined item price scalar (Economy + Faction Tax + Settlement Discount)."""
-        econ_scalar = self.economy.get_price_multiplier(category)
-        tax_scalar = 1.0 + self.faction_war.get_map_tax_modifier(map_name)
-        discount = self.settlement.get_tier_discount()
-        return max(0.5, econ_scalar * tax_scalar * (1.0 - discount))
+    def get_combined_price_multiplier(
+        self,
+        category: str = "goods",
+        map_name: str = "village",
+        merchant_reputation: float = 0.0,
+        friendship_tier: float = 0.0
+    ) -> float:
+        """
+        Single Source of Truth calculation combining all shop price multipliers:
+        - Economy stock scarcity / supply scalar
+        - Faction War map control tax modifier
+        - Settlement tier prosperity discount
+        - Merchant Faction reputation standing discount
+        - NPC friendship bond discount
+
+        Guarantees final price multiplier is strictly clamped between 0.30x and 3.00x.
+        """
+        econ_scalar = self.economy.get_price_multiplier(category) if hasattr(self, "economy") and self.economy else 1.0
+        tax_modifier = self.faction_war.get_map_tax_modifier(map_name) if hasattr(self, "faction_war") and self.faction_war else 0.0
+        tax_scalar = max(0.0, 1.0 + tax_modifier)
+
+        settlement_discount = self.settlement.get_tier_discount() if hasattr(self, "settlement") and self.settlement else 0.0
+        trade_spec_discount = self.settlement.get_trade_discount() if hasattr(self, "settlement") and self.settlement else 0.0
+        total_settlement_discount = min(0.40, settlement_discount + trade_spec_discount)
+
+        faction_discount = min(0.20, max(-0.25, merchant_reputation / 500.0))
+        friend_discount = min(0.15, max(0.0, friendship_tier / 100.0))
+
+        raw_multiplier = econ_scalar * tax_scalar * (1.0 - total_settlement_discount) * (1.0 - faction_discount) * (1.0 - friend_discount)
+
+        # Strict safety bounds: never explode (> 3.0x) and never negative/free (< 0.30x)
+        return max(0.30, min(3.00, raw_multiplier))
+
+    def get_final_shop_price(
+        self,
+        base_price: int,
+        category: str = "goods",
+        map_name: str = "village",
+        merchant_reputation: float = 0.0,
+        friendship_tier: float = 0.0
+    ) -> int:
+        """Calculates final integer buy price, guaranteed to be at least 1 Gold and bounded."""
+        mult = self.get_combined_price_multiplier(category, map_name, merchant_reputation, friendship_tier)
+        return max(1, int(base_price * mult))
+
+    def reset(self) -> None:
+        """Resets all living world subsystems for a fresh game session."""
+        if hasattr(self, "world_state") and hasattr(self.world_state, "reset"):
+            self.world_state.reset()
+        if hasattr(self, "economy") and hasattr(self.economy, "reset"):
+            self.economy.reset()
+        if hasattr(self, "caravans") and hasattr(self.caravans, "reset"):
+            self.caravans.reset()
+        if hasattr(self, "faction_war") and hasattr(self.faction_war, "reset"):
+            self.faction_war.reset()
+        if hasattr(self, "settlement") and hasattr(self.settlement, "reset"):
+            self.settlement.reset()
+        if hasattr(self, "ecology") and hasattr(self.ecology, "reset"):
+            self.ecology.reset()
+        if hasattr(self, "consequences") and hasattr(self.consequences, "reset"):
+            self.consequences.reset()
+        if hasattr(self, "rumors") and hasattr(self.rumors, "reset"):
+            self.rumors.reset()
+        if hasattr(self, "emergent_quests") and hasattr(self.emergent_quests, "reset"):
+            self.emergent_quests.reset()
+        if hasattr(self, "rival") and hasattr(self.rival, "reset"):
+            self.rival.reset()
 
     def to_dict(self) -> Dict[str, Any]:
         """Unified serialization of all world simulations."""
@@ -142,7 +211,8 @@ class LivingWorldManager:
             "director": self.director.to_dict(),
             "progression": self.progression.to_dict(),
             "consequences": self.consequences.to_dict() if hasattr(self, "consequences") else {},
-            "rumors": self.rumors.to_dict() if hasattr(self, "rumors") else {}
+            "rumors": self.rumors.to_dict() if hasattr(self, "rumors") else {},
+            "rival": self.rival.to_dict() if hasattr(self, "rival") else {}
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -175,3 +245,5 @@ class LivingWorldManager:
             self.consequences.from_dict(data["consequences"])
         if "rumors" in data and hasattr(self, "rumors"):
             self.rumors.from_dict(data["rumors"])
+        if "rival" in data and hasattr(self, "rival"):
+            self.rival.from_dict(data["rival"])

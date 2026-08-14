@@ -119,6 +119,14 @@ class Equipment:
         # Clip speed to reasonable ranges so walking isn't broken
         player.speed = max(1.5, player.base_speed + bonus_speed)
         player.crit_chance = max(0, player.base_crit + bonus_crit)
+
+        # Check settlement specialization buff (Military Fortress bonus in Village safe zone)
+        if hasattr(player, "game") and player.game and hasattr(player.game, "living_world") and hasattr(player.game.living_world, "settlement"):
+            current_map = getattr(player.game.world_manager, "current_map_name", "") if hasattr(player.game, "world_manager") else ""
+            stat_buffs = player.game.living_world.settlement.get_safe_zone_stat_buffs(current_map)
+            player.atk = max(1, int(player.atk * stat_buffs.get("atk_mult", 1.0)))
+            player.defense = max(0, int(player.defense * stat_buffs.get("def_mult", 1.0)))
+            player.speed = max(1.5, player.speed * stat_buffs.get("speed_mult", 1.0))
         
         # Scale current pools to match new boundaries
         player.hp = int(hp_ratio * player.max_hp)

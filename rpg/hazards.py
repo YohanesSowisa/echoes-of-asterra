@@ -4,7 +4,6 @@ Implements interactive hazard tiles for procedural dungeons: spike traps, lava p
 ice patches, and poison pools. Both player AND enemies can trigger them.
 """
 import pygame
-import math
 from typing import Tuple, List, Any, Dict
 from rpg.sprite import BaseSprite
 from rpg.settings import TILE_SIZE

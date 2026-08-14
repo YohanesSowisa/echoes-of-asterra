@@ -222,7 +222,6 @@ class WaypointObelisk(BaseSprite):
         badge_rect = pygame.Rect(0, 0, w, h)
         badge_rect.center = (cx, cy)
 
-        # Sleek dark glass pill badge
         badge_surf = pygame.Surface((w, h), pygame.SRCALPHA)
         bg_col = (15, 25, 35, 220) if self.activated else (25, 25, 30, 220)
         border_col = (100, 220, 255, 255) if self.activated else (255, 215, 0, 255)
@@ -233,6 +232,55 @@ class WaypointObelisk(BaseSprite):
         surface.blit(badge_surf, badge_rect.topleft)
         text_rect = text_surf.get_rect(center=badge_rect.center)
         surface.blit(text_surf, text_rect)
+
+
+class SettlementDecorationProp(BaseSprite):
+    """Visual decorative prop rendered in Village according to active Settlement Specialization."""
+    def __init__(self, pos: Tuple[int, int], prop_type: str, name: str, groups: List[pygame.sprite.Group]) -> None:
+        center = (float(pos[0] + TILE_SIZE / 2), float(pos[1] + TILE_SIZE / 2))
+        super().__init__(center, groups, layer=1)
+        self.prop_type = prop_type
+        self.name = name
+        self.image = pygame.Surface((32, 32), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(topleft=pos)
+        self.hitbox = pygame.Rect(pos[0] + 4, pos[1] + 8, 24, 20)
+        self._render_prop()
+
+    def _render_prop(self) -> None:
+        self.image.fill((0, 0, 0, 0))
+        if "banner" in self.prop_type:
+            # Regal knight fortress banner
+            pygame.draw.rect(self.image, (120, 100, 80), (14, 2, 4, 28))
+            pygame.draw.polygon(self.image, (180, 30, 30), [(6, 4), (26, 4), (26, 20), (16, 26), (6, 20)])
+            pygame.draw.circle(self.image, (240, 200, 50), (16, 12), 4)
+        elif "weapon_rack" in self.prop_type or "guard" in self.prop_type:
+            # Wooden rack with steel spears/swords
+            pygame.draw.rect(self.image, (90, 60, 35), (4, 16, 24, 12))
+            pygame.draw.line(self.image, (200, 200, 215), (8, 4), (8, 24), 2)
+            pygame.draw.line(self.image, (200, 200, 215), (16, 2), (16, 24), 2)
+            pygame.draw.line(self.image, (200, 200, 215), (24, 4), (24, 24), 2)
+        elif "trade_stand" in self.prop_type or "canopy" in self.prop_type:
+            # Silk trade tent / stand
+            pygame.draw.rect(self.image, (100, 70, 40), (4, 14, 24, 14))
+            pygame.draw.rect(self.image, (210, 160, 40), (2, 2, 28, 12), border_radius=3)
+            pygame.draw.rect(self.image, (180, 40, 40), (6, 2, 6, 12))
+            pygame.draw.rect(self.image, (180, 40, 40), (20, 2, 6, 12))
+        elif "crates" in self.prop_type:
+            # Stacked wooden merchant crates
+            pygame.draw.rect(self.image, (130, 95, 55), (4, 12, 14, 14))
+            pygame.draw.rect(self.image, (110, 80, 45), (14, 8, 14, 18))
+        elif "fountain" in self.prop_type or "mana" in self.prop_type:
+            # Glowing arcane mana fountain
+            pygame.draw.circle(self.image, (70, 75, 90), (16, 18), 12)
+            pygame.draw.circle(self.image, (60, 180, 255), (16, 18), 8)
+            pygame.draw.circle(self.image, (190, 240, 255), (16, 17), 4)
+        elif "flora" in self.prop_type or "obelisk" in self.prop_type:
+            # Glowing bioluminescent flora / crystal
+            pygame.draw.circle(self.image, (20, 80, 40), (16, 20), 10)
+            pygame.draw.circle(self.image, (140, 70, 230), (16, 14), 6)
+            pygame.draw.circle(self.image, (220, 180, 255), (16, 13), 2)
+        else:
+            pygame.draw.circle(self.image, (180, 180, 180), (16, 16), 8)
 
 class WorldManager:
     """
@@ -427,6 +475,39 @@ class WorldManager:
                 game.waypoint_obelisks = pygame.sprite.Group()
             obelisk = WaypointObelisk(wp_pos, map_name, is_active, [game.visible_sprites, game.waypoint_obelisks])
             obelisk.game = game
+
+        # 5c. Spawn Rival Adventurer (Valen) if currently roaming in this map
+        if hasattr(game, "living_world") and hasattr(game.living_world, "rival"):
+            rival_data = game.living_world.rival.data
+            if rival_data.current_zone == map_name:
+                from rpg.npc import RivalAdventurerNPC
+                rival_spawn_positions = {
+                    "village": (17 * TILE_SIZE, 12 * TILE_SIZE),
+                    "forest": (18 * TILE_SIZE, 14 * TILE_SIZE),
+                    "cave": (7 * TILE_SIZE, 6 * TILE_SIZE),
+                    "ruins": (14 * TILE_SIZE, 12 * TILE_SIZE),
+                    "dungeon": (8 * TILE_SIZE, 8 * TILE_SIZE),
+                    "lake": (16 * TILE_SIZE, 9 * TILE_SIZE),
+                }
+                r_pos = rival_spawn_positions.get(map_name, (10 * TILE_SIZE, 10 * TILE_SIZE))
+                rival_npc = RivalAdventurerNPC(r_pos, [game.visible_sprites, game.npcs])
+                rival_npc.game = game
+
+        # 5d. Spawn Settlement Specialization Visual Props & Guards (if Village)
+        if map_name == MAP_VILLAGE and hasattr(game, "living_world") and hasattr(game.living_world, "settlement"):
+            settlement = game.living_world.settlement
+            decorations = settlement.get_specialization_decorations("village")
+            for d in decorations:
+                prop = SettlementDecorationProp(d["pos"], d["type"], d["name"], [game.visible_sprites])
+                prop.game = game
+
+            # If Military Fortress, spawn an extra elite fortress guard in the village square
+            from rpg.settlement import SPECIALIZATION_MILITARY
+            if settlement.specialization == SPECIALIZATION_MILITARY:
+                from rpg.npc import NPC
+                guard_pos = (15 * TILE_SIZE, 13 * TILE_SIZE)
+                extra_guard = NPC(guard_pos, [game.visible_sprites, game.npcs], name="Fortress Guard", asset_key="guard_village")
+                extra_guard.game = game
 
         # 6. Spawns Chests
         if map_name not in self.chests_opened:

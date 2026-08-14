@@ -19,7 +19,7 @@ os.environ["SDL_AUDIODRIVER"] = "dummy"
 pygame.init()
 pygame.display.set_mode((64, 64))
 
-from rpg.enemy import Enemy, Slime
+from rpg.enemy import Slime
 from rpg.sprite import get_injured_surface
 
 

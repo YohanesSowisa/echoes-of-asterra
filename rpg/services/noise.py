@@ -36,8 +36,9 @@ class NoiseService:
                     self._noise_instances[seed] = opensimplex.OpenSimplex(seed=seed)
                 ns = self._noise_instances[seed]
                 return float(ns.noise2(x * scale, y * scale))
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("NoiseService").warning("OpenSimplex evaluation failed, using hash fallback: %s", e, exc_info=True)
         
         # Fallback: Deterministic pseudo-random sine/cosine hashing
         return self._hash_fallback_2d(x * scale, y * scale, seed)

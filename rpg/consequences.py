@@ -3,8 +3,8 @@ Echoes of Asterra - Consequence Chain Engine (The Whispering World)
 Manages multi-day delayed consequence chains linking Ecology, Economy, Quests, and NPC Dialogue.
 Player actions trigger causal ripples that arrive 2-5 in-game days later.
 """
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Callable, Optional, Set
+from dataclasses import dataclass
+from typing import Dict, Any, Optional, Set
 from rpg.events import EventBus
 
 
@@ -169,6 +169,7 @@ class ConsequenceManager:
         if not data:
             return
         self.completed_chains = set(data.get("completed_chains", []))
+        self.active_chains.clear()
         chains_data = data.get("active_chains", {})
         for k, v in chains_data.items():
             self.active_chains[k] = ConsequenceChain(
@@ -180,3 +181,8 @@ class ConsequenceManager:
                 is_executed=v.get("is_executed", False),
                 description=v.get("description", "")
             )
+
+    def reset(self) -> None:
+        """Resets active and completed consequence chains."""
+        self.active_chains.clear()
+        self.completed_chains.clear()

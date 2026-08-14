@@ -15,7 +15,9 @@ def get_damage_font(size: int) -> pygame.font.Font:
     if size not in _DAMAGE_FONT_CACHE:
         try:
             _DAMAGE_FONT_CACHE[size] = pygame.font.Font("assets/fonts/game_font.ttf", size)
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger("Combat").warning("TTF font missing/failed, using SysFont fallback: %s", e)
             _DAMAGE_FONT_CACHE[size] = pygame.font.SysFont("Arial", size, bold=True)
     return _DAMAGE_FONT_CACHE[size]
 

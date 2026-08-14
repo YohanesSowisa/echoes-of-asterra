@@ -2,6 +2,7 @@
 Echoes of Asterra - Enemy Classes
 Defines the base enemy class, specific enemy archetypes, and dropped loot items.
 """
+import math
 import random
 import pygame
 from typing import Tuple, List, Dict, Any
@@ -49,7 +50,7 @@ class DroppedItem(BaseSprite):
 
         # Float bounce
         self.bounce_timer += 4 * dt
-        y_offset = math_sin(self.bounce_timer) * 3
+        y_offset = math.sin(self.bounce_timer) * 3
 
         # Despawn warning blink when < 30 seconds remain
         if self.despawn_timer < 30.0:
@@ -238,7 +239,7 @@ class Enemy(BaseSprite):
 
     def apply_elemental_status(self, element: str, duration: float, attacker: Any = None) -> None:
         """Applies elemental status effect and resolves compound elemental status reactions."""
-        from rpg.constants import ELEMENT_FIRE, ELEMENT_ICE, ELEMENT_LIGHTNING, ELEMENT_WIND, ELEMENT_POISON
+        from rpg.constants import ELEMENT_FIRE, ELEMENT_LIGHTNING, ELEMENT_WIND, ELEMENT_POISON
 
         # Check compound reactions with existing active statuses
         if element == ELEMENT_FIRE and ELEMENT_LIGHTNING in self.elemental_statuses:

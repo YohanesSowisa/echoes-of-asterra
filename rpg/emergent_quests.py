@@ -3,11 +3,10 @@ Echoes of Asterra - Emergent Dynamic Quest Generator
 Evaluates simulation state (danger, ecology, trade, guard status) on day ticks
 and dynamically injects context-aware emergent quests into QuestManager.
 """
-import random
 from typing import Dict, Any, Optional, Set
 from rpg.events import EventBus
 from rpg.quests import Quest, QuestObjective, QuestManager
-from rpg.constants import QUEST_NOT_STARTED, QUEST_ACTIVE
+from rpg.constants import QUEST_ACTIVE
 
 class EmergentQuestGenerator:
     """
@@ -75,3 +74,16 @@ class EmergentQuestGenerator:
             return new_quest
 
         return None
+
+    def reset(self) -> None:
+        """Resets tracked emergent quest IDs."""
+        self.active_emergent_ids.clear()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes emergent quest generator state."""
+        return {"active_emergent_ids": list(self.active_emergent_ids)}
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Deserializes emergent quest generator state."""
+        if data and "active_emergent_ids" in data:
+            self.active_emergent_ids = set(data["active_emergent_ids"])

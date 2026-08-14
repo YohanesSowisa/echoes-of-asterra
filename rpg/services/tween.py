@@ -35,8 +35,9 @@ class TweenService:
                 curve_fn = getattr(pytweening, curve_name, None)
                 if callable(curve_fn):
                     return float(curve_fn(t_clamped))
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("TweenService").warning("PyTweening evaluation failed for curve '%s': %s", curve_name, e, exc_info=True)
 
         # Fallback: Linear interpolation
         return t_clamped

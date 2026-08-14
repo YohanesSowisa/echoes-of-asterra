@@ -17,8 +17,6 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 
 from rpg.game import Game
-from rpg.achievements import AchievementManager
-from rpg.events import EventBus
 from rpg.animation import init_assets
 from rpg.enemy import Enemy
 

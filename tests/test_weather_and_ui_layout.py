@@ -17,7 +17,7 @@ import pygame
 pygame.init()
 pygame.display.set_mode((1024, 768))
 
-from rpg.weather import WeatherSystem, WEATHER_RAIN, WEATHER_SNOW, WEATHER_FOG, WEATHER_CLEAR, WEATHER_LEAVES
+from rpg.weather import WeatherSystem, WEATHER_RAIN, WEATHER_SNOW, WEATHER_FOG
 from rpg.ui import UIManager
 
 

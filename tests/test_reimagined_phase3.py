@@ -19,7 +19,7 @@ pygame.init()
 pygame.display.set_mode((1, 1))
 
 from rpg.events import EventBus
-from rpg.consequences import ConsequenceManager, ConsequenceChain
+from rpg.consequences import ConsequenceManager
 from rpg.economy import EconomyManager
 from rpg.ecology import EcologyManager
 from rpg.world_state import WorldState

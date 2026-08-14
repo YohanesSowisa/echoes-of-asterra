@@ -183,26 +183,29 @@ class DungeonGenerator:
 
             # Scale loot quality with depth
             loot_list = [("Red Potion", 1)]
-            if i == 0 and depth == 1:
+            if i == 0:
                 try:
-                    from rpg.mythos import MythosManager
                     from rpg.mythos_reader import MythosReader
-                    mm = MythosManager()
                     mr = MythosReader(None)
                     mr.game = None
-                    relic_loot = mr.get_ancestral_relic_loot()
-                    loot_list.extend(relic_loot)
-                except Exception:
-                    pass
+                    artifacts = mr.get_ancestral_artifacts()
+                    if depth == 1 and len(artifacts) >= 1:
+                        loot_list.append(artifacts[0])
+                    elif depth >= 2 and len(artifacts) >= 2:
+                        loot_list.append(artifacts[1])
+                    elif len(artifacts) >= 1:
+                        loot_list.append(artifacts[0])
+                except Exception as e:
+                    import logging
+                    logging.getLogger("DungeonGen").warning("Failed to fetch ancestral relic loot: %s", e)
 
-            if depth >= 3:
-                loot_list.append(("Iron Ore", random.randint(1, 3)))
-            if depth >= 5:
-                loot_list.append(("Steel Blade", 1))
-            if depth >= 10:
-                loot_list.append(("Asterra Heart", 1))
+            contested_by = None
+            if i == 1 and depth >= 2 and random.random() < 0.35:
+                # Rival Adventurer (Valen) reached this chest first and left replacement supplies
+                loot_list = [("Red Potion", 2), ("Iron Ore", 1)]
+                contested_by = "Valen"
 
-            chests.append({"pos": (cx, cy), "loot": loot_list})
+            chests.append({"pos": (cx, cy), "loot": loot_list, "contested_by": contested_by})
 
         # 7. Populate Environmental Hazard Tiles
         from rpg.hazards import THEME_HAZARDS
