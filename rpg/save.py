@@ -14,7 +14,7 @@ logger = logging.getLogger("SaveSystem")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAVES_DIR = os.path.join(BASE_DIR, "saves")
 
-SAVE_SCHEMA_VERSION = 2
+SAVE_SCHEMA_VERSION = 4
 
 
 def get_save_path(slot: int) -> str:
@@ -171,8 +171,22 @@ def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
         data.setdefault("difficulty_profile", "Normal")
         data.setdefault("mythos", {})
 
-        # Upgrade schema version
-        data["save_schema_version"] = SAVE_SCHEMA_VERSION
+    if version < 3:
+        # Schema v3: Nemesis System persistence normalization
+        data.setdefault("nemesis", {})
+        if "living_world" in data and isinstance(data["living_world"], dict):
+            data["living_world"].setdefault("nemesis", {})
+
+    if version < 4:
+        # Schema v4: Companions & Seasonal Festival Minigames persistence normalization
+        data.setdefault("companions", {})
+        data.setdefault("festival", {})
+        if "living_world" in data and isinstance(data["living_world"], dict):
+            data["living_world"].setdefault("companions", {})
+            data["living_world"].setdefault("festival", {})
+
+    # Upgrade schema version
+    data["save_schema_version"] = SAVE_SCHEMA_VERSION
 
     return data
 
@@ -348,6 +362,12 @@ class SaveSystem:
                     save_payload["tutorial_flags"] = list(player.game.tutorial_flags)
                 if hasattr(player.game, "difficulty_profile"):
                     save_payload["difficulty_profile"] = player.game.difficulty_profile
+                if hasattr(player.game, "nemesis_manager"):
+                    save_payload["nemesis"] = player.game.nemesis_manager.to_dict()
+                if hasattr(player.game, "companion_manager"):
+                    save_payload["companions"] = player.game.companion_manager.to_dict()
+                if hasattr(player.game, "festival_manager"):
+                    save_payload["festival"] = player.game.festival_manager.to_dict()
 
 
             with open(filename, 'w') as f:
@@ -502,6 +522,12 @@ class SaveSystem:
                     player.game.achievement_manager.from_dict(save_payload["achievements"])
                 if "bestiary" in save_payload and hasattr(player.game, "bestiary_manager"):
                     player.game.bestiary_manager.from_dict(save_payload["bestiary"])
+                if "nemesis" in save_payload and hasattr(player.game, "nemesis_manager"):
+                    player.game.nemesis_manager.from_dict(save_payload["nemesis"])
+                if "companions" in save_payload and hasattr(player.game, "companion_manager"):
+                    player.game.companion_manager.from_dict(save_payload["companions"])
+                if "festival" in save_payload and hasattr(player.game, "festival_manager"):
+                    player.game.festival_manager.from_dict(save_payload["festival"])
 
 
             # --- Map Transition ---

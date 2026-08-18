@@ -99,12 +99,22 @@ class EnemyAI:
         behaviors = getattr(enemy, "behaviors", [])
         effective_vision = self._get_effective_vision(enemy)
 
-        # --- BEHAVIOR: RETREAT_LOW_HP ---
-        if BehaviorTag.RETREAT_LOW_HP in behaviors:
-            if enemy.hp > 0 and enemy.hp / max(1, enemy.max_hp) < 0.25:
+        # --- BEHAVIOR: RETREAT_LOW_HP & NEMESIS CRAVEN TRAIT ---
+        is_craven = "Craven" in getattr(enemy, "traits", [])
+        retreat_threshold = 0.35 if is_craven else 0.25
+        if BehaviorTag.RETREAT_LOW_HP in behaviors or is_craven:
+            if enemy.hp > 0 and enemy.hp / max(1, enemy.max_hp) < retreat_threshold:
                 if self.state not in [AI_STATE_RETREAT, AI_STATE_DEAD]:
                     self.state = AI_STATE_RETREAT
                     enemy.is_running = True
+
+        # --- NEMESIS: BLOODTHIRSTY TRAIT ---
+        if "Bloodthirsty" in getattr(enemy, "traits", []) and not getattr(enemy, "berserk_active", False):
+            if enemy.hp > 0 and enemy.hp / max(1, enemy.max_hp) < 0.50:
+                enemy.berserk_active = True
+                enemy.atk = int(enemy.atk * 1.35)
+                enemy.speed *= 1.20
+                enemy.attack_cooldown = max(0.3, enemy.attack_cooldown * 0.65)
 
         # --- State transitions ---
         # Enemy Recognition: Player titles trigger fear & hesitation
@@ -118,7 +128,20 @@ class EnemyAI:
             # Chased too far, force retreat back to home spawn
             self.state = AI_STATE_RETREAT
         elif self.state == AI_STATE_RETREAT:
-            if dist_to_home < 20.0:
+            if dist_to_home < 25.0:
+                # If enemy successfully escaped after being damaged, emit enemy_escaped event
+                if getattr(enemy, "has_been_hit", False) and enemy.hp / max(1, enemy.max_hp) < 0.40:
+                    if hasattr(enemy, "game") and enemy.game and hasattr(enemy.game, "event_bus"):
+                        current_map = getattr(enemy.game.world_manager, "current_map_name", "forest") if hasattr(enemy.game, "world_manager") else "forest"
+                        enemy.game.event_bus.emit(
+                            "enemy_escaped",
+                            enemy=enemy,
+                            enemy_name=getattr(enemy, "name", "Enemy"),
+                            enemy_key=getattr(enemy, "enemy_key", "bandit"),
+                            map_name=current_map
+                        )
+                    enemy.has_been_hit = False
+
                 self.state = AI_STATE_PATROL
                 self.patrol_target = pygame.math.Vector2(self.home_pos)
         elif self.state == AI_STATE_GUARD:

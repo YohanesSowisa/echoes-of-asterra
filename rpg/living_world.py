@@ -45,6 +45,15 @@ class LivingWorldManager:
         from rpg.rival import RivalAdventurerManager
         self.rival = RivalAdventurerManager(self.event_bus)
         self.rival.game_reference = self.game_reference
+        from rpg.nemesis import NemesisManager
+        self.nemesis = NemesisManager(self.event_bus)
+        self.nemesis.game_reference = self.game_reference
+        from rpg.companion import CompanionManager
+        self.companions = CompanionManager(self.event_bus)
+        self.companions.game_reference = self.game_reference
+        from rpg.festival import FestivalManager
+        self.festival = FestivalManager(self.event_bus)
+        self.festival.game_reference = self.game_reference
         
         # Backward compatibility alias
         self.ai_director = self.director
@@ -61,6 +70,9 @@ class LivingWorldManager:
         self.consequences.register_event_listeners(self.event_bus)
         self.rumors.register_event_listeners(self.event_bus)
         self.rival.register_event_listeners(self.event_bus)
+        self.nemesis.register_event_listeners(self.event_bus)
+        self.companions.register_event_listeners(self.event_bus)
+        self.festival.register_event_listeners(self.event_bus)
         
         from rpg.emergent_quests import EmergentQuestGenerator
         self.emergent_quests = EmergentQuestGenerator(self.event_bus)
@@ -128,6 +140,14 @@ class LivingWorldManager:
         self.faction_war.update(dt)
         if hasattr(self, "consequences"):
             self.consequences.game = self.game_reference
+        if hasattr(self, "nemesis"):
+            self.nemesis.game_reference = self.game_reference
+        if hasattr(self, "rival"):
+            self.rival.game_reference = self.game_reference
+        if hasattr(self, "companions"):
+            self.companions.game_reference = self.game_reference
+        if hasattr(self, "festival"):
+            self.festival.game_reference = self.game_reference
 
     def get_combined_price_multiplier(
         self,
@@ -235,6 +255,12 @@ class LivingWorldManager:
             self.emergent_quests.reset()
         if hasattr(self, "rival") and hasattr(self.rival, "reset"):
             self.rival.reset()
+        if hasattr(self, "nemesis") and hasattr(self.nemesis, "reset"):
+            self.nemesis.reset()
+        if hasattr(self, "companions") and hasattr(self.companions, "reset"):
+            self.companions.reset()
+        if hasattr(self, "festival") and hasattr(self.festival, "reset"):
+            self.festival.reset()
 
     def to_dict(self) -> Dict[str, Any]:
         """Unified serialization of all world simulations."""
@@ -251,7 +277,10 @@ class LivingWorldManager:
             "progression": self.progression.to_dict(),
             "consequences": self.consequences.to_dict() if hasattr(self, "consequences") else {},
             "rumors": self.rumors.to_dict() if hasattr(self, "rumors") else {},
-            "rival": self.rival.to_dict() if hasattr(self, "rival") else {}
+            "rival": self.rival.to_dict() if hasattr(self, "rival") else {},
+            "nemesis": self.nemesis.to_dict() if hasattr(self, "nemesis") else {},
+            "companions": self.companions.to_dict() if hasattr(self, "companions") else {},
+            "festival": self.festival.to_dict() if hasattr(self, "festival") else {}
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -286,3 +315,9 @@ class LivingWorldManager:
             self.rumors.from_dict(data["rumors"])
         if "rival" in data and hasattr(self, "rival"):
             self.rival.from_dict(data["rival"])
+        if "nemesis" in data and hasattr(self, "nemesis"):
+            self.nemesis.from_dict(data["nemesis"])
+        if "companions" in data and hasattr(self, "companions"):
+            self.companions.from_dict(data["companions"])
+        if "festival" in data and hasattr(self, "festival"):
+            self.festival.from_dict(data["festival"])

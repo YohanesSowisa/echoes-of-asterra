@@ -348,7 +348,13 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "description": "A shiny pouch of Asterra gold currency."
     },
     "Iron Ore": {
-
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Unrefined iron nuggets found in cavern chests, mined rocks, and dropped by armored foes."
+    },
+    "iron_ore": {
         "item_type": ITEM_MATERIAL,
         "rarity": RARITY_COMMON,
         "max_stack": 99,
@@ -356,6 +362,13 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "description": "Unrefined iron nuggets found in cavern chests, mined rocks, and dropped by armored foes."
     },
     "Oak Wood": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Sturdy timber gathered from forest wolves, beasts, and woodland supply crates."
+    },
+    "oak_wood": {
         "item_type": ITEM_MATERIAL,
         "rarity": RARITY_COMMON,
         "max_stack": 99,
@@ -375,6 +388,62 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "max_stack": 99,
         "stats": {},
         "description": "Tanned hide harvested from forest wolves and beasts."
+    },
+    "herb": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Wild medicinal herbs gathered from forest undergrowth."
+    },
+    "Herb": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Wild medicinal herbs gathered from forest undergrowth."
+    },
+    "wolf_pelt": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Warm pelt from predatory wolves used in crafting and trading."
+    },
+    "Wolf Pelt": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Warm pelt from predatory wolves used in crafting and trading."
+    },
+    "starlight_crystal": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_EPIC,
+        "max_stack": 20,
+        "stats": {"magic": 8},
+        "description": "Luminescent crystal harvested from ancient ruins."
+    },
+    "Starlight Crystal": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_EPIC,
+        "max_stack": 20,
+        "stats": {"magic": 8},
+        "description": "Luminescent crystal harvested from ancient ruins."
+    },
+    "festive_honey_bread": {
+        "item_type": ITEM_FOOD,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 10,
+        "stats": {"heal_hp": 35, "heal_stam": 50},
+        "description": "Sweet festival bread baked with Asterra wild honey."
+    },
+    "Festive Honey Bread": {
+        "item_type": ITEM_FOOD,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 10,
+        "stats": {"heal_hp": 35, "heal_stam": 50},
+        "description": "Sweet festival bread baked with Asterra wild honey."
     },
     
     # Rare Artifacts

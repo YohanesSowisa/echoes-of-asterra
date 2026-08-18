@@ -959,7 +959,106 @@ class BanditLeader(Enemy):
             self.game.event_bus.emit("boss_defeated", boss_id="bandit_leader", boss_name=self.name)
         super().die()
 
+
+class NemesisCaptainEnemy(Enemy):
+    """
+    Persistent Nemesis Captain enemy spawned dynamically into world maps.
+    Features unique traits, victory titles, custom UI badges, and high-tier loot drops.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group], captain_data: Any) -> None:
+        super().__init__(pos, groups, captain_data.name, getattr(captain_data, "asset_key", "knight"))
+        self.nemesis_data = captain_data
+        self.nemesis_id = captain_data.captain_id
+        self.level = captain_data.level
+        self.max_hp = captain_data.max_hp
+        self.hp = captain_data.hp
+        self.atk = captain_data.atk
+        self.defense = captain_data.defense
+        self.speed = captain_data.speed
+        self.traits = list(getattr(captain_data, "traits", []))
+        self.kill_type = "nemesis_captain"
+        self.enemy_key = getattr(captain_data, "archetype", "bandit")
+        self.xp_reward = 80 + self.level * 25
+        self.gold_reward = 50 + self.level * 15
+
+        # Apply specific trait adjustments
+        if "Ironhide" in self.traits:
+            self.max_poise = 100.0
+            self.poise = self.max_poise
+            self.poise_regen_rate = 12.0
+            self.stagger_duration = 1.0
+            self.defense += 3
+
+        if "Bloodthirsty" in self.traits:
+            self.attack_cooldown = 0.9
+
+        if "Ambush Master" in self.traits:
+            self.speed *= 1.20
+
+        if "Cunning" in self.traits:
+            self.telegraph_duration = 0.35
+
+        self.loot_table = {
+            "Ancient Relic": 0.40,
+            "Red Potion": 0.80,
+            "Blue Potion": 0.50,
+            "Steel Blade": 0.30
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=400.0, attack_radius=56.0)
+
+    def draw_hp_bar(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+        """Renders distinctive Nemesis Captain floating banner, crown symbol, and traits."""
+        super().draw_hp_bar(surface, camera_offset)
+        if self.hp <= 0:
+            return
+
+        font_small, font_tiny = get_enemy_ui_fonts()
+        offset_pos = self.rect.topleft - camera_offset
+        center_x = int(offset_pos.x + self.rect.width / 2)
+        bar_y = int(offset_pos.y - 10)
+
+        # Nemesis Crown / Banner Title (Purple & Gold)
+        title_str = ""
+        if self.nemesis_data and getattr(self.nemesis_data, "victory_titles", None):
+            title_str = f'"{self.nemesis_data.victory_titles[-1]}"'
+
+        banner_text = f"⚔️ NEMESIS CAPTAIN ⚔️ {title_str}".strip()
+        banner_surf = font_tiny.render(banner_text, True, (255, 215, 0))
+        banner_shadow = font_tiny.render(banner_text, True, (20, 0, 40))
+        banner_rect = banner_surf.get_rect(center=(center_x, bar_y - 20))
+        surface.blit(banner_shadow, (banner_rect.x + 1, banner_rect.y + 1))
+        surface.blit(banner_surf, banner_rect)
+
+        # Traits pill rendering
+        if self.traits:
+            traits_text = f"[{' | '.join(self.traits[:2])}]"
+            tr_surf = font_tiny.render(traits_text, True, (220, 160, 255))
+            tr_rect = tr_surf.get_rect(center=(center_x, bar_y - 30))
+            surface.blit(tr_surf, tr_rect)
+
+    def die(self) -> None:
+        """Emits nemesis_killed signal and drops unique named loot."""
+        if self.game and hasattr(self.game, "event_bus"):
+            self.game.event_bus.emit(
+                "nemesis_killed",
+                captain_id=self.nemesis_id,
+                captain_name=self.name,
+                killer=self.game.player
+            )
+        # Drop unique loot
+        loot_name = getattr(self.nemesis_data, "unique_loot_name", "Captain's Blood Cleaver")
+        unique_item = create_item(loot_name)
+        if not unique_item:
+            unique_item = create_item("Ancient Relic")
+        if unique_item and self.game:
+            dropped = DroppedItem(self.rect.center, unique_item, [self.game.visible_sprites, self.game.dropped_items])
+            dropped.game = self.game
+
+        super().die()
+
+
 # Fast math helpers
 def math_sin(rad: float) -> float:
     import math
     return math.sin(rad)
+

@@ -23,7 +23,7 @@ The game features an explorable world across multiple procedural maps, real-time
 | **Quick Consumable Slots** | `1`, `2`, `3`, `4` (Health Potions, Mana Potions, Food) |
 | **Backpack Inventory** | Toggle `I` |
 | **Quest Journal** | Toggle `N` |
-| **Character Sheet & Factions** | Toggle `V` |
+| **Character Sheet & Factions** | Toggle `V` (Tabs 1–6: Factions, Social, Town, Achiev, Bestiary, Nemesis) |
 | **Crafting Forge** | Toggle `G` |
 | **Radar Minimap** | Toggle `M` |
 | **Use Consumables / Equip** | Right-click item inside inventory Backpack |
@@ -34,7 +34,7 @@ The game features an explorable world across multiple procedural maps, real-time
 
 ---
 
-## 🌟 Living World Features (10 Integrated Subsystems)
+## 🌟 Living World Features (13 Integrated Subsystems)
 
 1. **Dynamic World (`world_state.py`)**: Persistent day/season simulation engine tracking prosperity (0-100), danger level (0-100), and 8 dynamic world events (Village Festival, Merchant Caravan, Bandit Outbreak, Harvest Season, etc.).
 2. **Faction Warfare & Reputation (`factions.py`, `faction_war.py`)**: 6 factions (Knights, Mages, Hunters, Merchants, Bandits, Void Cult). Territory control points (*Forest Crossroads, Cave Depths, Ruins Plaza, Lake Pier*) shift based on player reputation and combat activity (`zone_kills`).
@@ -46,6 +46,9 @@ The game features an explorable world across multiple procedural maps, real-time
 8. **Monster Ecology (`ecology.py`)**: Simulated species dynamics with predator-prey hunting, territory tracking, natural reproduction, nocturnal/diurnal activity windows, and over-hunting migration.
 9. **Weapon Identity & Combo Combat (`weapon_types.py`)**: 5 weapon classes (Sword, Axe, Hammer, Spear, Dagger) with distinct attack speeds, ranges, armor-piercing capabilities, stuns, combo chains, finisher multipliers, and elemental reactions (Thermal Blast, Corrosive Explosion).
 10. **Procedural Endless Dungeon (`dungeon_gen.py`)**: BSP (Binary Space Partitioning) algorithm generating infinite replayable dungeon levels with scaling depth difficulty, traps, theme biomes (Crypt, Cave, Temple, Ice, Volcano), and boss chambers every 5 floors.
+11. **The Nemesis System (`nemesis.py`)**: Persistent bandit, cultist, and monster captains who remember encounters with the player, level up upon victory or escape, gain tactical traits (*Bloodthirsty, Craven, Cunning, Ironhide, Hero Slayer, Ambush Master*), claim regional territories (reducing road safety and stability), seed dynamic rumors across village NPCs, and drop unique named loot recorded in the Bestiary and Mythos history.
+12. **Companion Recruitment & Expeditions (`companion.py`)**: Recruitable allies (`Ranger Faye`, `Guard Kai`, `Scholar Mira`) with party following, tactical AI modes (`Attack`, `Tank`, `Heal`), shared combat XP, contextual weather/location banter, and autonomous offline resource expeditions.
+13. **Seasonal Festival Minigames (`festival.py`)**: Interactive village square festival minigames including Target Archery Contest (timing gauge), Harvest Sprint (15s crop gathering reaction), and Dennis's Feast Challenge (push-your-luck fullness), with seasonal records, tiered gold/item rewards, custom titles (*"Asterra Marksman"*, *"Grand Harvester"*, *"Master of Feasts"*), and rumor mill dissemination.
 
 ---
 
@@ -74,7 +77,7 @@ echoes-of-asterra/
 ├── update_logs.md         # Full historical update and fix log (WIB format)
 ├── assets/                # Map JSON layouts (village, forest, cave, ruins, dungeon) & audio WAV cache
 ├── saves/                 # JSON persistent save slots (savegame_X.json, memories, mythos, achievements, bestiary)
-├── tests/                 # 18+ automated test suite modules
+├── tests/                 # 19+ automated test suite modules
 └── rpg/                   # Core Action RPG Engine Package
     ├── services/          # Modular service layer
     │   ├── admin_ui.py    # Admin & debug UI service
@@ -88,6 +91,7 @@ echoes-of-asterra/
     │   └── tween.py       # Easing curve tweening service
     ├── game.py            # Core engine coordinator and main state machine
     ├── events.py          # Central EventBus for decoupled system messaging
+    ├── nemesis.py         # Persistent Nemesis Captains & progression system
     ├── world_state.py     # Dynamic world simulation engine (days, seasons, events)
     ├── factions.py        # 6-faction reputation and price modifier system
     ├── faction_war.py    # Player-driven regional territory control manager

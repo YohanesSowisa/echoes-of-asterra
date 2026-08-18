@@ -214,13 +214,25 @@ class CombatSystem:
         if getattr(defender, "is_staggered", False):
             dmg = int(dmg * 1.75)
 
-        # Apply Stun Effect if weapon class specifies stun
-        if stun_duration > 0 and hasattr(defender, "apply_slow_effect"):
-            defender.apply_slow_effect(stun_duration)
-            DamageNumber(defender.rect.center, "STUNNED!", COLOR_YELLOW, ui_group, size=14)
-            
+        # Apply Hero Slayer trait multiplier if attacker is a Nemesis targeting player
+        if hasattr(attacker, "traits") and "Hero Slayer" in getattr(attacker, "traits", []) and hasattr(defender, "out_of_combat_timer"):
+            dmg = int(dmg * 1.30)
+
         # Deduct Health
+        was_alive = getattr(defender, "hp", 1) > 0
         defender.take_damage(dmg)
+
+        # Wire Nemesis event if player was slain by enemy
+        if was_alive and (getattr(defender, "hp", 1) <= 0 or getattr(defender, "state", "") == "dead"):
+            if hasattr(defender, "out_of_combat_timer") and hasattr(defender, "game") and hasattr(defender.game, "event_bus"):
+                current_map = getattr(defender.game.world_manager, "current_map_name", "forest") if hasattr(defender.game, "world_manager") else "forest"
+                defender.game.event_bus.emit(
+                    "player_killed_by_enemy",
+                    enemy=attacker,
+                    enemy_name=getattr(attacker, "name", "Enemy"),
+                    enemy_key=getattr(attacker, "enemy_key", "bandit"),
+                    map_name=current_map
+                )
 
         # Wire style scoring: player hit taken
         if hasattr(defender, 'game') and hasattr(defender.game, 'style_scoring'):

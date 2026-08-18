@@ -41,14 +41,14 @@ echoes-of-asterra/
     ├── npc.py, npc_memory.py, npc_schedule.py, rival.py # NPC objects, relationship memory, schedules, rival adventurer
     ├── memory.py, social.py, bard.py, mythos.py, mythos_reader.py # Memory, Social, Titles, Mythos legacy
     ├── consequences.py, rumors.py, emergent_quests.py # Delayed causal engine, Rumor board, Dynamic emergency quests
-    ├── factions.py, faction_war.py # Faction standings & regional territory warfare
+    ├── factions.py, faction_war.py, nemesis.py # Faction standings, regional warfare & persistent Nemesis captains
     ├── ecology.py, economy.py, living_world.py, world_state.py # Living world ecosystem & economy simulation
     ├── balance.py, telemetry.py, style_scoring.py # Difficulty scaling, telemetry, combat style evaluator
     ├── enemy.py, boss.py, ai.py, director.py # Enemy archetypes, boss mechanics & AI state machines
     ├── combat.py, weapon_types.py, skills.py, hazards.py # Hit resolution, combos, spell trees, traps
     ├── dungeon_gen.py, map_loader.py, world.py # BSP dungeon generation, map loading & world manager
     ├── items.py, inventory.py, equipment.py, crafting.py, settlement.py # Items, backpack, gear sockets, forge, settlement
-    ├── save.py, events.py, scheduler.py # Serialization (Schema v2), EventBus pub/sub, day tick scheduler
+    ├── save.py, events.py, scheduler.py # Serialization (Schema v3), EventBus pub/sub, day tick scheduler
     ├── camera.py, collision.py, particles.py, weather.py, lighting.py, sound.py # Viewport, AABB physics, SFX, Weather & Lighting
 ```
 
@@ -79,7 +79,7 @@ echoes-of-asterra/
 - **Exclusive Single Active Panel (`rpg/ui.py`)**:
   - Membuka satu panel UI otomatis menutup panel lain. Hanya 1 panel aktif di layar (mencegah tab overlapping).
 - **Character Sheet UI (`'V'`)**:
-  - Lebar panel `680px`, navigasi tab keyboard (`A`/`D`, `Tab`, `1`/`2`, Tombol Panah), dan menampilkan **Gelar Aktif Player** pada header window.
+  - Lebar panel `680px`, 6 Tab Interaktif (`[Factions]`, `[Social]`, `[Town]`, `[Achiev]`, `[Bestiary]`, `[Nemesis]`), navigasi keyboard (`A`/`D`, `Tab`, `1`–`6`, Tombol Panah), dan menampilkan **Gelar Aktif Player** pada header window.
 - **In-Game Target FPS Setting**:
   - Opsi ganti FPS langsung di menu **Settings** (30, 60, 120, 144, Uncapped) dengan default **`MAX (UNCAPPED)`**.
 
@@ -87,15 +87,31 @@ echoes-of-asterra/
 - **`rpg/balance.py`**: Centralized balance engine dengan Profil Growth, Kebijakan Scaling, Kurva Polinomial, dan `LivingDangerEngine` (menghitung bahaya dunia dari pertarungan, cuaca, malam, & krisis).
 - **`rpg/telemetry.py`**: Melacak analitik developer offline lokal (`rpg/saves/developer_metrics.json`).
 
+### E. Companion Recruitment & Autonomous Expeditions (`rpg/companion.py`)
+- **Recruitable Candidate Roster**: Tiga kandidat sekutu unik (`Ranger Faye` - DPS, `Guard Kai` - Tank, `Scholar Mira` - Healer) yang dapat direkrut setelah menyelesaikan quest atau memiliki gold cukup.
+- **Tactical Combat Modes & AI**: Mode taktis party (`Attack`, `Tank`, `Heal`) yang menentukan perilaku AI sekutu saat mendampingi player (DPS fokus menyerang target terdekat, Tank melakukan taunt dan memiliki aggro tinggi, Healer meluncurkan aura penyembuhan saat HP player rendah).
+- **Autonomous Resource Expeditions**: Player dapat mengirim sekutu untuk ekspedisi 1–3 hari ke berbagai zona (*forest*, *cave*, *ruins*, *dungeon*) untuk mengumpulkan gold dan material langka dengan kalkulasi risiko berbasis `danger_level` wilayah.
+- **Contextual Banter & Party Progression**: Sekutu berbagi XP saat monster dikalahkan, naik level meningkatkan stat sesuai arketipe, dan mengeluarkan dialog banter kontekstual berdasarkan cuaca, lokasi, dan kemenangan pertempuran.
+
+### F. Seasonal Village Festival Minigames (`rpg/festival.py`)
+- **Perluasan Event Village Festival**: Mengubah event festival menjadi 3 minigame interaktif di alun-alun desa:
+  1. **Target Archery Contest**: Minigame bidikan presisi dengan timing gauge meter bar bergerak untuk mencetak Bullseye, Inner Ring, dan Outer Ring (0–500 score).
+  2. **Harvest Sprint**: Minigame uji reaksi cepat memanen tanaman desa melawan batas waktu 15 detik (0–500 score).
+  3. **Dennis's Feast & Brew Challenge**: Minigame push-your-luck turn-based mengelola rasa kenyang (*fullness*) melawan Blacksmith Dennis.
+- **Seasonal Records & Tiered Rewards**: Mencatat rekor terbaik per musim (*Spring, Summer, Autumn, Winter*), memberikan reward bertingkat (*Bronze, Silver, Gold*), memberikan gelar juara (*"Asterra Marksman"*, *"Grand Harvester"*, *"Master of Feasts"*), dan menyebarkan rumor kemenangan ke `RumorBoard`.
+
 ---
 
 ## 🧪 4. Status Pengujian & Kompilasi
 
-Seluruh modul game telah diuji secara otomatis dan terbukti kompilasi 100% bersih:
+Seluruh 177 unit test di 21 test modules telah diuji secara otomatis dan lulus 100%:
 
 ```bash
 python3 -m py_compile main.py rpg/*.py rpg/services/*.py
 # Output: ALL rpg modules compiled 100% clean!
+
+python3 -m unittest discover -s tests
+# Output: Ran 177 tests in 0.616s - OK
 ```
 
 ---
@@ -108,5 +124,6 @@ Bagi AI Agent / Developer yang menerima sesi chat baru:
 2. **Aturan Penting Pengembangan**:
    - Selalu biarkan pengguna (*User*) melakukan `git commit` sendiri.
    - Jangan menambahkan dependency berat eksternal (sistem dirancang 100% offline & deterministik).
+   - Pastikan Save Schema (`SAVE_SCHEMA_VERSION = 4`) dan migrasi backward compatibility selalu terjaga.
    - Selalu uji dengan `python3 -m py_compile main.py rpg/*.py rpg/services/*.py` dan `python3 -m unittest discover -s tests` setelah mengedit kode.
    - Catat setiap penambahan fitur / bug fix baru ke dalam berkas `update_logs.md` dengan format timestamp `[yyyy-mm-dd hh:mm:ss WIB]`.

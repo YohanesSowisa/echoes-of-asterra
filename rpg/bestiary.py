@@ -6,7 +6,7 @@ lore descriptions, and persists data to saves/bestiary.json.
 import os
 import json
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from rpg.events import EventBus
 
@@ -89,6 +89,13 @@ DEFAULT_BESTIARY: Dict[str, Dict[str, Any]] = {
         "element": "Shadow / Boss",
         "weakness": "Combo Finishers",
         "lore": "Fallen commander of Asterra's lost legion, wielding devastating shockwaves."
+    },
+    "nemesis_captain": {
+        "name": "Nemesis Warlord",
+        "category": "Nemesis",
+        "element": "Dynamic / Adaptable",
+        "weakness": "Tactical Counters",
+        "lore": "An empowered bandit or cultist captain who survived past battles, developing deadly traits and hunting the Hero."
     }
 }
 
@@ -99,23 +106,32 @@ class BestiaryManager:
     """
     def __init__(self, event_bus: Optional[EventBus] = None) -> None:
         self.event_bus = event_bus
-        self.entries: Dict[str, BestiaryEntry] = {}
-        self._init_defaults()
-        self.load_bestiary()
+        self.entries: Dict[str, BestiaryEntry] = {
+            eid: BestiaryEntry(
+                enemy_id=eid,
+                name=info["name"],
+                category=info["category"],
+                element=info["element"],
+                weakness=info["weakness"],
+                lore=info["lore"],
+                kills=0,
+                unlocked=False
+            )
+            for eid, info in DEFAULT_BESTIARY.items()
+        }
 
         if self.event_bus and hasattr(self.event_bus, "subscribe"):
             self.event_bus.subscribe("enemy_killed", self._on_enemy_killed)
 
-    def _init_defaults(self) -> None:
-        for eid, meta in DEFAULT_BESTIARY.items():
-            self.entries[eid] = BestiaryEntry(
-                enemy_id=eid,
-                name=meta["name"],
-                category=meta["category"],
-                element=meta["element"],
-                weakness=meta["weakness"],
-                lore=meta["lore"]
-            )
+    def record_nemesis_defeat(self, captain_name: str, traits: List[str], level: int) -> None:
+        """Unlocks or updates Nemesis Warlord entry upon defeating a Nemesis Captain."""
+        if "nemesis_captain" in self.entries:
+            entry = self.entries["nemesis_captain"]
+            entry.kills += 1
+            entry.unlocked = True
+            traits_str = ", ".join(traits) if traits else "Tenacious"
+            entry.lore = f"Last defeated: {captain_name} (Lv.{level}) with traits [{traits_str}]."
+            self.save_bestiary()
 
     def record_kill(self, enemy_type: str, enemy_name: str = "", game: Any = None) -> bool:
         """Increments kill count for matching enemy and unlocks compendium entry."""
@@ -181,4 +197,3 @@ class BestiaryManager:
             self.from_dict(payload)
         except Exception as e:
             print(f"Warning: Failed loading bestiary state: {e}")
-

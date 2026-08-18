@@ -101,6 +101,13 @@ class Game:
         self.dialogue_manager.game = self
         self.world_manager = WorldManager()
         self.bestiary_manager = BestiaryManager(self.event_bus)
+        self.nemesis_manager = self.living_world.nemesis
+        self.nemesis_manager.game_reference = self
+        self.companion_manager = self.living_world.companions
+        self.companion_manager.game_reference = self
+        self.festival_manager = self.living_world.festival
+        self.festival_manager.game_reference = self
+        self.companion_sprite = None
 
         # Sprite groups
         self.visible_sprites = YSortedGroup()
@@ -342,6 +349,10 @@ class Game:
             self.world_state = self.living_world.world_state
             if hasattr(self, "factions"):
                 self.living_world.faction_war.faction_manager = self.factions
+            self.nemesis_manager = self.living_world.nemesis
+            self.companion_manager = self.living_world.companions
+            self.festival_manager = self.living_world.festival
+            self.companion_sprite = None
         if hasattr(self, "mythos_reader"):
             self.mythos_reader.apply_historical_world_buffs()
             self.mythos_reader.inject_legend_into_dialogue_manager(self.dialogue_manager)
@@ -476,10 +487,61 @@ class Game:
                     continue
 
                 if self.game_state == STATE_PLAYING:
-                    # Keyboard WASD / Arrow / Tab / 1-3 tab navigation when Character Panel is open
+                    # Festival Minigame Input Interception
+                    if hasattr(self.ui_manager, "active_festival_minigame") and self.ui_manager.active_festival_minigame:
+                        minigame_id = self.ui_manager.active_festival_minigame
+                        if event.key == pygame.K_ESCAPE:
+                            self.ui_manager.active_festival_minigame = None
+                            continue
+
+                        if minigame_id == "archery":
+                            if event.key in [pygame.K_SPACE, pygame.K_j, pygame.K_RETURN]:
+                                timing_pos = getattr(self.ui_manager, "archery_gauge_pos", 0.5)
+                                score, grade = self.festival_manager.shoot_archery_arrow(timing_pos)
+                                from rpg.combat import DamageNumber
+                                col = (255, 215, 0) if score >= 75 else (200, 200, 200)
+                                DamageNumber(self.player.rect.center, f"🏹 {grade} (+{score} pts)!", col, [self.ui_sprites], size=18)
+                                self.sound_manager.play_sound("hit")
+                                if self.festival_manager.archery_shots_left <= 0:
+                                    res = self.festival_manager.finalize_minigame_score("archery", self.festival_manager.archery_accumulated_score, season=self.world_state.season, player=self.player)
+                                    self.ui_manager.active_festival_minigame = None
+                                    self.ui_manager.show_banner("ARCHERY CONTEST COMPLETE", f"Score: {res['score']} ({res['tier']} Tier)! +{res['gold']}g", color=(255, 215, 0))
+                                continue
+
+                        elif minigame_id == "harvest":
+                            if event.key in [pygame.K_f, pygame.K_SPACE, pygame.K_j]:
+                                self.ui_manager.harvest_sprint_crops = getattr(self.ui_manager, "harvest_sprint_crops", 0) + 1
+                                from rpg.combat import DamageNumber
+                                DamageNumber(self.player.rect.center, f"🌾 Harvested! ({self.ui_manager.harvest_sprint_crops}/8)", (100, 255, 100), [self.ui_sprites], size=16)
+                                if self.ui_manager.harvest_sprint_crops >= 8:
+                                    time_left = getattr(self.ui_manager, "harvest_sprint_timer", 0.0)
+                                    score = self.festival_manager.evaluate_harvest_sprint(8, time_left)
+                                    res = self.festival_manager.finalize_minigame_score("harvest", score, season=self.world_state.season, player=self.player)
+                                    self.ui_manager.active_festival_minigame = None
+                                    self.ui_manager.show_banner("HARVEST SPRINT COMPLETE", f"Score: {res['score']} ({res['tier']} Tier)! +{res['gold']}g", color=(100, 255, 100))
+                                continue
+
+                        elif minigame_id == "feast":
+                            act = None
+                            if event.key == pygame.K_1: act = "roast"
+                            elif event.key == pygame.K_2: act = "mead"
+                            elif event.key == pygame.K_3: act = "pace"
+                            elif event.key in [pygame.K_4, pygame.K_SPACE, pygame.K_RETURN]: act = "pass"
+
+                            if act:
+                                is_over, msg, cur_score, cur_full = self.festival_manager.feast_action(act)
+                                from rpg.combat import DamageNumber
+                                DamageNumber(self.player.rect.center, msg, (255, 200, 100), [self.ui_sprites], size=16)
+                                if is_over:
+                                    res = self.festival_manager.finalize_minigame_score("feast", cur_score, season=self.world_state.season, player=self.player)
+                                    self.ui_manager.active_festival_minigame = None
+                                    self.ui_manager.show_banner("FEAST CHALLENGE COMPLETE", f"Score: {res['score']} ({res['tier']} Tier)! +{res['gold']}g", color=(255, 215, 0))
+                                continue
+
+                    # Keyboard WASD / Arrow / Tab / 1-6 tab navigation when Character Panel is open
                     if "character" in self.ui_manager.open_panels:
-                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5]:
-                            tabs = ["factions", "social", "town", "achievements", "bestiary"]
+                        if event.key in [pygame.K_a, pygame.K_d, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_TAB, pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5, pygame.K_6]:
+                            tabs = ["factions", "social", "town", "achievements", "bestiary", "nemesis"]
                             curr_t = getattr(self.ui_manager, "active_char_tab", "factions")
                             curr_i = tabs.index(curr_t) if curr_t in tabs else 0
 
@@ -497,6 +559,8 @@ class Game:
                                 self.ui_manager.active_char_tab = "achievements"
                             elif event.key == pygame.K_5:
                                 self.ui_manager.active_char_tab = "bestiary"
+                            elif event.key == pygame.K_6:
+                                self.ui_manager.active_char_tab = "nemesis"
                             self.sound_manager.play_sound("click")
                             continue
 

@@ -259,6 +259,99 @@ class NPC(BaseSprite):
         pygame.draw.rect(surface, COLOR_WHITE, bg_rect, 1, border_radius=3)
         surface.blit(lbl, (x - lbl.get_width() // 2, y + 1))
 
+    def get_companion_dialogue_choices(self, companion_id: str) -> List[DialogueChoice]:
+        """Returns companion recruitment, party management, tactics, and expedition dialogue choices."""
+        choices: List[DialogueChoice] = []
+        if not hasattr(self.game, "companion_manager") or not self.game.companion_manager:
+            return choices
+
+        cm = self.game.companion_manager
+        comp = cm.companions.get(companion_id)
+        if not comp:
+            return choices
+
+        # 1. Recruitment Choice (if not yet recruited)
+        if not comp.is_recruited:
+            def do_recruit():
+                cm.recruit_companion(companion_id)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, f"🤝 {comp.name} Recruited!", (100, 255, 140), [self.game.ui_sprites], size=18)
+                self.game.dialogue_manager.close()
+                self.interact()
+
+            choices.append(DialogueChoice(f"🤝 [RECRUIT] \"Join my roster, {comp.name}!\"", None, do_recruit))
+            return choices
+
+        # 2. Party Management
+        if comp.is_in_party:
+            def do_dismiss():
+                cm.set_active_party_companion(None)
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, f"🏠 {comp.name} resting at camp", (200, 200, 200), [self.game.ui_sprites], size=16)
+                self.game.dialogue_manager.close()
+                self.interact()
+
+            def set_mode_atk():
+                comp.assign_mode("attack")
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "⚔️ Tactics: Focus Attack!", (255, 120, 100), [self.game.ui_sprites], size=16)
+
+            def set_mode_tank():
+                comp.assign_mode("tank")
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "🛡️ Tactics: Protect & Tank!", (100, 180, 255), [self.game.ui_sprites], size=16)
+
+            def set_mode_heal():
+                comp.assign_mode("heal")
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "✨ Tactics: Support & Heal!", (100, 255, 140), [self.game.ui_sprites], size=16)
+
+            choices.append(DialogueChoice(f"🏠 [PARTY] \"Rest at the village for now, {comp.name}.\"", None, do_dismiss))
+            choices.append(DialogueChoice(f"⚔️ [TACTICS] Set Mode: Attack (Current: {comp.mode.upper()})", None, set_mode_atk))
+            choices.append(DialogueChoice(f"🛡️ [TACTICS] Set Mode: Tank (Current: {comp.mode.upper()})", None, set_mode_tank))
+            choices.append(DialogueChoice(f"✨ [TACTICS] Set Mode: Heal (Current: {comp.mode.upper()})", None, set_mode_heal))
+        else:
+            if not comp.expedition or comp.expedition.is_completed:
+                def do_join():
+                    cm.set_active_party_companion(companion_id)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, f"⚔️ {comp.name} joined party!", (100, 255, 140), [self.game.ui_sprites], size=18)
+                    self.game.dialogue_manager.close()
+                    self.interact()
+
+                def do_exp_forest():
+                    cm.dispatch_expedition(companion_id, "forest", 1)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, f"🗺️ {comp.name} dispatched to Forest!", (255, 215, 0), [self.game.ui_sprites], size=16)
+                    self.game.dialogue_manager.close()
+
+                def do_exp_cave():
+                    cm.dispatch_expedition(companion_id, "cave", 2)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, f"🗺️ {comp.name} dispatched to Cave (2 days)!", (255, 215, 0), [self.game.ui_sprites], size=16)
+                    self.game.dialogue_manager.close()
+
+                choices.append(DialogueChoice(f"⚔️ [PARTY] \"Join my party for adventure, {comp.name}!\"", None, do_join))
+                choices.append(DialogueChoice(f"🗺️ [EXPEDITION] Send on Forest Scout Expedition (1 Day)", None, do_exp_forest))
+                choices.append(DialogueChoice(f"🗺️ [EXPEDITION] Send on Cave Mining Expedition (2 Days)", None, do_exp_cave))
+            else:
+                choices.append(DialogueChoice(f"🗺️ [EXPEDITION] Away on {comp.expedition.zone.title()} expedition ({comp.expedition.days_remaining}d left)", None))
+
+            if comp.expedition and comp.expedition.is_completed:
+                def do_claim():
+                    res = cm.claim_expedition_rewards(companion_id, self.game.player)
+                    if res:
+                        gold, items = res
+                        from rpg.combat import DamageNumber
+                        DamageNumber(self.rect.center, f"🎁 Claimed {gold}g & {len(items)} items!", (255, 215, 0), [self.game.ui_sprites], size=18)
+                    self.game.dialogue_manager.close()
+                    self.interact()
+
+                choices.append(DialogueChoice(f"🎁 [EXPEDITION] Claim Expedition Spoils ({comp.expedition.rewards_gold}g + items)!", None, do_claim))
+
+        return choices
+
+
 # --- SPECIALIZED NPCs ---
 
 def create_settlement_specialization_dialogue(game: Any, return_node_id: str = "eldrin_start") -> DialogueNode:
@@ -629,6 +722,8 @@ class RangerFaye(NPC):
             node_slime_acc = DialogueNode("faye_slime_acc", self.name, "Good! Slay 5 Green Slimes along the forest trails. They've been scaring travelers.")
             self.game.dialogue_manager.add_node(node_slime_acc)
 
+        comp_choices = self.get_companion_dialogue_choices("faye")
+
         if quest.status == QUEST_NOT_STARTED:
             if qm.is_quest_available("forest_patrol"):
                 extra = [slime_choice] if slime_choice else []
@@ -636,7 +731,7 @@ class RangerFaye(NPC):
                     "faye_start",
                     self.name,
                     "Traveler! The forest trails are contested between Knight Patrols and Hunter Preserves. How shall we manage the region?",
-                    faction_choices + extra + [DialogueChoice("I'll clear the forest! (5 Slimes, 2 Wolves)", "faye_acc", accept)]
+                    faction_choices + extra + comp_choices + [DialogueChoice("I'll clear the forest! (5 Slimes, 2 Wolves)", "faye_acc", accept)]
                 )
                 node_acc = DialogueNode("faye_acc", self.name, "Thank you! Slay 5 Slimes and 2 Wolves. Be careful out there.")
                 self.game.dialogue_manager.add_node(node)
@@ -644,15 +739,15 @@ class RangerFaye(NPC):
                 self.game.dialogue_manager.start_dialogue("faye_start")
             else:
                 extra = [slime_choice] if slime_choice else []
-                node = DialogueNode("faye_locked", self.name, "Speak to Elder Eldrin in the Village first! But if you want a quick task, I have something...", faction_choices + extra)
+                node = DialogueNode("faye_locked", self.name, "Speak to Elder Eldrin in the Village first! But if you want a quick task, I have something...", faction_choices + extra + comp_choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("faye_locked")
         elif quest.status == QUEST_ACTIVE:
-            node = DialogueNode("faye_active", self.name, "Keep clearing the paths! Slay 5 Slimes and 2 Wolves.", faction_choices)
+            node = DialogueNode("faye_active", self.name, "Keep clearing the paths! Slay 5 Slimes and 2 Wolves.", faction_choices + comp_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("faye_active")
         else:
-            node = DialogueNode("faye_done", self.name, "Great job in the forest! Seek Scholar Mira in the Ruins to the east.", faction_choices)
+            node = DialogueNode("faye_done", self.name, "Great job in the forest! Seek Scholar Mira in the Ruins to the east.", faction_choices + comp_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("faye_done")
 
@@ -673,6 +768,8 @@ class ScholarMira(NPC):
         def accept():
             qm.accept_quest("scholar_quest")
 
+        comp_choices = self.get_companion_dialogue_choices("mira")
+
         if quest.status == QUEST_NOT_STARTED:
             if qm.is_quest_available("scholar_quest"):
                 node = DialogueNode(
@@ -681,6 +778,7 @@ class ScholarMira(NPC):
                     "Welcome, brave traveler. Deep in these ruined halls lies a chest with an Ancient Scroll detailing the Shadow Overlord's origin. Will you retrieve it?",
                     [
                         DialogueChoice("I will find the scroll.", "mira_acc", accept),
+                    ] + comp_choices + [
                         DialogueChoice("Maybe later.", None)
                     ]
                 )
@@ -689,11 +787,11 @@ class ScholarMira(NPC):
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("mira_start")
             else:
-                node = DialogueNode("mira_locked", self.name, "Complete Ranger Faye's quest 'Forest Patrol' in the Forest first before exploring these Ruins!")
+                node = DialogueNode("mira_locked", self.name, "Complete Ranger Faye's quest 'Forest Patrol' in the Forest first before exploring these Ruins!", comp_choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("mira_locked")
         elif quest.status == QUEST_ACTIVE:
-            node = DialogueNode("mira_active", self.name, "Look for the chest inside these ruined halls to retrieve the Ancient Scroll.")
+            node = DialogueNode("mira_active", self.name, "Look for the chest inside these ruined halls to retrieve the Ancient Scroll.", comp_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("mira_active")
         else:
@@ -708,6 +806,7 @@ class ScholarMira(NPC):
                     "The scroll reveals the Shadow Overlord's void seal in the Catacombs! We need to recover a Relic Fragment from the Bandit Warlord in these Ruins.",
                     [
                         DialogueChoice("[EXPEDITION] Accept Ruins Reconnaissance Expedition", "mira_expedition_acc", accept_expedition),
+                    ] + comp_choices + [
                         DialogueChoice("I'll prepare first.", None)
                     ]
                 )
@@ -716,7 +815,7 @@ class ScholarMira(NPC):
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("mira_expedition_start")
             else:
-                node = DialogueNode("mira_done", self.name, "The scroll reveals the Shadow Overlord is in the Dungeon! You'll need sturdy iron gear. Speak to Blacksmith Dennis in the Village.")
+                node = DialogueNode("mira_done", self.name, "The scroll reveals the Shadow Overlord is in the Dungeon! You'll need sturdy iron gear. Speak to Blacksmith Dennis in the Village.", comp_choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("mira_done")
 
@@ -751,6 +850,8 @@ class GuardianKai(NPC):
         def accept():
             qm.accept_quest("lake_quest")
 
+        comp_choices = self.get_companion_dialogue_choices("kai")
+
         if quest.status == QUEST_NOT_STARTED:
             if qm.is_quest_available("lake_quest"):
                 node = DialogueNode(
@@ -759,6 +860,7 @@ class GuardianKai(NPC):
                     "Frost Slimes are corrupting our lake shores! Help me drive back 4 Frost Slimes.",
                     [
                         DialogueChoice("I'll defeat 4 Frost Slimes.", "kai_acc", accept),
+                    ] + comp_choices + [
                         DialogueChoice("Not now.", None)
                     ]
                 )
@@ -767,15 +869,15 @@ class GuardianKai(NPC):
                 self.game.dialogue_manager.add_node(node_acc)
                 self.game.dialogue_manager.start_dialogue("kai_start")
             else:
-                node = DialogueNode("kai_locked", self.name, "Complete Blacksmith Dennis's quest 'Iron Forging' in the Village first so you are equipped with a sturdy shield!")
+                node = DialogueNode("kai_locked", self.name, "Complete Blacksmith Dennis's quest 'Iron Forging' in the Village first so you are equipped with a sturdy shield!", comp_choices)
                 self.game.dialogue_manager.add_node(node)
                 self.game.dialogue_manager.start_dialogue("kai_locked")
         elif quest.status == QUEST_ACTIVE:
-            node = DialogueNode("kai_active", self.name, "Drive back 4 Frost Slimes along the shores of this lake.")
+            node = DialogueNode("kai_active", self.name, "Drive back 4 Frost Slimes along the shores of this lake.", comp_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("kai_active")
         else:
-            node = DialogueNode("kai_done", self.name, "Thank you warrior! North of here lies a hidden grove (Secret Area). Visit the sacred altar there, then head to the Dungeon to face the Shadow Overlord!")
+            node = DialogueNode("kai_done", self.name, "Thank you warrior! North of here lies a hidden grove (Secret Area). Visit the sacred altar there, then head to the Dungeon to face the Shadow Overlord!", comp_choices)
             self.game.dialogue_manager.add_node(node)
             self.game.dialogue_manager.start_dialogue("kai_done")
 

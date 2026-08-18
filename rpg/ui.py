@@ -322,6 +322,9 @@ class UIManager:
         # 7. Render Floor Interaction Prompts
         self.draw_floor_interaction_prompts(surface, game)
 
+        # 7b. Render Seasonal Festival Minigame Overlay (if active)
+        self.draw_festival_minigame_overlay(surface, game)
+
         # 8. Render Stacked Notification Feed
         self.notifications.draw(surface, self.fonts, SCREEN_WIDTH)
 
@@ -531,6 +534,151 @@ class UIManager:
         # 7. Style Scoring Combat HUD (only during active combat)
         if game and hasattr(game, "style_scoring"):
             self._draw_style_scoring_hud(surface, player, game)
+
+        # 8. Companion Party HUD Widget
+        self._draw_companion_hud(surface, game)
+
+    def _draw_companion_hud(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders active party companion status card under the left HUD."""
+        if not game or not hasattr(game, "companion_manager") or not game.companion_manager:
+            return
+        active_comp = game.companion_manager.get_active_companion()
+        if not active_comp or not active_comp.is_in_party:
+            return
+
+        comp_w, comp_h = 160, 42
+        comp_rect = pygame.Rect(20, 88, comp_w, comp_h)
+        pygame.draw.rect(surface, (25, 28, 35), comp_rect, border_radius=4)
+        pygame.draw.rect(surface, COLOR_UI_BORDER, comp_rect, 1, border_radius=4)
+
+        mode_colors = {
+            "attack": (255, 120, 100),
+            "tank": (100, 180, 255),
+            "heal": (100, 255, 140)
+        }
+        c_name_lbl = self.fonts["tiny"].render(f"🤝 {active_comp.name} (Lv.{active_comp.level})", True, COLOR_WHITE)
+        m_color = mode_colors.get(active_comp.mode, COLOR_WHITE)
+        mode_lbl = self.fonts["tiny"].render(f"[{active_comp.mode.upper()[:3]}]", True, m_color)
+        surface.blit(c_name_lbl, (26, 92))
+        surface.blit(mode_lbl, (comp_rect.right - mode_lbl.get_width() - 6, 92))
+
+        # Mini HP Bar
+        bar_w, bar_h = 148, 6
+        bx, by = 26, 114
+        pygame.draw.rect(surface, (15, 17, 22), (bx, by, bar_w, bar_h), border_radius=2)
+        hp_ratio = max(0.0, min(1.0, active_comp.hp / float(active_comp.max_hp)))
+        pygame.draw.rect(surface, (60, 200, 80), (bx, by, int(bar_w * hp_ratio), bar_h), border_radius=2)
+
+    def draw_festival_minigame_overlay(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders the active seasonal festival minigame modal overlay."""
+        minigame_id = getattr(self, "active_festival_minigame", None)
+        if not minigame_id or not hasattr(game, "festival_manager") or not game.festival_manager:
+            return
+
+        fm = game.festival_manager
+        pw, ph = 420, 260
+        px = (SCREEN_WIDTH - pw) // 2
+        py = (SCREEN_HEIGHT - ph) // 2
+        box = pygame.Rect(px, py, pw, ph)
+
+        pygame.draw.rect(surface, (20, 22, 30), box, border_radius=8)
+        pygame.draw.rect(surface, COLOR_GOLD, box, 2, border_radius=8)
+
+        cls_hint = self.fonts["tiny"].render("[ESC] Exit", True, COLOR_GRAY)
+        surface.blit(cls_hint, (px + pw - cls_hint.get_width() - 12, py + 12))
+
+        if minigame_id == "archery":
+            hdr = self.fonts["medium"].render("🎯 Village Festival Archery Contest", True, COLOR_GOLD)
+            surface.blit(hdr, (px + 16, py + 16))
+
+            desc = self.fonts["small"].render(f"Arrows Remaining: {fm.archery_shots_left} / 5  •  Score: {fm.archery_accumulated_score}", True, COLOR_WHITE)
+            surface.blit(desc, (px + 16, py + 50))
+
+            dt = getattr(game, "dt", 0.016)
+            gauge_speed = getattr(self, "archery_gauge_speed", 1.8)
+            gauge_dir = getattr(self, "archery_gauge_dir", 1)
+            gauge_pos = getattr(self, "archery_gauge_pos", 0.5) + gauge_dir * gauge_speed * dt
+            if gauge_pos >= 1.0:
+                gauge_pos = 1.0
+                gauge_dir = -1
+            elif gauge_pos <= 0.0:
+                gauge_pos = 0.0
+                gauge_dir = 1
+            self.archery_gauge_pos = gauge_pos
+            self.archery_gauge_dir = gauge_dir
+
+            gx, gy = px + 30, py + 90
+            gw, gh = 360, 28
+            pygame.draw.rect(surface, (35, 38, 48), (gx, gy, gw, gh), border_radius=4)
+            pygame.draw.rect(surface, (80, 85, 95), (gx, gy, gw, gh), 1, border_radius=4)
+
+            bx_start = gx + int(gw * 0.45)
+            bx_w = int(gw * 0.10)
+            pygame.draw.rect(surface, (255, 215, 0), (bx_start, gy, bx_w, gh), border_radius=2)
+
+            ix_start = gx + int(gw * 0.35)
+            ix_w = int(gw * 0.30)
+            pygame.draw.rect(surface, (100, 200, 255), (ix_start, gy, ix_w, gh), 2, border_radius=2)
+
+            mx = gx + int(gw * gauge_pos)
+            pygame.draw.line(surface, (255, 60, 60), (mx, gy - 6), (mx, gy + gh + 6), 4)
+
+            prompt = self.fonts["medium"].render("Press [SPACE] or [J] to Shoot!", True, COLOR_YELLOW)
+            surface.blit(prompt, (px + pw // 2 - prompt.get_width() // 2, py + 160))
+
+        elif minigame_id == "harvest":
+            hdr = self.fonts["medium"].render("🌾 Village Harvest Sprint", True, COLOR_GREEN)
+            surface.blit(hdr, (px + 16, py + 16))
+
+            dt = getattr(game, "dt", 0.016)
+            self.harvest_sprint_timer = max(0.0, getattr(self, "harvest_sprint_timer", 15.0) - dt)
+            time_left = self.harvest_sprint_timer
+            crops = getattr(self, "harvest_sprint_crops", 0)
+
+            t_lbl = self.fonts["medium"].render(f"Time Left: {time_left:.1f}s", True, COLOR_RED if time_left < 5.0 else COLOR_WHITE)
+            c_lbl = self.fonts["medium"].render(f"Crops Gathered: {crops} / 8", True, COLOR_YELLOW)
+            surface.blit(t_lbl, (px + 16, py + 52))
+            surface.blit(c_lbl, (px + 16, py + 86))
+
+            bar_w, bar_h = 360, 20
+            bx, by = px + 30, py + 130
+            pygame.draw.rect(surface, (35, 38, 48), (bx, by, bar_w, bar_h), border_radius=4)
+            pygame.draw.rect(surface, (60, 200, 80), (bx, by, int(bar_w * (crops / 8.0)), bar_h), border_radius=4)
+
+            if time_left <= 0.0:
+                res = fm.finalize_minigame_score("harvest", fm.evaluate_harvest_sprint(crops, 0.0), season=game.world_state.season, player=game.player)
+                self.active_festival_minigame = None
+                self.show_banner("HARVEST SPRINT COMPLETE", f"Score: {res['score']} ({res['tier']} Tier)! +{res['gold']}g", color=(100, 255, 100))
+            else:
+                prompt = self.fonts["medium"].render("Mash [F] / [SPACE] to Harvest Crops!", True, COLOR_WHITE)
+                surface.blit(prompt, (px + pw // 2 - prompt.get_width() // 2, py + 180))
+
+        elif minigame_id == "feast":
+            hdr = self.fonts["medium"].render("🍖 Dennis's Feast & Brew Challenge", True, (255, 160, 80))
+            surface.blit(hdr, (px + 16, py + 16))
+
+            score_txt = self.fonts["small"].render(f"Your Score: {fm.feast_player_score}  •  Dennis Target: {fm.feast_dennis_score}", True, COLOR_WHITE)
+            surface.blit(score_txt, (px + 16, py + 50))
+
+            f_lbl = self.fonts["small"].render(f"Fullness: {fm.feast_player_fullness} / 100", True, COLOR_RED if fm.feast_player_fullness > 80 else COLOR_YELLOW)
+            surface.blit(f_lbl, (px + 16, py + 76))
+
+            bar_w, bar_h = 360, 16
+            bx, by = px + 30, py + 98
+            pygame.draw.rect(surface, (35, 38, 48), (bx, by, bar_w, bar_h), border_radius=3)
+            f_color = COLOR_RED if fm.feast_player_fullness > 80 else (255, 180, 40)
+            pygame.draw.rect(surface, f_color, (bx, by, int(bar_w * min(1.0, fm.feast_player_fullness / 100.0)), bar_h), border_radius=3)
+            pygame.draw.rect(surface, (80, 85, 95), (bx, by, bar_w, bar_h), 1, border_radius=3)
+
+            opts = [
+                ("[1] Roast Boar (+25 pts, +22 Fullness)", (255, 200, 120)),
+                ("[2] Honey Mead (+15 pts, +14 Fullness)", (255, 220, 140)),
+                ("[3] Pace Yourself (+5 pts, -12 Fullness)", (140, 220, 180)),
+                ("[4/Space] Pass / Lock In Score", COLOR_WHITE)
+            ]
+            for idx, (opt_txt, opt_col) in enumerate(opts):
+                o_lbl = self.fonts["tiny"].render(opt_txt, True, opt_col)
+                surface.blit(o_lbl, (px + 30, py + 130 + idx * 24))
 
     def _draw_style_scoring_hud(self, surface: pygame.Surface, player: Any, game: Any) -> None:
         """
@@ -1458,7 +1606,7 @@ class UIManager:
         surface.blit(hdr, (cx + 16, cy + 16))
 
         # Close label & Nav hint
-        cls = self.fonts["small"].render("[1/2/3/Tab] Tabs | [V] Close", True, COLOR_GRAY)
+        cls = self.fonts["small"].render("[1-6/Tab] Tabs | [V] Close", True, COLOR_GRAY)
         surface.blit(cls, (cx + cw - cls.get_width() - 16, cy + 18))
 
         # Draw Equipment Slots
@@ -1523,27 +1671,26 @@ class UIManager:
             surface.blit(val_lbl, (stat_x, y_pos + 12))
 
         # Tab Switcher Header (Right Section)
-        tab_x = cx + 360
-        tab_y = cy + 52
-
         active_tab = getattr(self, "active_char_tab", "factions")
 
-        # 5 Tab Buttons (Factions, Social, Town, Achievements, Bestiary)
-        tab_x = cx + 320
+        # 6 Tab Buttons (Factions, Social, Town, Achievements, Bestiary, Nemesis)
+        tab_x = cx + 290
         tab_y = cy + 52
 
-        tab1_rect = pygame.Rect(tab_x, tab_y, 60, 24)
-        tab2_rect = pygame.Rect(tab_x + 64, tab_y, 50, 24)
-        tab3_rect = pygame.Rect(tab_x + 118, tab_y, 45, 24)
-        tab4_rect = pygame.Rect(tab_x + 167, tab_y, 90, 24)
-        tab5_rect = pygame.Rect(tab_x + 261, tab_y, 65, 24)
+        tab1_rect = pygame.Rect(tab_x, tab_y, 58, 24)
+        tab2_rect = pygame.Rect(tab_x + 62, tab_y, 48, 24)
+        tab3_rect = pygame.Rect(tab_x + 114, tab_y, 44, 24)
+        tab4_rect = pygame.Rect(tab_x + 162, tab_y, 56, 24)
+        tab5_rect = pygame.Rect(tab_x + 222, tab_y, 56, 24)
+        tab6_rect = pygame.Rect(tab_x + 282, tab_y, 62, 24)
 
         for t_idx, (t_rect, t_id, t_lbl_str) in enumerate([
             (tab1_rect, "factions", "Factions"),
             (tab2_rect, "social", "Social"),
             (tab3_rect, "town", "Town"),
-            (tab4_rect, "achievements", "Achievements"),
-            (tab5_rect, "bestiary", "Bestiary")
+            (tab4_rect, "achievements", "Achiev"),
+            (tab5_rect, "bestiary", "Bestiary"),
+            (tab6_rect, "nemesis", "Nemesis")
         ]):
             t_bg = COLOR_UI_HIGHLIGHT if active_tab == t_id else (40, 42, 50)
             t_fg = COLOR_BLACK if active_tab == t_id else COLOR_WHITE
@@ -1551,7 +1698,6 @@ class UIManager:
             pygame.draw.rect(surface, COLOR_UI_BORDER, t_rect, 1, border_radius=4)
             lbl = self.fonts["small"].render(t_lbl_str, True, t_fg)
             surface.blit(lbl, (t_rect.centerx - lbl.get_width() // 2, t_rect.centery - lbl.get_height() // 2))
-
 
         content_y = tab_y + 34
 
@@ -1694,6 +1840,56 @@ class UIManager:
                     
                     surface.blit(e_lbl, (tab_x, ey))
                     surface.blit(d_lbl, (tab_x + 12, ey + 16))
+
+        # TAB 6: NEMESIS CAPTAINS ROSTER
+        elif active_tab == "nemesis":
+            game_inst = getattr(player, "game", None)
+            nemesis_mgr = getattr(game_inst, "nemesis_manager", None) if game_inst else None
+
+            if nemesis_mgr:
+                all_caps = list(nemesis_mgr.captains.values())
+                active_caps = [c for c in all_caps if c.active and not c.is_defeated]
+
+                header_str = f"Nemesis Captains: {len(active_caps)} Active Menace{'s' if len(active_caps) != 1 else ''}"
+                h_lbl = self.fonts["small"].render(header_str, True, COLOR_UI_HIGHLIGHT)
+                surface.blit(h_lbl, (tab_x, content_y))
+
+                if not all_caps:
+                    empty_lbl = self.fonts["small"].render("No Nemesis captains have emerged yet.", True, COLOR_GRAY)
+                    desc_lbl = self.fonts["tiny"].render("Enemies that defeat you or escape combat become Nemesis Captains.", True, (150, 155, 165))
+                    surface.blit(empty_lbl, (tab_x, content_y + 30))
+                    surface.blit(desc_lbl, (tab_x, content_y + 50))
+                else:
+                    for idx, cap in enumerate(all_caps[:5]):
+                        cy_item = content_y + 24 + idx * 64
+
+                        # Status tag & color
+                        if cap.active and not cap.is_defeated:
+                            stat_color = (255, 215, 0)
+                            status_tag = f"[LV.{cap.level} ACTIVE]"
+                        else:
+                            stat_color = (120, 125, 135)
+                            status_tag = "[SLAIN]"
+
+                        title_sub = f' "{cap.victory_titles[-1]}"' if cap.victory_titles else ""
+                        name_str = f"⚔️ {cap.name}{title_sub}"
+
+                        n_lbl = self.fonts["small"].render(name_str, True, stat_color)
+                        st_lbl = self.fonts["tiny"].render(status_tag, True, (255, 100, 100) if cap.active else (100, 200, 100))
+
+                        surface.blit(n_lbl, (tab_x, cy_item))
+                        surface.blit(st_lbl, (tab_x + 280, cy_item))
+
+                        # Details line 1: Stats & Kills
+                        terr_name = cap.claimed_territory.title()
+                        det_str = f"Territory: {terr_name}  •  Kills on Hero: {cap.kills_on_player}  •  ATK: {cap.atk}  DEF: {cap.defense}"
+                        d_lbl = self.fonts["tiny"].render(det_str, True, (180, 185, 195))
+                        surface.blit(d_lbl, (tab_x + 12, cy_item + 18))
+
+                        # Details line 2: Traits
+                        traits_str = f"Traits: {', '.join(cap.traits) if cap.traits else 'None'}"
+                        t_lbl = self.fonts["tiny"].render(traits_str, True, (210, 160, 255))
+                        surface.blit(t_lbl, (tab_x + 12, cy_item + 34))
 
 
 
@@ -2521,12 +2717,13 @@ class UIManager:
             cw, ch = 680, 460
             cx = (SCREEN_WIDTH - cw) // 2
             cy = (SCREEN_HEIGHT - ch) // 2
-            tab_x, tab_y = cx + 320, cy + 52
-            tab1_rect = pygame.Rect(tab_x, tab_y, 60, 24)
-            tab2_rect = pygame.Rect(tab_x + 64, tab_y, 50, 24)
-            tab3_rect = pygame.Rect(tab_x + 118, tab_y, 45, 24)
-            tab4_rect = pygame.Rect(tab_x + 167, tab_y, 90, 24)
-            tab5_rect = pygame.Rect(tab_x + 261, tab_y, 65, 24)
+            tab_x, tab_y = cx + 290, cy + 52
+            tab1_rect = pygame.Rect(tab_x, tab_y, 58, 24)
+            tab2_rect = pygame.Rect(tab_x + 62, tab_y, 48, 24)
+            tab3_rect = pygame.Rect(tab_x + 114, tab_y, 44, 24)
+            tab4_rect = pygame.Rect(tab_x + 162, tab_y, 56, 24)
+            tab5_rect = pygame.Rect(tab_x + 222, tab_y, 56, 24)
+            tab6_rect = pygame.Rect(tab_x + 282, tab_y, 62, 24)
 
             if tab1_rect.collidepoint(mouse_pos):
                 self.active_char_tab = "factions"
@@ -2542,6 +2739,9 @@ class UIManager:
                 return
             elif tab5_rect.collidepoint(mouse_pos):
                 self.active_char_tab = "bestiary"
+                return
+            elif tab6_rect.collidepoint(mouse_pos):
+                self.active_char_tab = "nemesis"
                 return
 
 

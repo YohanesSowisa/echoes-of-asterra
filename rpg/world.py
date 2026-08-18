@@ -509,6 +509,45 @@ class WorldManager:
                 extra_guard = NPC(guard_pos, [game.visible_sprites, game.npcs], name="Fortress Guard", asset_key="guard_village")
                 extra_guard.game = game
 
+        # 5b. Spawn Seasonal Festival Minigame Booths if Festival is Active
+        if map_name == MAP_VILLAGE and hasattr(game, "living_world"):
+            ws = getattr(game.living_world, "world_state", None)
+            from rpg.world_state import EVENT_VILLAGE_FESTIVAL
+            active_evts = [e.event_id for e in getattr(ws, "active_events", [])] if ws else []
+            if ws and EVENT_VILLAGE_FESTIVAL in active_evts:
+                from rpg.npc import NPC
+                # 1. Archery Contest Stall
+                archery_npc = NPC((18 * TILE_SIZE, 11 * TILE_SIZE), [game.visible_sprites, game.npcs], name="Archery Contest Stall", asset_key="npc_faye")
+                archery_npc.game = game
+                def interact_archery():
+                    if hasattr(game, "festival_manager"):
+                        game.festival_manager.start_archery_contest()
+                    if hasattr(game, "ui_manager"):
+                        game.ui_manager.active_festival_minigame = "archery"
+                archery_npc.interact = interact_archery
+
+                # 2. Harvest Patch
+                harvest_npc = NPC((22 * TILE_SIZE, 15 * TILE_SIZE), [game.visible_sprites, game.npcs], name="Harvest Sprint Patch", asset_key="npc_mira")
+                harvest_npc.game = game
+                def interact_harvest():
+                    if hasattr(game, "festival_manager"):
+                        game.festival_manager.current_minigame = "harvest"
+                    if hasattr(game, "ui_manager"):
+                        game.ui_manager.active_festival_minigame = "harvest"
+                        game.ui_manager.harvest_sprint_timer = 15.0
+                        game.ui_manager.harvest_sprint_crops = 0
+                harvest_npc.interact = interact_harvest
+
+                # 3. Dennis Feast Table
+                feast_npc = NPC((14 * TILE_SIZE, 15 * TILE_SIZE), [game.visible_sprites, game.npcs], name="Dennis Feast Table", asset_key="npc_dennis")
+                feast_npc.game = game
+                def interact_feast():
+                    if hasattr(game, "festival_manager"):
+                        game.festival_manager.start_feast_challenge()
+                    if hasattr(game, "ui_manager"):
+                        game.ui_manager.active_festival_minigame = "feast"
+                feast_npc.interact = interact_feast
+
         # 6. Spawns Chests
         if map_name not in self.chests_opened:
             self.chests_opened[map_name] = []
@@ -586,6 +625,38 @@ class WorldManager:
                 enemy.atk = int(enemy.atk * spawn_mod)
 
             game.enemies.append(enemy)
+
+        # 7b. Spawn active Nemesis Captain if stationed in this map
+        if hasattr(game, "nemesis_manager") and game.nemesis_manager:
+            captain = game.nemesis_manager.get_captain_for_map(map_name)
+            if captain and captain.active and not captain.is_defeated:
+                from rpg.enemy import NemesisCaptainEnemy
+                # Pick a spawn location from enemy spawns or fallback position
+                spawns = self.current_map_data.get("enemies", [])
+                spawn_pos = spawns[0]["pos"] if spawns else (400, 300)
+                nem_pos = (spawn_pos[0] + 32, spawn_pos[1] + 32)
+                nemesis_enemy = NemesisCaptainEnemy(nem_pos, [game.visible_sprites], captain)
+                nemesis_enemy.game = game
+                nemesis_enemy.sound_manager = game.sound_manager
+                nemesis_enemy.particles = game.particles
+                game.enemies.append(nemesis_enemy)
+
+                if hasattr(game, "notification_manager") and game.notification_manager:
+                    from rpg.notification import NotificationPriority
+                    game.notification_manager.push_toast(
+                        f"⚔️ NEMESIS ENCOUNTER: {captain.name} has appeared!",
+                        priority=NotificationPriority.HIGH
+                    )
+
+        # 7c. Spawn Active Party Companion if recruited and in party
+        if hasattr(game, "companion_manager") and game.companion_manager:
+            active_comp = game.companion_manager.get_active_companion()
+            if active_comp and active_comp.is_in_party:
+                from rpg.companion import CompanionSprite
+                c_pos = (player.pos.x - 36, player.pos.y)
+                comp_sprite = CompanionSprite(c_pos, [game.visible_sprites], active_comp)
+                comp_sprite.game = game
+                game.companion_sprite = comp_sprite
 
         # 8. Align Camera Bounds
         map_w = GRID_WIDTH * TILE_SIZE

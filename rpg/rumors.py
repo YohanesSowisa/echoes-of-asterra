@@ -117,6 +117,36 @@ class RumorBoard:
                         distortion=rumor.distortion_level
                     )
 
+    def add_custom_rumor(
+        self,
+        rumor_id: str,
+        topic: str,
+        origin_npc: str,
+        true_content: str,
+        distorted_content: str,
+        is_true: bool = True
+    ) -> Rumor:
+        """Adds or updates a dynamic rumor into the rumor mill system."""
+        r = Rumor(
+            rumor_id=rumor_id,
+            topic=topic,
+            origin_npc=origin_npc,
+            true_content=true_content,
+            distorted_content=distorted_content,
+            is_true=is_true,
+            distortion_level=0.0,
+            known_by_npcs={origin_npc}
+        )
+        self.rumors[rumor_id] = r
+        if self.event_bus:
+            self.event_bus.emit(
+                "rumor_added",
+                rumor_id=rumor_id,
+                topic=topic,
+                origin_npc=origin_npc
+            )
+        return r
+
     def get_npc_rumor(self, npc_short_id: str) -> Optional[Tuple[str, str, float]]:
         """
         Returns an active rumor known by an NPC.
@@ -154,7 +184,7 @@ class RumorBoard:
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
-        """Deserializes rumor state."""
+        """Deserializes rumor state including custom dynamic rumors."""
         if not data:
             return
         rd = data.get("rumors", {})
@@ -163,8 +193,21 @@ class RumorBoard:
                 r = self.rumors[k]
                 r.distortion_level = v.get("distortion_level", r.distortion_level)
                 r.known_by_npcs = set(v.get("known_by_npcs", list(r.known_by_npcs)))
+            else:
+                # Dynamic custom rumor restored from save
+                self.rumors[k] = Rumor(
+                    rumor_id=v.get("rumor_id", k),
+                    topic=v.get("topic", "Rumor"),
+                    origin_npc=v.get("origin_npc", "eldrin"),
+                    true_content=v.get("true_content", ""),
+                    distorted_content=v.get("distorted_content", ""),
+                    is_true=v.get("is_true", True),
+                    distortion_level=v.get("distortion_level", 0.0),
+                    known_by_npcs=set(v.get("known_by_npcs", []))
+                )
 
     def reset(self) -> None:
         """Resets active rumors to default un-distorted templates."""
         self.rumors.clear()
         self._init_default_rumors()
+
