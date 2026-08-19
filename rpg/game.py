@@ -191,7 +191,6 @@ class Game:
         self.event_bus.subscribe("town_invested", self._on_town_invested)
         self.event_bus.subscribe("boss_defeated", self._on_boss_defeated)
 
-
         # Load initial village map for menu background and start Main Menu BGM
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
         self.sound_manager.play_music("menu_music")
@@ -201,7 +200,6 @@ class Game:
             f"Difficulty Mode: {self.difficulty_profile.upper()} (Adjust in Settings [ESC])",
             priority=NotificationPriority.HIGH
         )
-
 
     def _show_inventory_tip(self, **kwargs: Any) -> None:
         if "inventory" not in self.tutorial_flags:
@@ -242,7 +240,6 @@ class Game:
                     "Tip: Active quest targets are marked on your Minimap [M]!",
                     priority=NotificationPriority.HIGH
                 )
-
 
     def _on_town_invested(self, investment_id: str = "", **kwargs: Any) -> None:
 
@@ -324,10 +321,7 @@ class Game:
             if dist < threat_radius:
                 return False, f"Unsafe area! {enemy.name} is nearby."
 
-
-
         return True, "Safe to save"
-
 
     def start_new_game(self) -> None:
         """Resets variables and loads the starting Village map."""
@@ -346,7 +340,6 @@ class Game:
         self.player.action_timer = 0.0
         self.player.frame_index = 0.0
         self.player.is_invincible = False
-
 
         # Equip defaults
         self.player.inventory.slots = [None] * self.player.inventory.size
@@ -406,9 +399,6 @@ class Game:
             self.mythos_reader.apply_historical_world_buffs()
             self.mythos_reader.inject_legend_into_dialogue_manager(self.dialogue_manager)
 
-
-
-
         # Reset tutorial flags and push initial onboarding notifications for New Adventure
         self.tutorial_flags.clear()
         if hasattr(self, "ui_manager") and self.ui_manager:
@@ -431,7 +421,6 @@ class Game:
                 "Welcome to Asterra! Press [I] Backpack, [C] Character, [M] Minimap",
                 priority=NotificationPriority.HIGH
             )
-
 
         # Load map and switch state to PLAYING
         self.world_manager.load_map(MAP_VILLAGE, self.player, portal_spawn=False)
@@ -513,11 +502,6 @@ class Game:
         self.sound_manager.play_sound("levelup")
         from rpg.combat import DamageNumber
         DamageNumber(player.rect.center, f"RESPAWNED IN VILLAGE! (-{xp_loss} XP, -{gold_loss} Gold)", (255, 215, 0), [self.ui_sprites], size=18)
-
-
-
-
-
 
     def process_events(self) -> None:
         """Captures window clicks, quick menu key toggles, and interactions."""
@@ -612,8 +596,6 @@ class Game:
                                 self.ui_manager.active_char_tab = "nemesis"
                             self.sound_manager.play_sound("click")
                             continue
-
-
 
                     # Keyboard WASD / Arrow / Enter / 1-4 navigation when Inventory Panel is open
                     if "inventory" in self.ui_manager.open_panels:
@@ -815,11 +797,18 @@ class Game:
                         self.return_from_settings()
 
                 elif self.game_state == STATE_TUTORIAL:
+                    total_tabs = 12
                     if event.key in [pygame.K_a, pygame.K_LEFT]:
-                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx - 1) % 4
+                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx - 1) % total_tabs
                         self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_TAB]:
-                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx + 1) % 4
+                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx + 1) % total_tabs
+                        self.sound_manager.play_sound("click")
+                    elif event.key in [pygame.K_w, pygame.K_UP]:
+                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx - 6) % total_tabs
+                        self.sound_manager.play_sound("click")
+                    elif event.key in [pygame.K_s, pygame.K_DOWN]:
+                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx + 6) % total_tabs
                         self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE]:
                         self.sound_manager.play_sound("click")

@@ -1194,23 +1194,29 @@ class UIManager:
 
         # --- Tab Navigation Bar ---
         tabs = [
-            "1. Controls",
-            "2. Combat & Parry",
-            "3. Fast Travel & Bounties",
-            "4. Upgrades & Loot"
+            "Controls", "Combat", "Travel", "Upgrades",
+            "Time & Tides", "Nemesis", "Companions", "Soul Pacts",
+            "Intrigue", "Epochs", "Dungeon", "Tips"
         ]
         curr_page = self.tutorial_page_idx % len(tabs)
 
-        tab_y = ty + 50
-        tab_w = 180
-        tab_h = 32
-        start_tab_x = tx + (tw - (len(tabs) * (tab_w + 8) - 8)) // 2
+        tab_y = ty + 46
+        tab_w = 120
+        tab_h = 24
+        tab_gap_x = 6
+        tab_gap_y = 4
+        tabs_per_row = 6
+        total_row_w = tabs_per_row * tab_w + (tabs_per_row - 1) * tab_gap_x
+        start_tab_x = tx + (tw - total_row_w) // 2
 
         mouse_pos = pygame.mouse.get_pos()
 
         for idx, tab_name in enumerate(tabs):
-            tab_x = start_tab_x + idx * (tab_w + 8)
-            tab_rect = pygame.Rect(tab_x, tab_y, tab_w, tab_h)
+            row = idx // tabs_per_row
+            col = idx % tabs_per_row
+            tab_x = start_tab_x + col * (tab_w + tab_gap_x)
+            tab_y_pos = tab_y + row * (tab_h + tab_gap_y)
+            tab_rect = pygame.Rect(tab_x, tab_y_pos, tab_w, tab_h)
             is_active = (idx == curr_page)
             is_hover = tab_rect.collidepoint(mouse_pos)
 
@@ -1230,14 +1236,14 @@ class UIManager:
             pygame.draw.rect(surface, bg_col, tab_rect, border_radius=4)
             pygame.draw.rect(surface, border_col, tab_rect, 1, border_radius=4)
 
-            t_surf = self.fonts["small"].render(tab_name, True, txt_col)
-            surface.blit(t_surf, (tab_x + (tab_w - t_surf.get_width()) // 2, tab_y + (tab_h - t_surf.get_height()) // 2))
+            t_surf = self.fonts["tiny"].render(tab_name, True, txt_col)
+            surface.blit(t_surf, (tab_x + (tab_w - t_surf.get_width()) // 2, tab_y_pos + (tab_h - t_surf.get_height()) // 2))
 
         # Divider under tab bar
-        content_top_y = tab_y + tab_h + 12
+        content_top_y = tab_y + 2 * (tab_h + tab_gap_y) + 8
         pygame.draw.line(surface, (60, 70, 90), (tx + 24, content_top_y), (tx + tw - 24, content_top_y), 1)
 
-        content_y = content_top_y + 12
+        content_y = content_top_y + 8
 
         # --- PAGE CONTENTS ---
         if curr_page == 0:
@@ -1276,7 +1282,7 @@ class UIManager:
 
             start_y = content_y + 28
             for idx, (action, bind) in enumerate(left_controls):
-                curr_y = start_y + idx * 42
+                curr_y = start_y + idx * 40
                 act_lbl = self.fonts["small"].render(action, True, COLOR_WHITE)
                 bind_lbl = self.fonts["small"].render(bind, True, COLOR_UI_HIGHLIGHT)
                 surface.blit(act_lbl, (left_x, curr_y))
@@ -1375,6 +1381,228 @@ class UIManager:
                     cy_pos += 20
                 cy_pos += 12
 
+        elif curr_page == 4:
+            # PAGE 4: Time, Weather & Tides
+            sections = [
+                ("1. Day-Night Cycle & Weather", [
+                    "The in-game clock runs 0:00-24:00 (1 full day = 300 real seconds).",
+                    "Dawn 5:00-6:30, Day 6:30-18:00, Dusk 18:00-19:30, Night 19:30-5:00.",
+                    "Weather rotates: Clear, Rain, Snow, Fog, Autumn Leaves, Temporal Rift.",
+                    "Night reduces visibility; your hero carries a radial light aura."
+                ]),
+                ("2. Sunken Mire Tide Cycle", [
+                    "00:00 - 06:00  High Tide (Flooded, toxic water, -25% speed)",
+                    "06:00 - 09:00  Falling Tide (Waters recede gradually)",
+                    "09:00 - 15:00  Low Tide (Passages dry & fully accessible)",
+                    "15:00 - 18:00  Rising Tide (Waters begin to swell)",
+                    "18:00 - 24:00  High Tide (Flooded again)",
+                    "Waterstrider Elixir negates speed penalty. Overcharging the",
+                    "Mire Leyline Node locks permanent Low Tide in the region."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (120, 200, 255))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 5:
+            # PAGE 5: Nemesis & Vendetta Siege
+            sections = [
+                ("1. Nemesis System", [
+                    "When you die, the enemy that killed you becomes a Nemesis Captain.",
+                    "Captains gain unique traits, strengths, and weaknesses each promotion.",
+                    "Defeated Captains may return stronger with grudge-fueled abilities.",
+                    "Captains prowl autonomously, relocating between regions over time."
+                ]),
+                ("2. Vendetta Siege Defense", [
+                    "After 2+ promotions, a Captain may launch a Vendetta Siege on the Village.",
+                    "Warning: HUD alert flashes 1 day before the siege begins.",
+                    "Defend Asterra Haven by eliminating all siege waves within the time limit.",
+                    "Victory = Captain eliminated permanently + prestige title earned.",
+                    "Defeat = Captain promoted further + village infrastructure damage."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (255, 80, 80))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 6:
+            # PAGE 6: Companions
+            sections = [
+                ("1. Recruitment & Tactical Modes", [
+                    "3 recruitable companions: Ranger Faye (DPS), Scholar Mira (Heal),",
+                    "  and Guardian Kai (Tank). Speak to them in the Village to recruit.",
+                    "Set Tactical Mode: [Attack] = aggressive DPS, [Defend] = tanking,",
+                    "  [Heal] = support healing. Switch modes anytime via companion menu."
+                ]),
+                ("2. Autonomous Expeditions", [
+                    "Send idle companions on multi-day resource expeditions to any zone.",
+                    "Expeditions yield Gold, Items, and Companion XP on completion.",
+                    "Higher danger zones = better loot but companion may take damage.",
+                    "Companions heal naturally when idle and not on an expedition."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (100, 255, 180))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 7:
+            # PAGE 7: Ancestral Soul Pacts
+            sections = [
+                ("1. Pact Altars & Effects", [
+                    "Void Nexus (Crypt/Dungeon): +40-65% attack reach, +20% crit, 1.2x mana.",
+                    "Titan Lith (Cave): +30 DEF, poise immunity, -10% speed, 1.5x stamina.",
+                    "Solar Flame (Ruins): +25% spell damage, HP regen, -15% max HP.",
+                    "Only one pact active at a time. Binding a new pact replaces the old."
+                ]),
+                ("2. Pact Tiers & Purification", [
+                    "Pacts gain tiers (1 > 2 > 3) through combat kills while bound.",
+                    "Higher tiers strengthen both benefits AND drawbacks proportionally.",
+                    "Purification Ritual: Visit the Sanctuary Altar in the Village plaza.",
+                    "Cleansing costs gold and removes the active pact permanently."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (200, 100, 255))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 8:
+            # PAGE 8: Conspiracy & Outposts
+            sections = [
+                ("1. Doomsday Conspiracy", [
+                    "A hidden Syndicate raises Influence (0-100%) over 30 in-game days.",
+                    "If Influence hits 100% or Day 30 passes, a Doomsday Coup triggers.",
+                    "Lower Influence: neutralize suspects, prevent sabotage, exorcise NPCs.",
+                    "Monitor the COUP countdown badge on your HUD at all times."
+                ]),
+                ("2. Frontier Outposts & Caravans", [
+                    "Build outposts (200g) at strategic map locations for daily toll income.",
+                    "Upgrade outposts Lvl 1>2>3 for higher tolls (10g > 25g > 50g/day).",
+                    "Dispatch trade caravans between outposts to deliver cargo and boost",
+                    "  prosperity. Protect caravans from ambushes or lose all cargo!"
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (255, 160, 40))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 9:
+            # PAGE 9: Cataclysm Epochs & Monopoly
+            sections = [
+                ("1. Cataclysm Epochs", [
+                    "The world cycles through 4 eras: Verdant (normal), Scorched (lava/ash),",
+                    "  Glacial (ice/snow), and Withered (dead terrain).",
+                    "Scorched: lava tiles deal contact damage. Glacial: ice tiles cause sliding.",
+                    "Epochs shift every ~30 in-game days. Weather and terrain mutate globally."
+                ]),
+                ("2. Continental Monopoly", [
+                    "Purchase commodity Concession Deeds (500g) to control trade routes.",
+                    "Stockpile resources (30+ iron ore) to trigger Hoarding (2.5x prices).",
+                    "Deposit gold in the Vault for daily interest. Manage faction embargoes.",
+                    "Risk: hoarding triggers faction hostility and supply chain disruptions."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (160, 220, 255))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 10:
+            # PAGE 10: Dungeon Architect & Chrono-Echoes
+            sections = [
+                ("1. Dungeon Architect", [
+                    "In the Crypt, find and claim the Dungeon Core to unlock sovereignty.",
+                    "Place traps (spike, fire, frost) at chokepoints to defend against raids.",
+                    "Capture weakened monsters and station them as dungeon guardians.",
+                    "Invasions trigger periodically -- defend your core or lose floors!"
+                ]),
+                ("2. Chrono-Echoes & Time Rewind", [
+                    "Obtain the Chrono-Weaver Hourglass relic to manipulate time.",
+                    "Activate to rewind the world state by 3 in-game days.",
+                    "Warning: rewind spawns a Chrono-Doppelganger (shadow of your past self).",
+                    "Temporal Fractures appear at rewind sites, distorting local weather.",
+                    "Defeat the Aeon Sentinel boss to mend the temporal fabric permanently."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (255, 200, 100))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
+        elif curr_page == 11:
+            # PAGE 11: Tips & Strategies
+            sections = [
+                ("1. Recommended Progression Order", [
+                    "Start: Combat basics > explore Village NPCs > unlock Fast Travel.",
+                    "Level 3-5: Recruit your first Companion and start expeditions.",
+                    "Level 5-8: Bind your first Soul Pact and explore the Crypt dungeon.",
+                    "Level 8+: Engage Nemesis captains, build outposts, manage economy."
+                ]),
+                ("2. Essential Tips", [
+                    "Save frequently! Use ESC > Save Game before entering dangerous zones.",
+                    "Perfect Parry (block within 0.2s) is the strongest defensive tool.",
+                    "Keep Waterstrider Elixirs stocked before entering the Sunken Mire.",
+                    "Watch the Conspiracy COUP countdown -- neglect leads to Doomsday!",
+                    "Overcharge Leyline Nodes with catalysts for permanent regional buffs."
+                ])
+            ]
+            cy_pos = content_y
+            for sec_title, lines in sections:
+                hdr_s = self.fonts["medium"].render(sec_title, True, (180, 255, 180))
+                surface.blit(hdr_s, (tx + 28, cy_pos))
+                cy_pos += 22
+                for line in lines:
+                    line_s = self.fonts["small"].render(line, True, (220, 230, 245))
+                    surface.blit(line_s, (tx + 36, cy_pos))
+                    cy_pos += 18
+                cy_pos += 8
+
         # --- Footer Navigation Bar ---
         pygame.draw.line(surface, (60, 70, 90), (tx + 24, ty + th - 44), (tx + tw - 24, ty + th - 44), 1)
 
@@ -1396,7 +1624,7 @@ class UIManager:
         n_txt = self.fonts["small"].render("Next >", True, COLOR_WHITE)
         surface.blit(n_txt, (next_rect.centerx - n_txt.get_width() // 2, next_rect.centery - n_txt.get_height() // 2))
 
-        hint_str = f"Page {curr_page + 1} of {len(tabs)}  |  Press [A/D or Arrows] to switch  |  [ESC/Enter] to Exit"
+        hint_str = f"Page {curr_page + 1} of {len(tabs)}  |  Press [WASD / Arrows] to switch  |  [ESC/Enter] to Exit"
         footer = self.fonts["small"].render(hint_str, True, COLOR_GRAY)
         surface.blit(footer, (tx + tw // 2 - footer.get_width() // 2, ty + th - 32))
 
@@ -2821,16 +3049,27 @@ class UIManager:
             tx = (SCREEN_WIDTH - tw) // 2
             ty = (SCREEN_HEIGHT - th) // 2
 
-            tabs = ["Controls", "Combat", "Fast Travel", "Upgrades"]
-            tab_y = ty + 50
-            tab_w = 180
-            tab_h = 32
-            start_tab_x = tx + (tw - (len(tabs) * (tab_w + 8) - 8)) // 2
+            tabs = [
+                "Controls", "Combat", "Travel", "Upgrades",
+                "Time & Tides", "Nemesis", "Companions", "Soul Pacts",
+                "Intrigue", "Epochs", "Dungeon", "Tips"
+            ]
+            tab_y = ty + 46
+            tab_w = 120
+            tab_h = 24
+            tab_gap_x = 6
+            tab_gap_y = 4
+            tabs_per_row = 6
+            total_row_w = tabs_per_row * tab_w + (tabs_per_row - 1) * tab_gap_x
+            start_tab_x = tx + (tw - total_row_w) // 2
 
-            # Check tab clicks
+            # Check tab clicks (2-row layout)
             for idx in range(len(tabs)):
-                tab_x = start_tab_x + idx * (tab_w + 8)
-                tab_rect = pygame.Rect(tab_x, tab_y, tab_w, tab_h)
+                row = idx // tabs_per_row
+                col = idx % tabs_per_row
+                tab_x = start_tab_x + col * (tab_w + tab_gap_x)
+                tab_y_pos = tab_y + row * (tab_h + tab_gap_y)
+                tab_rect = pygame.Rect(tab_x, tab_y_pos, tab_w, tab_h)
                 if tab_rect.collidepoint(mouse_pos):
                     self.tutorial_page_idx = idx
                     game.sound_manager.play_sound("click")
