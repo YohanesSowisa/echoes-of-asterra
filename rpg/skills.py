@@ -146,16 +146,21 @@ class SkillManager:
             return False
 
         # Verify resource cost
+        cost = skill.cost_val
         if skill.cost_type == "mana":
-            if player.mana < skill.cost_val:
+            if hasattr(player, "game") and player.game and hasattr(player.game, "pact_manager") and player.game.pact_manager:
+                cost = int(cost * player.game.pact_manager.get_mana_cost_multiplier())
+            if player.mana < cost:
                 return False
             # Consume mana
-            player.mana -= skill.cost_val
+            player.mana -= cost
         elif skill.cost_type == "stamina":
-            if player.stamina < skill.cost_val:
+            if hasattr(player, "game") and player.game and hasattr(player.game, "pact_manager") and player.game.pact_manager:
+                cost = int(cost * player.game.pact_manager.get_stamina_cost_multiplier())
+            if player.stamina < cost:
                 return False
             # Consume stamina
-            player.stamina -= skill.cost_val
+            player.stamina -= cost
 
         # Put on cooldown
         skill.trigger_cooldown()

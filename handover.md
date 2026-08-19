@@ -100,18 +100,103 @@ echoes-of-asterra/
   3. **Dennis's Feast & Brew Challenge**: Minigame push-your-luck turn-based mengelola rasa kenyang (*fullness*) melawan Blacksmith Dennis.
 - **Seasonal Records & Tiered Rewards**: Mencatat rekor terbaik per musim (*Spring, Summer, Autumn, Winter*), memberikan reward bertingkat (*Bronze, Silver, Gold*), memberikan gelar juara (*"Asterra Marksman"*, *"Grand Harvester"*, *"Master of Feasts"*), dan menyebarkan rumor kemenangan ke `RumorBoard`.
 
+### G. Nemesis Vendetta Sieges (`rpg/nemesis.py`)
+- **Dynamic Warband Assaults**: Captain level $\ge 4$ atau dengan trait agresif (*Bloodthirsty, Cunning, Hero Slayer*) memicu pengepungan wilayah berdurasi 3 hari in-game dengan pengawal minion.
+- **Controlled Escalation Loop**: Cooldown global 5 hari antar-siege, batas maksimal 1 siege aktif bersamaan, cap maksimal Lv.10 dan 3 trait.
+- **Definitive Match & Consequences**: Guard `active_siege_id` saat membunuh captain di medan siege, resolusi kemenangan (hadiah +100g, kestabilan & kemakmuran wilayah pulih, catatan permanen di `Mythos`), resolusi kekalahan (wilayah jatuh ke bandit, kestabilan anjlok, captain naik level).
+- **Direct UI Alerts & Rumor Warning**: Notifikasi toast prioritas tinggi saat siege dimulai dan peringatan darurat hari terakhir.
+
+### H. Ancestral Soul Pacts & Physical Mutations (`rpg/pacts.py`)
+- **Primordial Covenants**: Sistem ikrar pakta purba di altar khusus dunia (3 jalur unik: Void, Titan, Solar Seraph).
+- **Pact Mastery Tiers & Scaling**: 3 Tier Penguasaan (Novice $\rightarrow$ Ascendant $\rightarrow$ Paragon) yang terbuka melalui perolehan XP monster.
+- **Procedural Physical Sprite Mutations (`rpg/animation.py`)**: Mutasi visual 100% in-memory (tentakel ungu dan mata ketiga dahi untuk Void; lempeng batu granit, pundak raksasa, dan tanduk kristal untuk Titan; sayap malaikat emas berbulu dan halo melayang untuk Solar).
+- **Primordial Weapon Forging (`rpg/crafting.py`, `rpg/items.py`)**: Penempaan senjata legendaris berkat pakta (*Voidbrand Scythe*, *Titan Cragcleaver*, *Sunfire Morningstar*) di Blacksmith Dennis.
+- **Cross-Run Mythos Inheritance (`rpg/mythos.py`)**: Pencatatan riwayat ikrar pakta dan pewarisan relik primordial leluhur ke hero generasi berikutnya.
+- **Dedicated Spell Keybinding**: Tombol `Z` (`pygame.K_z`) untuk memicu mantra primordial aktif saat pertempuran.
+- **Reversible Purification Ritual**: Pelepasan pakta di Sanctuary Altar Desa dengan biaya `150 Gold` + `1x Starlight Crystal` dan cooldown pemulihan 3 hari (`cleansing_cooldown_days = 3`).
+
+### I. The Sunken Mire & Ancient Leylines (`rpg/sunken_mire.py`, `rpg/leylines.py`)
+- **Submerged Wetland Biome (`MAP_SUNKEN_MIRE`)**: Peta rawa baru dengan kepulauan gambut yang terhubung ke Danau (`lake`).
+- **Dynamic Tide Cycles**: Siklus pasang surut air laut/rawa berbasis waktu in-game. *High Tide* menenggelamkan jalur, memicu racun rawa, dan memberi penalti gerak 25%; *Low Tide* mengungkap jalur lumpur rahasia dan peti relik purba.
+- **Marsh Ecology & Monsters**: Predator amfibi `MireLurker` dan parasit pengeroyok `BogLeech` yang menjatuhkan bahan rawa (`Mire Reed`, `Leech Mucus`, `Sunken Relic`).
+- **Ancient Leyline Network & Overcharging**: Jaringan simpul konduit kristal kuno di seluruh penjuru Asterra yang dapat diaktivasi dengan 10 Mana untuk membuka *Fast Travel* instan. Penyaluran *Starlight Crystal* / *Sunken Relic* meng-overcharge konduit selama 24 jam in-game (mengunci *Low Tide* permanen di rawa dan memberikan buff regional).
+- **Mire Flora Foraging & Alchemy**: Simpul panen botani rawa (*Bog Blossom*, *Glow Lotus*, *Luminescent Spore*) dan penempaan ramuan alkimia (*Waterstrider Elixir*, *Mire Cleansing Draught*, *Leyline Surge Tonic*).
+- **The Submerged Temple of Asterra (`MAP_SUBMERGED_TEMPLE`)**: Dungeon candi bawah air kuno yang berisi penjaga batu `TempleGuardian` dan ruang pertarungan boss utama.
+- **Tidal World Boss — Morvath, the Mire Leviathan**: Pertarungan boss 2 fase amfibi colossus (sabetan ekor area, geyser, dan enrage *Tidal Miasma Surge* di bawah 50% HP yang memanggil kawanan *Bog Leech*).
+- **Leyline Resonant Equipment**: Penempaan perlengkapan legendaris dari sisik Morvath dan kristal konduit (*Leviathan Scale Mail*, *Tidecaller Trident*, *Conduit Ring of Leylines*).
+- **Leyline Rot Contamination & Cross-Zone Blight**: Sistem pembusukan konduit (Rot 0-100%) dengan sarang spora rawa interaktif (`SporeNestSprite`), mutasi serigala hutan menjadi `SporeHostWolf` beracun (ledakan spora area saat mati), dan quest darurat Noticeboard.
+- **HUD & Persistence**: Indikator fase pasang-surut real-time, badge level Rot `☣️ ROT: xx%`, dan timer aktif ramuan di HUD, serta peningkatan `SAVE_SCHEMA_VERSION = 7`.
+
+### J. The Doomsday Infiltration: Shadow Syndicate & The Usurper (`rpg/conspiracy.py`)
+- **Conspiracy & Coup Engine**: Pelacak intrik konspirasi Shadow Syndicate dengan penghitung mundur 30 hari (`days_until_coup`), metrik pengaruh sindikat (`syndicate_influence`, 0–100%), dan peringatan darurat saat sisa waktu $\le 5$ hari.
+- **Immutable Core NPC Safeguards**: Perlindungan absolut tak tertembus untuk tokoh inti alur cerita dan ekonomi (`Elder Eldrin`, `Merchant Silas`, `Blacksmith Dennis`).
+- **Peripheral Suspect Confrontation**: Mini-boss `CorruptLieutenantBran` di persimpangan jalan Hutan. Mengalahkannya memangkas pengaruh sindikat sebesar -15%, membuka `Syndicate Cipher Fragment #1`, dan menyebarkan rumor terbongkarnya pengkhianat.
+- **Compromised Minds & Purification Exorcisms**: Mekanik cuci otak NPC sekunder (*Miner Garth*, *Ranger Faye*, *Scholar Mira*) dengan dialog dingin, biaya layanan +40%, duel pertempuran melawan `ShadowParasite`, dan pemurnian akal sehat seutuhnya berhadiah *Shadow Residue*.
+- **Covert Territory Shifts & Envoy Defense**: Operasi sabotase tertutup 3 hari terhadap titik kontrol militer (`ruins_plaza`) yang secara halus mengalihkan kendali wilayah ke `FACTION_CULT` jika tidak dicegah, musuh berkecepatan tinggi `ShadowAssassin`, serta quest perlindungan Envoy Vaelin berhadiah `Syndicate Cipher Fragment #2`.
+- **The Grand Usurper Climax & Multi-Endings**: Pertarungan world boss multi-fase melawan *Grand Inquisitor Vane, The Usurper* (enrage di bawah 50% HP memanggil kawanan assassin), perlengkapan relic (*Usurper's Royal Signet Ring*, *Crown of Shadows*), serta 3 percabangan ending (*Total Purge*, *Shadow Sovereign*, *Compromised Kingdom*) yang tercatat abadi di `Mythos`.
+- **HUD Coup Tracker**: Badge status real-time `🕵️ COUP: Day X/30 (xx%)` di HUD.
+
+### K. Outpost Commander & Sovereign Caravans (`rpg/outpost.py`, `rpg/caravan.py`)
+- **Strategic Outpost Construction**: Pembangunan pos komando militer berbenteng di titik kontrol wilayah (`forest_crossroads`, `cave_depths`, `ruins_plaza`, `lake_pier`) saat stabilitas $\ge 70\%$ seharga 100g.
+- **Caravan Toll Taxation**: Pendapatan pajak harian (+10g per pos) dari karavan dagang yang melintas, dapat diklaim mandiri atau sekaligus via `collect_all_tolls()`.
+- **Faction Warfare Stability Lock**: Pos aktif mengunci stabilitas wilayah melawan degradasi harian ($\ge 85\%$) dan mencegah peralihan kekuasaan sepihak.
+- **Physical World Presence**: Menara batu berbenteng interaktif (`OutpostTowerSprite`) dan prajurit penjaga pos (`OutpostGuardNPC`) yang bertambah sesuai level.
+- **Sovereign Player Caravans (`CARAVAN_SOVEREIGN_PLAYER`)**: Pengiriman karavan dagang berbendera pemain dari desa ke pos militer dengan komoditas bertingkat (*Provisions*, *Refined Iron Goods*, *Tonic Crates*), bonus +30% hasil pada spesialisasi Trade Hub, serta penugasan companion kapten bersenjata berhadiah +100 XP.
+- **Real-Time Ambush Alerts & Convoy Defense**: Simulasi pembegalan karavan di jalan raya, badge peringatan darurat HUD, pertarungan taktis melawan musuh `BanditRaider` di world map, hadiah penyelamatan (+50 EXP, +30g, +10 Road Safety), dan konsekuensi kehancuran gerobak/cedera companion jika waktu 60 detik terlewat.
+- **Multi-Tier Outpost Upgrades & Automated Courier Relays**: Peningkatan pos berjenjang (Level 1: 10g/day & 2 guards; Level 2 Bastion: 25g/day & 3 guards; Level 3 Trade Citadel: 50g/day & 4 guards). Pos Level 3 mengotomatisasi penyetoran deviden pajak harian langsung ke pundi-pundi pemain tanpa klaim manual.
+- **Continental Trade Monopoly Climax**: Mengembangkan 3+ pos ke Level 3 membuka gelar bergengsi *"Merchant Sovereign of Asterra"*, mencatatkan pencapaian abadi `CONTINENTAL_TRADE_MONOPOLY` di `Mythos`, dan menyebarkan rumor kejayaan ekonomi di Asterra.
+
+### L. The Cataclysm Epochs (`rpg/epochs.py`)
+- **Procedural In-Memory Tilemap Overlays**: Engine mutasi tilemap prosedural langsung di memori saat memuat zona tanpa memodifikasi berkas JSON statis di disk.
+- **The Deluge Epoch (Zaman Air Bah)**: Menenggelamkan 40%+ daratan rumput terbuka menjadi perairan luas di zona permukaan Asterra dengan jembatan rakit kayu (`wood_bridge`) dan cuaca hujan/badai konsisten.
+- **The Scorched Blight (Zaman Bara Api)**: Mengubah lanskap menjadi tanah abu vulkanik (`ash_ground`), pohon terbakar (`burnt_tree`), dan retakan magma cair (`magma`) yang memberi hazard thermal burn (-4 HP/s) tanpa proteksi sepatu tahan api/elixir.
+- **The Glacial Winter (Zaman Salju Abadi)**: Menyelimuti Asterra dalam salju abadi (`snow`), pohon cemara salju (`snow_tree`), dan membekukan sungai/danau menjadi lembaran es licin (`ice`) dengan fisika inersia luncur (*low-friction ice sliding*).
+- **100% Path Accessibility Guarantee**: Algoritma validasi konektivitas BFS flood-fill memastikan seluruh gateway dan tujuan misi tetap 100% dapat dijangkau.
+- **Generational Legacy State & Narrative Inheritance (`mythos.py`, `npc_memory.py`)**: Hasil akhir hero sebelumnya menentukan era awal playthrough berikutnya (gagal api $\rightarrow$ Scorched, tenggelam $\rightarrow$ Deluge, beku $\rightarrow$ Glacial), diiringi dialog folklor generasional dari Elder Eldrin, Dennis, dan Silas.
+
+### M. Sovereign Guilds & The Continental Monopoly (`rpg/monopoly.py`)
+- **Territorial Concession Deeds**: Akta konsesi sumber daya eksklusif (*Mining Concession* 150g $\rightarrow$ +3 Iron Ore & +2 Granite Stone/day; *Herbal Rights* 100g $\rightarrow$ +4 Medicinal Herbs & +2 Luminescent Spores/day; *Timber Concession* 120g $\rightarrow$ +5 Oak Timber/day).
+- **Guild Commodity Warehouse**: Gudang penampungan komoditas berkapasitas 300 unit yang menerima kiriman pasokan otomatis harian dari akta konsesi yang dimiliki.
+- **Bulk Market Liquidation**: Fitur likuidasi borongan komoditas langsung ke pasar untuk mendapatkan Gold sesuai harga pasar (Iron Ore 8g, Herbs 6g, Spores 10g, Timber 5g, Stone 4g).
+- **Supply Hoarding & Silas 2.5x Price Surge**: Penimbunan $\ge 30$ unit (80%+) Iron Ore di gudang memicu lonjakan harga senjata besi di toko Silas hingga **2.5x** lipat.
+- **Faction Military Embargoes**: Kelangkaan besi / embargo terarah memotong pertahanan ksatria (*Knights of Asterra*) sebesar **-20% DEF** (0.8x) dalam perang faksi. Embargo tanaman obat ke Bandit mematikan regenerasi HP musuh Bandit.
+- **Asterra Merchant Syndicate HQ & Gold Vault Banking**: Pembangunan markas besar serikat dagang (250g) membuka brankas emas dengan **bunga majemuk harian +2%** (`deposit_vault`, `withdraw_vault`).
+- **"The Sovereign Baron" Prestige Title & Perks**: Memberikan diskon belanja permanen **30%** di semua toko pedagang, membuka opsi **Suap Diplomatik** (50g) untuk meredakan permusuhan faksi, dan mencatatkan `MERCHANT_SYNDICATE_FOUNDED` di `Mythos`.
+- **Living Economic Rumors**: Rumor pasar dinamis (`rumor_iron_hoarding`, `rumor_bandit_herb_embargo`) menyebar di desa.
+- **Interactive UI Modal**: Modal antarmuka gudang & akta konsesi dua kolom dengan indikator stok visual real-time dan aksi likuidasi instan.
+
+### N. The Living Dungeon Sovereign: Crypt Architect (`rpg/dungeon_architect.py`)
+- **Dungeon Core Claiming**: Pemain dapat mengklaim *Dungeon Core Stone* di lantai Crypt, membuka kepemilikan mutlak atas labirin bawah tanah dan memperoleh gelar *"Crypt Sovereign"*.
+- **Architect Grid Trap Placement**: Konstruksi jebakan pertahanan berbasis petak grid dengan biaya emas dan material (*Spike Trap*: 25g + 2 Granite Stone, 35 DMG; *Iron Portcullis*: 40g + 4 Iron Ore, 15 DMG & rintangan gerak; *Bait Mimic Chest*: 50g + 1 Luminescent Spore, 60 DMG gigitan). Pembongkaran jebakan mengembalikan 50% modal emas.
+- **Beast Capture & Domestication**: Pembuatan jaring perangkap `Beast Capture Net` di Blacksmith (2x Beast Leather, 1x Iron Ore, 20g) untuk menangkap monster liar yang sekarat (<20% HP).
+- **Chamber Stationing & Guardian Synergy**: Menempatkan monster tangkapan di ruangan labirin untuk berpatroli dan melipatgandakan rating pertahanan labirin (+2x ATK guardian).
+- **Periodic 3-Day Raider Invasions**: Serangan periodik setiap 3 hari oleh regu petualang rival, bandit penjarah, atau kelompok outlaws Nemesis.
+- **Defense Simulation & Infamy Spoils**: Menguji rating pertahanan labirin melawan kekuatan penyerang. Berhasil menghalau memberikan **+30 Dungeon Infamy**, **+60–120 Gold**, dan rampasan material (`Iron Ore`, `Timber`, `Beast Leather`).
+- **Multi-Floor Excavations & Sovereign Climax**: Ekspansi bertingkat ke Lantai 2 (*Deep Catacombs*, 200g + 50 Infamy) dan Lantai 3 (*Abyssal Vaults*, 400g + 100 Infamy), membuka gelar pamungkas *"The Lord of the Deep Catacombs"* dan mencatat `DUNGEON_SOVEREIGNTY_ESTABLISHED` ke dalam kronik `Mythos`.
+- **Real-Time Trap Intruder Collision Engine**: Deteksi tabrakan otomatis terhadap monster/musuh penginvasi yang memicu damage, angka tempur, partikel darah/ledakan, dan timer cooldown independen per jebakan.
+- **Architectural Defense Rating**: Perhitungan dinamis skor pertahanan labirin dengan pengganda variasi jenis jebakan (*diversity bonus*) dan kekuatan monster penjaga di seluruh lantai subterranean.
+
+### O. Chrono-Echoes & Spacetime Fractures (`rpg/chrono.py`, `rpg/weather.py`, `rpg/npc_memory.py`, `rpg/mythos.py`)
+- **Rolling 3-Day Ring Buffer Snapshot Engine**: Perekaman snapshot memori atomik non-destruktif atas siklus hari, jam dunia, HP/stamina/gold/XP/koordinat pemain, tumpukan inventaris, perlengkapan, progres misi, dan bendera dunia.
+- **Relic Item: Chrono-Weaver Hourglass & Aeon Core**: Artifak legendaris temporal yang digunakan untuk memanipulasi ruang dan waktu serta menempa perlengkapan primordial.
+- **Atomic 3-Day Spacetime Rollback**: Memutar balik siklus hari dunia, statistik karakter, dan status misi hingga 3 hari ke masa lalu secara bersih tanpa duplikasi item, desinkronisasi, atau korupsi berkas save.
+- **Temporal Fractures & Chrono-Doppelganger Mirror Boss (`ChronoDoppelganger`)**: Menimbulkan celah anomali ruang-waktu di koordinat rewind dan memunculkan bos bayangan cermin yang meniru senjata, armor, level, dan kombo serangan pemain pra-rewind hingga dikalahkan.
+- **Atmospheric Temporal Rifts & Time Dilation (`WEATHER_TEMPORAL_RIFT`)**: Lapisan langit violet-cyan kromatik dengan partikel chrono sparkles dan efek perlambatan waktu $0.75\times$ (faktor dilatasi 25%) selama celah aktif.
+- **NPC Déjà-Vu Reactivity (`NPCMemory`, `get_deja_vu_dialogue`)**: Tokoh desa (`Eldrin`, `Silas`, `Dennis`, `Faye`, `Mira`) merasakan getaran psikis dari lini masa yang terhapus, membuka cabang dialog kontekstual khusus.
+- **The Aeon Sentinel Climax Boss & Mythos Chronicle (`AeonSentinel`)**: Pertarungan bos primordial penjaga ruang-waktu untuk menstabilkan kontinum Asterra, membuka gelar prestise *"Chrono-Weaver Supreme"* dan mencatat `TEMPORAL_FABRIC_MENDED` ke dalam kronik `Mythos`.
+
 ---
 
 ## 🧪 4. Status Pengujian & Kompilasi
 
-Seluruh 177 unit test di 21 test modules telah diuji secara otomatis dan lulus 100%:
+Seluruh 360 unit test di 49 test modules telah diuji secara otomatis dan lulus 100%:
 
 ```bash
-python3 -m py_compile main.py rpg/*.py rpg/services/*.py
-# Output: ALL rpg modules compiled 100% clean!
+python3 -m py_compile main.py rpg/*.py rpg/services/*.py tests/*.py
+# Output: ALL modules compiled 100% clean!
 
 python3 -m unittest discover -s tests
-# Output: Ran 177 tests in 0.616s - OK
+# Output: Ran 360 tests - OK
 ```
 
 ---
@@ -124,6 +209,6 @@ Bagi AI Agent / Developer yang menerima sesi chat baru:
 2. **Aturan Penting Pengembangan**:
    - Selalu biarkan pengguna (*User*) melakukan `git commit` sendiri.
    - Jangan menambahkan dependency berat eksternal (sistem dirancang 100% offline & deterministik).
-   - Pastikan Save Schema (`SAVE_SCHEMA_VERSION = 4`) dan migrasi backward compatibility selalu terjaga.
+   - Pastikan Save Schema (`SAVE_SCHEMA_VERSION = 6`) dan migrasi backward compatibility selalu terjaga.
    - Selalu uji dengan `python3 -m py_compile main.py rpg/*.py rpg/services/*.py` dan `python3 -m unittest discover -s tests` setelah mengedit kode.
    - Catat setiap penambahan fitur / bug fix baru ke dalam berkas `update_logs.md` dengan format timestamp `[yyyy-mm-dd hh:mm:ss WIB]`.

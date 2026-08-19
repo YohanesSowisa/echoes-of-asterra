@@ -244,6 +244,21 @@ class QuestManager:
             exclusive_with="knight_path_quest"
         )
 
+        # 12. Conspiracy Quest: Protect the Mage Guild Envoy (Pillar 2 Phase 3)
+        self.quests["quest_conspiracy_envoy"] = Quest(
+            quest_id="quest_conspiracy_envoy",
+            title="Protect the Mage Guild Envoy",
+            description="The Shadow Syndicate deployed Shadow Assassins to ambush Envoy Vaelin in the Sunfire Ruins. Intercept and eliminate the assassins!",
+            objectives=[
+                QuestObjective("Defeat 3 Shadow Assassins in Ruins", "kill", "Shadow Assassin", 3)
+            ],
+            rewards={
+                "exp": 250,
+                "gold": 150,
+                "items": [("Syndicate Cipher Fragment #2", 1)]
+            }
+        )
+
     def is_quest_available(self, quest_id: str) -> bool:
         """Checks if a quest is eligible to be accepted based on prerequisites and mutual exclusions."""
         quest = self.quests.get(quest_id)

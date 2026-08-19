@@ -73,6 +73,31 @@ class EmergentQuestGenerator:
                 self.event_bus.emit("emergent_quest_generated", quest=new_quest)
             return new_quest
 
+        # 3. High Leyline Spore Rot (rot_level >= 60%) -> Emergency Leyline Purification
+        quest_id_rot = f"emergent_spore_rot_day_{day}"
+        mm = getattr(world_state, "mire_manager", None)
+        rot_level = getattr(mm, "rot_level", 0.0) if mm else getattr(world_state, "mire_rot_level", 0.0)
+        if rot_level >= 60.0 and quest_id_rot not in self.active_emergent_ids:
+            new_quest = Quest(
+                quest_id=quest_id_rot,
+                title=f"[Emergent] Leyline Spore Blight Crisis (Day {day})",
+                description=f"Leyline Rot has reached critical levels ({int(rot_level)}%). Defeat 3 Spore-Host Wolves in the Forest to curb the toxic epidemic!",
+                objectives=[
+                    QuestObjective("Defeat 3 Spore-Host Wolves", "kill", "spore_host_wolf", 3)
+                ],
+                rewards={
+                    "exp": 220,
+                    "gold": 160,
+                    "items": [("Mire Cleansing Draught", 2), ("Starlight Crystal", 1)]
+                }
+            )
+            new_quest.status = QUEST_ACTIVE
+            quest_manager.quests[quest_id_rot] = new_quest
+            self.active_emergent_ids.add(quest_id_rot)
+            if self.event_bus:
+                self.event_bus.emit("emergent_quest_generated", quest=new_quest)
+            return new_quest
+
         return None
 
     def reset(self) -> None:

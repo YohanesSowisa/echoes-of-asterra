@@ -141,6 +141,17 @@ class Inventory:
                 total += slot.quantity
         return total
 
+    def count_item(self, name: str) -> int:
+        """Alias for get_item_count."""
+        return self.get_item_count(name)
+
+    def find_item_slot(self, name: str) -> Optional[int]:
+        """Finds the first slot index containing the specified item name."""
+        for idx, slot in enumerate(self.slots):
+            if slot and slot.name == name:
+                return idx
+        return None
+
     def sort_inventory(self) -> None:
         """
         Sorts items in-place:
@@ -257,6 +268,25 @@ class Inventory:
                 if player.stamina < player.max_stamina:
                     player.stamina = min(player.max_stamina, player.stamina + item.stats["heal_stam"])
                     used = True
+
+            # Apply Waterstrider Elixir buff
+            if "waterstrider_dur" in item.stats:
+                player.waterstrider_timer = max(getattr(player, "waterstrider_timer", 0.0), item.stats["waterstrider_dur"])
+                used = True
+
+            # Apply Mire Cleansing Draught buff
+            if "cleansing_draught_dur" in item.stats:
+                player.cleansing_draught_timer = max(getattr(player, "cleansing_draught_timer", 0.0), item.stats["cleansing_draught_dur"])
+                if hasattr(player, "elemental_statuses") and "poison" in player.elemental_statuses:
+                    del player.elemental_statuses["poison"]
+                if hasattr(player, "status_effects") and "poison" in player.status_effects:
+                    del player.status_effects["poison"]
+                used = True
+
+            # Apply Leyline Surge Tonic buff
+            if "leyline_surge_dur" in item.stats:
+                player.leyline_surge_timer = max(getattr(player, "leyline_surge_timer", 0.0), item.stats["leyline_surge_dur"])
+                used = True
             
             if used:
                 player.potion_cooldown_timer = 3.0

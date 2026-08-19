@@ -32,6 +32,17 @@ class Equipment:
             # Accessory or other edge cases
             return item
 
+        # Soul Pact item restriction check
+        if hasattr(player, "game") and player.game and hasattr(player.game, "pact_manager") and player.game.pact_manager:
+            if not player.game.pact_manager.can_equip_item(item):
+                if hasattr(player.game, "notification_manager") and player.game.notification_manager:
+                    from rpg.notification import NotificationPriority
+                    player.game.notification_manager.push_toast(
+                        f"⛔ PACT RESTRICTION: The Void rejects {getattr(item, 'name', 'this metal gear')}!",
+                        priority=NotificationPriority.MEDIUM
+                    )
+                return item
+
         previous_item = self.slots[slot_name]
         self.slots[slot_name] = item
         
@@ -86,8 +97,8 @@ class Equipment:
                 bonus_magic += stats.get("magic", 0)
                 bonus_speed += stats.get("speed", 0)
                 bonus_crit += stats.get("crit", 0)
-                bonus_hp += stats.get("hp", 0)
-                bonus_mana += stats.get("mana", 0)
+                bonus_hp += stats.get("hp", 0) + stats.get("max_hp", 0)
+                bonus_mana += stats.get("mana", 0) + stats.get("max_mana", 0)
 
                 # Aggregate socketed runes
                 for rune_name in getattr(slot_item, "socketed_runes", []):
@@ -127,6 +138,11 @@ class Equipment:
             player.atk = max(1, int(player.atk * stat_buffs.get("atk_mult", 1.0)))
             player.defense = max(0, int(player.defense * stat_buffs.get("def_mult", 1.0)))
             player.speed = max(1.5, player.speed * stat_buffs.get("speed_mult", 1.0))
+
+        # Check Soul Pact modifiers
+        if hasattr(player, "game") and player.game and hasattr(player.game, "pact_manager") and player.game.pact_manager:
+            player.defense += player.game.pact_manager.get_defense_bonus()
+            player.speed = max(1.5, player.speed * player.game.pact_manager.get_speed_multiplier())
         
         # Scale current pools to match new boundaries
         player.hp = int(hp_ratio * player.max_hp)

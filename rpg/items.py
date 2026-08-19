@@ -232,6 +232,35 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "stats": {"atk": 7, "crit": 15, "speed": 1},
         "description": "Light, rapid assassin dagger capable of swift 4-hit combos."
     },
+
+    # Primordial Pact-Infused Relic Weapons
+    "Voidbrand Scythe": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SPEAR,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"atk": 18, "crit": 12, "reach": 1.5},
+        "description": "Primordial scythe infused with abyssal void energy. Extended reach and void pulse hits."
+    },
+    "Titan Cragcleaver": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_AXE,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"atk": 22, "def": 4, "speed": -1},
+        "description": "Colossal granite battleaxe forged from Asterra bedrock. Crushes enemy armor on impact."
+    },
+    "Sunfire Morningstar": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_HAMMER,
+        "element": ELEMENT_FIRE,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"atk": 16, "hp": 20, "magic": 10},
+        "description": "Radiant solar morningstar burning with celestial dawnfire. Illuminates darkness on every strike."
+    },
     
     # Shields
     "Wooden Shield": {
@@ -431,6 +460,48 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "stats": {"magic": 8},
         "description": "Luminescent crystal harvested from ancient ruins."
     },
+    "Granite Stone": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Dense granite stone mined from Asterra bedrock, used in dungeon fortifications and masonry."
+    },
+    "granite_stone": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Dense granite stone mined from Asterra bedrock, used in dungeon fortifications and masonry."
+    },
+    "Stone": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Sturdy quarried stone used for crafting and dungeon architectural construction."
+    },
+    "stone": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Sturdy quarried stone used for crafting and dungeon architectural construction."
+    },
+    "Luminescent Spore": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 50,
+        "stats": {"magic": 3},
+        "description": "Bioluminescent fungal spores harvested from the Sunken Mire and deep crypts."
+    },
+    "luminescent_spore": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 50,
+        "stats": {"magic": 3},
+        "description": "Bioluminescent fungal spores harvested from the Sunken Mire and deep crypts."
+    },
     "festive_honey_bread": {
         "item_type": ITEM_FOOD,
         "rarity": RARITY_UNCOMMON,
@@ -445,8 +516,294 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "stats": {"heal_hp": 35, "heal_stam": 50},
         "description": "Sweet festival bread baked with Asterra wild honey."
     },
+    "Beast Capture Net": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 10,
+        "stats": {},
+        "description": "Heavy weighted mesh net crafted to ensnare weakened monsters (<20% HP) for dungeon domestication."
+    },
+    "beast_capture_net": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 10,
+        "stats": {},
+        "description": "Heavy weighted mesh net crafted to ensnare weakened monsters (<20% HP) for dungeon domestication."
+    },
     
-    # Rare Artifacts
+    # Rare Artifacts & Primordial Materials
+    "Chrono-Weaver Hourglass": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"magic": 10},
+        "description": "Mythical sands of time enclosed in celestial brass. Activating rewinds the world up to 3 days into the past."
+    },
+    "chrono_weaver_hourglass": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"magic": 10},
+        "description": "Mythical sands of time enclosed in celestial brass. Activating rewinds the world up to 3 days into the past."
+    },
+    "Aeon Core": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 5,
+        "stats": {"magic": 15, "defense": 15},
+        "description": "Primordial pulsating core of stabilized temporal essence harvested from the defeated Aeon Sentinel."
+    },
+    "aeon_core": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 5,
+        "stats": {"magic": 15, "defense": 15},
+        "description": "Primordial pulsating core of stabilized temporal essence harvested from the defeated Aeon Sentinel."
+    },
+    "Ancient Relic": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 20,
+        "stats": {"magic": 5},
+        "description": "Ancient glowing artifact relic retrieved from Asterra's primordial crypts."
+    },
+    "ancient_relic": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 20,
+        "stats": {"magic": 5},
+        "description": "Ancient glowing artifact relic retrieved from Asterra's primordial crypts."
+    },
+    "Topaz": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 20,
+        "stats": {"magic": 6},
+        "description": "Golden sun gemstone shimmering with radiant solar energy."
+    },
+    "topaz": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 20,
+        "stats": {"magic": 6},
+        "description": "Golden sun gemstone shimmering with radiant solar energy."
+    },
+    "Silver Ore": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Precious lustrous ore mined from deep caverns."
+    },
+    "silver_ore": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Precious lustrous ore mined from deep caverns."
+    },
+    "Mire Reed": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Fibrous wetland reeds harvested from the Sunken Mire."
+    },
+    "mire_reed": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_COMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Fibrous wetland reeds harvested from the Sunken Mire."
+    },
+    "Leech Mucus": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 99,
+        "stats": {"magic": 3},
+        "description": "Viscous secretions from bog leeches used in alchemy."
+    },
+    "leech_mucus": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 99,
+        "stats": {"magic": 3},
+        "description": "Viscous secretions from bog leeches used in alchemy."
+    },
+    "Sunken Relic": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_EPIC,
+        "max_stack": 20,
+        "stats": {"magic": 10},
+        "description": "Waterlogged ancient relic recovered from the deep Sunken Mire."
+    },
+    "sunken_relic": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_EPIC,
+        "max_stack": 20,
+        "stats": {"magic": 10},
+        "description": "Waterlogged ancient relic recovered from the deep Sunken Mire."
+    },
+    "Bog Blossom": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Rare purple orchid blooming in marsh peat. Petals absorb ambient arcane moisture."
+    },
+    "bog_blossom": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 99,
+        "stats": {},
+        "description": "Rare purple orchid blooming in marsh peat. Petals absorb ambient arcane moisture."
+    },
+    "Glow Lotus": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 99,
+        "stats": {"magic": 4},
+        "description": "Bioluminescent aquatic flower floating in low-tide pools. Emits a steady cyan radiance."
+    },
+    "glow_lotus": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 99,
+        "stats": {"magic": 4},
+        "description": "Bioluminescent aquatic flower floating in low-tide pools. Emits a steady cyan radiance."
+    },
+    "Luminescent Spore": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 99,
+        "stats": {"magic": 5},
+        "description": "Glowing mire fungal spores harvested from ancient bogwood."
+    },
+    "luminescent_spore": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 99,
+        "stats": {"magic": 5},
+        "description": "Glowing mire fungal spores harvested from ancient bogwood."
+    },
+    "Waterstrider Elixir": {
+        "item_type": ITEM_POTION,
+        "rarity": RARITY_RARE,
+        "max_stack": 10,
+        "stats": {"waterstrider_dur": 180.0},
+        "description": "Grants Waterstrider Blessing for 180s (100% speed mobility in deep swamp water and mud)."
+    },
+    "waterstrider_elixir": {
+        "item_type": ITEM_POTION,
+        "rarity": RARITY_RARE,
+        "max_stack": 10,
+        "stats": {"waterstrider_dur": 180.0},
+        "description": "Grants Waterstrider Blessing for 180s (100% speed mobility in deep swamp water and mud)."
+    },
+    "Mire Cleansing Draught": {
+        "item_type": ITEM_POTION,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 10,
+        "stats": {"cleansing_draught_dur": 240.0},
+        "description": "Instantly cures poison and grants 240s immunity to swamp toxins and marsh miasma."
+    },
+    "mire_cleansing_draught": {
+        "item_type": ITEM_POTION,
+        "rarity": RARITY_UNCOMMON,
+        "max_stack": 10,
+        "stats": {"cleansing_draught_dur": 240.0},
+        "description": "Instantly cures poison and grants 240s immunity to swamp toxins and marsh miasma."
+    },
+    "Leyline Surge Tonic": {
+        "item_type": ITEM_POTION,
+        "rarity": RARITY_EPIC,
+        "max_stack": 10,
+        "stats": {"leyline_surge_dur": 120.0},
+        "description": "Consumes Leyline resonance to grant +25% Magic Damage and 3x Mana Regeneration for 120s."
+    },
+    "leyline_surge_tonic": {
+        "item_type": ITEM_POTION,
+        "rarity": RARITY_EPIC,
+        "max_stack": 10,
+        "stats": {"leyline_surge_dur": 120.0},
+        "description": "Consumes Leyline resonance to grant +25% Magic Damage and 3x Mana Regeneration for 120s."
+    },
+
+    # Phase 3: Submerged Temple Boss Drops & Leyline Resonant Equipment
+    "Tidal Scale": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_EPIC,
+        "max_stack": 20,
+        "stats": {"def": 2},
+        "description": "Iridescent armored leviathan scale that repels both corrosive acid and raging tides."
+    },
+    "tidal_scale": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_EPIC,
+        "max_stack": 20,
+        "stats": {"def": 2},
+        "description": "Iridescent armored leviathan scale that repels both corrosive acid and raging tides."
+    },
+    "Conduit Core": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 10,
+        "stats": {"magic": 15},
+        "description": "Vibrant pulsing crystal core harvested from an ancient Leyline heart."
+    },
+    "conduit_core": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 10,
+        "stats": {"magic": 15},
+        "description": "Vibrant pulsing crystal core harvested from an ancient Leyline heart."
+    },
+    "Leviathan Scale Mail": {
+        "item_type": ITEM_CHEST,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"def": 14, "max_hp": 35},
+        "description": "Heavy plate mail forged from reinforced tidal scales. Grants immense defense and resilience."
+    },
+    "leviathan_scale_mail": {
+        "item_type": ITEM_CHEST,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"def": 14, "max_hp": 35},
+        "description": "Heavy plate mail forged from reinforced tidal scales. Grants immense defense and resilience."
+    },
+    "Tidecaller Trident": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SPEAR,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"atk": 20, "magic": 12, "reach": 1.6},
+        "description": "Ancient relic spear resonating with aquatic Leyline force. Expands reach and summons tidal shockwaves."
+    },
+    "tidecaller_trident": {
+        "item_type": ITEM_WEAPON,
+        "weapon_class": WEAPON_SPEAR,
+        "element": ELEMENT_NONE,
+        "rarity": RARITY_LEGENDARY,
+        "max_stack": 1,
+        "stats": {"atk": 20, "magic": 12, "reach": 1.6},
+        "description": "Ancient relic spear resonating with aquatic Leyline force. Expands reach and summons tidal shockwaves."
+    },
+    "Conduit Ring of Leylines": {
+        "item_type": ITEM_ACCESSORY,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"mana": 30, "magic": 10, "cooldown_reduction": 0.15},
+        "description": "Ring inscribed with Leyline glyphs. Expands maximum Mana and accelerates ability cooldowns."
+    },
+    "conduit_ring_of_leylines": {
+        "item_type": ITEM_ACCESSORY,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"mana": 30, "magic": 10, "cooldown_reduction": 0.15},
+        "description": "Ring inscribed with Leyline glyphs. Expands maximum Mana and accelerates ability cooldowns."
+    },
     "Asterra Heart": {
         "item_type": ITEM_ARTIFACT,
         "rarity": RARITY_LEGENDARY,
@@ -469,6 +826,76 @@ ITEM_DATABASE: Dict[str, Dict[str, Any]] = {
         "max_stack": 5,
         "stats": {},
         "description": "A heavy copper key inscribed with skull markings."
+    },
+    "Syndicate Cipher Fragment #1": {
+        "item_type": ITEM_QUEST,
+        "rarity": RARITY_RARE,
+        "max_stack": 1,
+        "stats": {},
+        "description": "An intercepted encrypted codex fragment detailing the Shadow Syndicate's Day 30 coup infiltration."
+    },
+    "syndicate_cipher_fragment_1": {
+        "item_type": ITEM_QUEST,
+        "rarity": RARITY_RARE,
+        "max_stack": 1,
+        "stats": {},
+        "description": "An intercepted encrypted codex fragment detailing the Shadow Syndicate's Day 30 coup infiltration."
+    },
+    "Syndicate Cipher Fragment #2": {
+        "item_type": ITEM_QUEST,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {},
+        "description": "Conclusive royal signet letter intercepted from Shadow Assassins detailing the Grand Usurper's inner coup circle."
+    },
+    "syndicate_cipher_fragment_2": {
+        "item_type": ITEM_QUEST,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {},
+        "description": "Conclusive royal signet letter intercepted from Shadow Assassins detailing the Grand Usurper's inner coup circle."
+    },
+    "Usurper's Royal Signet Ring": {
+        "item_type": ITEM_ACCESSORY,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"atk": 12, "defense": 6, "magic": 10},
+        "description": "Engraved sovereign ring recovered from Grand Inquisitor Vane. Radiates overwhelming authority and +15% boss damage."
+    },
+    "usurpers_royal_signet_ring": {
+        "item_type": ITEM_ACCESSORY,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"atk": 12, "defense": 6, "magic": 10},
+        "description": "Engraved sovereign ring recovered from Grand Inquisitor Vane. Radiates overwhelming authority and +15% boss damage."
+    },
+    "Crown of Shadows": {
+        "item_type": ITEM_HELMET,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"defense": 10, "max_mana": 40},
+        "description": "Diadem woven from pure obsidian void shadows. Grants +10 Defense, +40 Max MP, and 30% void resistance."
+    },
+    "crown_of_shadows": {
+        "item_type": ITEM_HELMET,
+        "rarity": RARITY_EPIC,
+        "max_stack": 1,
+        "stats": {"defense": 10, "max_mana": 40},
+        "description": "Diadem woven from pure obsidian void shadows. Grants +10 Defense, +40 Max MP, and 30% void resistance."
+    },
+    "Shadow Residue": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 99,
+        "stats": {"magic": 8},
+        "description": "Purified psychic ectoplasm extracted after slaying a Shadow Parasite. Radiates calm void energy."
+    },
+    "shadow_residue": {
+        "item_type": ITEM_MATERIAL,
+        "rarity": RARITY_RARE,
+        "max_stack": 99,
+        "stats": {"magic": 8},
+        "description": "Purified psychic ectoplasm extracted after slaying a Shadow Parasite. Radiates calm void energy."
     },
     "Rune of Fire": {
         "item_type": ITEM_MATERIAL,
@@ -534,28 +961,33 @@ def roll_affixes(item: Item, roll_chance: float = 0.4) -> None:
     if item.item_type not in [ITEM_WEAPON, ITEM_HELMET, ITEM_CHEST, ITEM_BOOTS, ITEM_SHIELD, ITEM_ACCESSORY]:
         return
 
-    # Roll rarity
-    r = random.random()
-    if r < 0.05:
-        item.rarity = RARITY_LEGENDARY
-        affix_count = 3
-        item.sockets = random.choice([1, 2])
-    elif r < 0.15:
-        item.rarity = RARITY_EPIC
+    # If item is already Legendary, preserve its rarity tier
+    if item.rarity == RARITY_LEGENDARY:
         affix_count = 2
-        item.sockets = random.choice([1, 2])
-    elif r < 0.35:
-        item.rarity = RARITY_RARE
-        affix_count = 2
-        item.sockets = 1
-    elif r < 0.60:
-        item.rarity = RARITY_UNCOMMON
-        affix_count = 1
-        item.sockets = 0
+        item.sockets = 2
     else:
-        item.rarity = RARITY_COMMON
-        affix_count = 0
-        item.sockets = 0
+        # Roll rarity
+        r = random.random()
+        if r < 0.05:
+            item.rarity = RARITY_LEGENDARY
+            affix_count = 3
+            item.sockets = random.choice([1, 2])
+        elif r < 0.15:
+            item.rarity = RARITY_EPIC
+            affix_count = 2
+            item.sockets = random.choice([1, 2])
+        elif r < 0.35:
+            item.rarity = RARITY_RARE
+            affix_count = 2
+            item.sockets = 1
+        elif r < 0.60:
+            item.rarity = RARITY_UNCOMMON
+            affix_count = 1
+            item.sockets = 0
+        else:
+            item.rarity = RARITY_COMMON
+            affix_count = 0
+            item.sockets = 0
 
     if affix_count == 0:
         return

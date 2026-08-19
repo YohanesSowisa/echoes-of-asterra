@@ -270,6 +270,43 @@ class SettlementManager:
             self.event_bus.emit("town_invested", investment_id=investment_id, prosperity=self._prosperity)
         return True
 
+    def get_available_caravan_cargoes(self) -> List[Dict[str, Any]]:
+        """
+        Returns list of trade cargo types available to commission for Sovereign Player Caravans
+        based on active village facilities and specialization.
+        """
+        cargoes = [
+            {
+                "cargo_id": "provisions",
+                "name": "Village Provisions",
+                "cost": 30,
+                "base_yield": 60,
+                "items": ["Herb", "Red Potion"]
+            }
+        ]
+
+        # Refined Iron Goods: unlocked if Master Forging or Growth Tier >= 2
+        if self.growth_tier >= 2 or self.master_forging_unlocked or self.is_investment_completed("master_forge"):
+            cargoes.append({
+                "cargo_id": "refined_iron",
+                "name": "Refined Iron Goods",
+                "cost": 50,
+                "base_yield": 110,
+                "items": ["Iron Ore", "Red Potion"]
+            })
+
+        # Tonic Crates: unlocked if Arcane Sanctuary, Growth Tier >= 2, or Apothecary Garden completed
+        if self.growth_tier >= 2 or self.specialization == SPECIALIZATION_ARCANE or self.is_investment_completed("apothecary_garden"):
+            cargoes.append({
+                "cargo_id": "tonic_crates",
+                "name": "Apothecary Tonic Crates",
+                "cost": 60,
+                "base_yield": 135,
+                "items": ["Red Potion", "Mana Potion"]
+            })
+
+        return cargoes
+
     def add_prosperity(self, amount: float) -> None:
         """Additive prosperity modification."""
         new_val = min(100.0, max(0.0, self._prosperity + amount))

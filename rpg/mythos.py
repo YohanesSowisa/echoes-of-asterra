@@ -9,6 +9,7 @@ import os
 import json
 import random
 from typing import Dict, List, Any, Optional, TypedDict
+from rpg.events import EventBus
 
 # Event Taxonomy Constants
 CATEGORY_COMBAT = "COMBAT"
@@ -58,7 +59,79 @@ class MythosManager:
     def __init__(self) -> None:
         self.version = MYTHOS_SCHEMA_VERSION
         self.records: List[MythosRecordDict] = []
+        self.timeline: List[Dict[str, Any]] = []
         self.load_history()
+
+    def register_event_listeners(self, event_bus: EventBus) -> None:
+        """Registers global EventBus listeners for timeline tracking."""
+        event_bus.subscribe("conspiracy_resolved", self._on_conspiracy_resolved)
+        event_bus.subscribe("continental_trade_monopoly_achieved", self._on_trade_monopoly_achieved)
+        event_bus.subscribe("syndicate_hq_constructed", self._on_syndicate_hq_constructed)
+        event_bus.subscribe("dungeon_sovereignty_established", self._on_dungeon_sovereignty_established)
+        event_bus.subscribe("temporal_fabric_mended", self._on_temporal_fabric_mended)
+
+    def _on_conspiracy_resolved(self, ending: str = "total_purge", description: str = "", day: int = 1, **kwargs: Any) -> None:
+        self.record_event({
+            "event_type": "CONSPIRACY_RESOLVED",
+            "category": CATEGORY_WORLD_CHANGE,
+            "day": day,
+            "actor": "Hero of Asterra",
+            "target": "Shadow Syndicate",
+            "location": "Asterra Citadel",
+            "outcome": description,
+            "ending": ending
+        })
+
+    def _on_trade_monopoly_achieved(self, title: str = "Merchant Sovereign of Asterra", day: int = 1, **kwargs: Any) -> None:
+        self.record_event({
+            "event_type": "CONTINENTAL_TRADE_MONOPOLY",
+            "category": CATEGORY_WORLD_CHANGE,
+            "day": day,
+            "actor": title,
+            "target": "Continental Trade Network",
+            "location": "Asterra Realm",
+            "outcome": "Achieved total continental trade monopoly across Asterra with Level 3 Trade Citadels and Automated Courier Relays."
+        })
+
+    def _on_syndicate_hq_constructed(self, cost: int = 250, title: str = "The Sovereign Baron", day: int = 1, **kwargs: Any) -> None:
+        self.record_event({
+            "event_type": "MERCHANT_SYNDICATE_FOUNDED",
+            "category": CATEGORY_WORLD_CHANGE,
+            "day": day,
+            "actor": title,
+            "target": "Asterra Merchant Syndicate HQ",
+            "location": "Eastern Village District",
+            "outcome": "Founded the Asterra Merchant Syndicate HQ and established the Continental Gold Vault banking institution."
+        })
+
+    def _on_dungeon_sovereignty_established(self, title: str = "The Lord of the Deep Catacombs", day: int = 1, **kwargs: Any) -> None:
+        self.record_event({
+            "event_type": "DUNGEON_SOVEREIGNTY_ESTABLISHED",
+            "category": CATEGORY_WORLD_CHANGE,
+            "day": day,
+            "actor": title,
+            "target": "Abyssal Vaults",
+            "location": "Crypt Catacombs",
+            "outcome": "Excavated the 3rd subterranean tier and claimed absolute sovereign mastery as The Lord of the Deep Catacombs."
+        })
+
+    def _on_temporal_fabric_mended(self, title: str = "Chrono-Weaver Supreme", total_rewinds: int = 0, day: int = 1, **kwargs: Any) -> None:
+        self.record_event({
+            "event_type": "TEMPORAL_FABRIC_MENDED",
+            "category": CATEGORY_WORLD_CHANGE,
+            "day": day,
+            "actor": title,
+            "target": "Aeon Sentinel",
+            "location": "Spacetime Continuum",
+            "item": "Aeon Core",
+            "amount": 1,
+            "faction": None,
+            "outcome": f"The Spacetime Continuum was stabilized after defeating the Aeon Sentinel ({total_rewinds} rewinds), earning the title '{title}'."
+        })
+
+    def record_event(self, event_data: Dict[str, Any]) -> None:
+        """Records a live semantic history event into the active timeline."""
+        self.timeline.append(event_data)
 
     def load_history(self) -> None:
         """Loads past mythos records with backward-compatible schema handling."""
@@ -167,6 +240,73 @@ class MythosManager:
                 "outcome": "Enemies ATK +50%, Chest & Boss Loot Doubled"
             })
 
+        # Active Soul Pact details
+        active_pact = None
+        pact_tier = 1
+        if hasattr(game, "pact_manager") and game.pact_manager:
+            active_pact = game.pact_manager.state.active_pact_id
+            pact_tier = game.pact_manager.state.pact_tier
+
+        if active_pact:
+            events.append({
+                "event_type": "PRIMORDIAL_PACT_BOUND",
+                "category": CATEGORY_WORLD_CHANGE,
+                "day": day_count,
+                "actor": hero_name,
+                "target": f"{active_pact.capitalize()} Altar",
+                "location": "World Altar",
+                "item": None,
+                "amount": pact_tier,
+                "faction": None,
+                "outcome": f"Bound to {active_pact.capitalize()} Soul Pact at Tier {pact_tier}"
+            })
+
+        wm = getattr(game, "world_manager", None)
+        if wm and getattr(wm, "leviathan_defeated", False):
+            events.append({
+                "event_type": "LEVIATHAN_SLAIN",
+                "category": CATEGORY_WORLD_CHANGE,
+                "day": day_count,
+                "actor": hero_name,
+                "target": "Morvath, the Mire Leviathan",
+                "location": "Submerged Temple",
+                "item": "Conduit Core",
+                "amount": 1,
+                "faction": None,
+                "outcome": "The Sunken Mire waters subsided and Asterra's Leylines awakened."
+            })
+
+        cm = getattr(game, "conspiracy_manager", None)
+        conspiracy_ending = getattr(cm, "conspiracy_ending", None) if cm else None
+        if cm and cm.conspiracy_resolved:
+            events.append({
+                "event_type": "CONSPIRACY_RESOLVED",
+                "category": CATEGORY_WORLD_CHANGE,
+                "day": day_count,
+                "actor": hero_name,
+                "target": "The Grand Usurper",
+                "location": "Asterra Citadel",
+                "item": None,
+                "amount": 0,
+                "faction": None,
+                "outcome": f"Conspiracy resolved with ending: {conspiracy_ending}"
+            })
+
+        chr_m = getattr(game, "chrono_manager", None)
+        if chr_m and getattr(chr_m, "is_sentinel_defeated", False):
+            events.append({
+                "event_type": "TEMPORAL_FABRIC_MENDED",
+                "category": CATEGORY_WORLD_CHANGE,
+                "day": day_count,
+                "actor": hero_name,
+                "target": "Aeon Sentinel",
+                "location": "Spacetime Continuum",
+                "item": "Aeon Core",
+                "amount": 1,
+                "faction": None,
+                "outcome": f"Defeated the Aeon Sentinel, stabilized time ({chr_m.total_rewinds_performed} rewinds), and earned title '{chr_m.prestige_title}'"
+            })
+
         p_atk = getattr(player, "atk", getattr(player, "base_atk", 10))
         p_def = getattr(player, "defense", getattr(player, "base_def", 5))
 
@@ -198,7 +338,10 @@ class MythosManager:
             "dominant_war_faction": dominant_war_faction,
             "controlled_territories": controlled_territories,
             "hero_level": player.level,
+            "active_soul_pact": active_pact,
+            "soul_pact_tier": pact_tier,
             "donated_shields": getattr(player, "donated_shields", False),
+            "conspiracy_ending": conspiracy_ending,
             "events": events,
             "relic_weapon": relic_weapon,
             "relic_armor": relic_armor,
@@ -287,3 +430,54 @@ class MythosManager:
             fac = r.get("dominant_war_faction") or r.get("favored_faction", "knights")
             counts[fac] = counts.get(fac, 0) + 1
         return counts
+
+    def get_inherited_starting_epoch(self) -> str:
+        """
+        Determines the starting Cataclysm Epoch of a subsequent playthrough based on
+        the historical deeds, catastrophes, and outcomes of the previous hero.
+        """
+        if not self.records:
+            return "standard"
+
+        last_record = self.records[-1]
+        end_cause = str(last_record.get("end_cause", "")).lower()
+        events = last_record.get("events", [])
+
+        # 1. Scorched Blight Inheritance
+        if (
+            "fire" in end_cause or "ruins" in end_cause or "scorch" in end_cause or
+            "lava" in end_cause or "flame" in end_cause or "compromised" in end_cause
+        ):
+            return "scorched"
+
+        # 2. Deluge Epoch Inheritance
+        if (
+            "mire" in end_cause or "lake" in end_cause or "water" in end_cause or
+            "drown" in end_cause or "tide" in end_cause or "rot" in end_cause or
+            "leviathan" in end_cause
+        ):
+            return "deluge"
+
+        # 3. Glacial Winter Inheritance
+        if (
+            "cave" in end_cause or "frost" in end_cause or "ice" in end_cause or
+            "winter" in end_cause or "blizzard" in end_cause
+        ):
+            return "glacial"
+
+        # Check last events for specific world changes or pacts
+        for ev in reversed(events):
+            ev_type = ev.get("event_type", "")
+            if ev_type == "CONSPIRACY_RESOLVED" and ev.get("ending") == "compromised_kingdom":
+                return "scorched"
+            if ev_type == "PRIMORDIAL_PACT_BOUND":
+                pact = str(ev.get("target", "")).lower()
+                if "solar" in pact:
+                    return "scorched"
+                elif "titan" in pact:
+                    return "glacial"
+                elif "void" in pact:
+                    return "deluge"
+
+        return "standard"
+

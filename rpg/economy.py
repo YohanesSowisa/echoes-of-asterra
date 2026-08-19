@@ -4,7 +4,7 @@ Simulates regional production nodes (farms, mines, forestry), settlement consump
 item stock storage, imports/exports, and real-time price multipliers.
 """
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from rpg.events import EventBus
 
@@ -86,12 +86,22 @@ class EconomyManager:
             res = self.stocks[resource_type]
             res.current_stock = min(res.max_capacity, res.current_stock + amount)
 
-    def get_price_multiplier(self, category: str = "goods") -> float:
-        """Returns effective price scalar for a given item category."""
+    def get_price_multiplier(self, category: str = "goods", monopoly_manager: Optional[Any] = None) -> float:
+        """Returns effective price scalar for a given item category, factored by hoarding multipliers."""
+        base_mult = 1.0
         res = self.stocks.get(category)
         if res:
-            return res.price_multiplier * (1.0 + self.trade_disruption * 0.2)
-        return 1.0
+            base_mult = res.price_multiplier * (1.0 + self.trade_disruption * 0.2)
+
+        # Check Monopoly hoarding price surges
+        if monopoly_manager and hasattr(monopoly_manager, "get_commodity_price_multiplier"):
+            hoard_mult = monopoly_manager.get_commodity_price_multiplier(category)
+            return base_mult * hoard_mult
+        elif hasattr(self, "game_reference") and self.game_reference and hasattr(self.game_reference, "monopoly_manager"):
+            hoard_mult = self.game_reference.monopoly_manager.get_commodity_price_multiplier(category)
+            return base_mult * hoard_mult
+
+        return base_mult
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes economic state."""

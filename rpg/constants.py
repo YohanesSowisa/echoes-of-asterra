@@ -109,6 +109,20 @@ MAP_MOUNTAIN = "mountain"
 MAP_DUNGEON = "dungeon"
 MAP_SECRET = "secret_area"
 MAP_CRYPT = "crypt"  # Endless procedural dungeon entrance
+MAP_SUNKEN_MIRE = "sunken_mire"  # Submerged wetland biome with dynamic tide cycles
+MAP_SUBMERGED_TEMPLE = "submerged_temple"  # Ancient aquatic sanctum & boss chamber
+
+# Tide Cycle Constants
+TIDE_LOW = "low"
+TIDE_RISING = "rising"
+TIDE_HIGH = "high"
+TIDE_FALLING = "falling"
+
+# Mire Enemy & Boss Types
+ENEMY_MIRE_LURKER = "mire_lurker"
+ENEMY_BOG_LEECH = "bog_leech"
+ENEMY_TEMPLE_GUARDIAN = "temple_guardian"
+BOSS_MIRE_LEVIATHAN = "mire_leviathan"
 
 # Seasons
 SEASON_SPRING = "spring"
@@ -164,4 +178,7 @@ DUNGEON_TEMPLE = "temple"
 DUNGEON_CRYPT = "crypt"
 DUNGEON_ICE = "ice"
 DUNGEON_VOLCANO = "volcano"
+
+# Monster Keys
+ENEMY_SPORE_HOST_WOLF = "spore_host_wolf"
 

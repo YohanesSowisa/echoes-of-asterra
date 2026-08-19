@@ -22,6 +22,20 @@ CRAFTING_RECIPES: Dict[str, Tuple[Dict[str, int], int, int]] = {
     "Rune of Vitality": ({"Beast Leather": 2, "Forest Apple": 2}, 1, 1),
     "Rune of Precision": ({"Iron Ore": 3}, 1, 2),
     "Rune of Shielding": ({"Timber": 3, "Iron Ore": 1}, 1, 1),
+    # Primordial Relic Weapons
+    "Voidbrand Scythe": ({"Steel Blade": 1, "Ancient Relic": 2}, 1, 2),
+    "Titan Cragcleaver": ({"Iron Ore": 8, "Silver Ore": 2, "Timber": 4}, 1, 2),
+    "Sunfire Morningstar": ({"Iron Ore": 6, "Topaz": 2, "Timber": 3}, 1, 2),
+    # Mire Flora Alchemy Elixirs
+    "Waterstrider Elixir": ({"Mire Reed": 2, "Glow Lotus": 1, "Blue Potion": 1}, 1, 1),
+    "Mire Cleansing Draught": ({"Leech Mucus": 2, "Bog Blossom": 1, "Red Potion": 1}, 1, 1),
+    "Leyline Surge Tonic": ({"Luminescent Spore": 1, "Sunken Relic": 1, "Starlight Crystal": 1}, 1, 2),
+    # Phase 3: Leyline Resonant Equipment
+    "Leviathan Scale Mail": ({"Tidal Scale": 2, "Beast Leather": 4, "Iron Ore": 4}, 1, 2),
+    "Tidecaller Trident": ({"Tidal Scale": 2, "Conduit Core": 1, "Steel Blade": 1}, 1, 3),
+    "Conduit Ring of Leylines": ({"Conduit Core": 1, "Starlight Crystal": 1, "Silver Ore": 2}, 1, 2),
+    # Pillar #7 Phase 2: Beast Capture
+    "Beast Capture Net": ({"Beast Leather": 2, "Iron Ore": 1}, 1, 1),
 }
 
 class CraftingSystem:

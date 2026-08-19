@@ -92,12 +92,15 @@ class Player(BaseSprite):
         self.regen_sparkle_timer: float = 0.0
 
 
-        # --- TIMER COOLDOWNS ---
+        # --- TIMER COOLDOWNS & ELIXIR BUFFS ---
         self.action_timer = 0.0
         self.roll_cooldown_timer = 0.0
         self.i_frames_timer = 0.0
         self.is_invincible = False
         self.attack_cooldown_timer = 0.0
+        self.waterstrider_timer: float = 0.0
+        self.cleansing_draught_timer: float = 0.0
+        self.leyline_surge_timer: float = 0.0
 
         # --- PARRY & PERFECT DODGE SYSTEM ---
         self.parry_window_timer = 0.0
@@ -195,6 +198,13 @@ class Player(BaseSprite):
     def take_damage(self, amount: int) -> None:
         """Applies damage to health, triggers death sequence if HP is empty."""
         self.out_of_combat_timer = 0.0
+        # Check pact damage taken modifier (e.g. +20% damage at night for Solar Seraph)
+        if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
+            ws = getattr(self.game, "world_state", None)
+            is_night = getattr(ws, "is_night", False) if ws else False
+            dmg_mult = self.game.pact_manager.get_damage_taken_multiplier(is_night=is_night)
+            amount = int(amount * dmg_mult)
+
         self.hp = max(0, self.hp - amount)
         if self.hp <= 0:
             self.state = "dead"
@@ -203,6 +213,20 @@ class Player(BaseSprite):
             self.knockback_vector = pygame.math.Vector2(0, 0)
             self.action_timer = 2.0  # dead animation duration before game over
             self.sound_manager.play_sound("gameover")
+
+    def execute_pact_ability(self) -> Tuple[bool, str]:
+        """Executes the active Soul Pact signature primordial spell."""
+        if not hasattr(self, "game") or not hasattr(self.game, "pact_manager") or not self.game.pact_manager:
+            return False, "No pact manager available."
+        enemies = getattr(self.game, "enemies", None)
+        enemy_list = list(enemies.sprites()) if enemies else []
+        success, msg = self.game.pact_manager.cast_pact_ability(self, enemy_list)
+        if success:
+            active_p = self.game.pact_manager.state.active_pact_id
+            col = (255, 220, 80) if active_p == "solar" else ((160, 60, 240) if active_p == "void" else (240, 160, 40))
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, msg, col, [self.game.ui_sprites], size=16)
+        return success, msg
 
     def apply_elemental_status(self, element: str, duration: float, attacker=None) -> None:
         """Applies an elemental status effect to the player (fire DOT, ice slow, poison DOT)."""
@@ -261,12 +285,16 @@ class Player(BaseSprite):
         else:
             self.sound_manager.play_sound("sword")
 
-        # Range box
-        sweep_w = int(TILE_SIZE * wc.range_multiplier)
-        sweep_h = int(TILE_SIZE * wc.range_multiplier)
+        # Range box scaled by WeaponClass and Soul Pact
+        range_mult = wc.range_multiplier
+        if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
+            range_mult *= self.game.pact_manager.get_attack_range_multiplier()
+
+        sweep_w = int(TILE_SIZE * range_mult)
+        sweep_h = int(TILE_SIZE * range_mult)
         if is_finisher and wc.finisher_aoe:
-            sweep_w = int(TILE_SIZE * 2.2)
-            sweep_h = int(TILE_SIZE * 2.2)
+            sweep_w = int(TILE_SIZE * 2.2 * (range_mult / wc.range_multiplier))
+            sweep_h = int(TILE_SIZE * 2.2 * (range_mult / wc.range_multiplier))
             sweep_rect = pygame.Rect(0, 0, sweep_w, sweep_h)
             sweep_rect.center = self.hitbox.center
         else:
@@ -320,6 +348,10 @@ class Player(BaseSprite):
                     if is_finisher and hasattr(enemy, 'take_poise_damage') and wc.finisher_poise_mult > 1.0:
                         bonus_poise = 12.0 * (wc.finisher_poise_mult - 1.0)
                         enemy.take_poise_damage(bonus_poise)
+                    # Void Pulse visual spark on hit
+                    if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
+                        if self.game.pact_manager.state.active_pact_id == "void":
+                            self.particles.create_magic_sparkles(enemy.hitbox.center, (180, 50, 240))
 
         # ONLY update combo count if attack successfully hit an enemy
         if hit_count > 0:
@@ -345,10 +377,15 @@ class Player(BaseSprite):
         """Initiates a dodge roll maneuver (supports attack animation canceling & perfect dodge timing)."""
         if self.state in ["roll", "dead"]:
             return
-        if self.stamina < 15:
+
+        stamina_cost = 15
+        if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
+            stamina_cost = int(stamina_cost * self.game.pact_manager.get_stamina_cost_multiplier())
+
+        if self.stamina < stamina_cost:
             return
 
-        self.stamina -= 15
+        self.stamina -= stamina_cost
         self.state = "roll"
         self.frame_index = 0.0
         self.action_timer = PLAYER_ROLL_DURATION / 1000.0
@@ -515,11 +552,49 @@ class Player(BaseSprite):
                         # Consume stamina slowly when running during active combat
                         self.stamina = max(0.0, self.stamina - 15.0 * self.game.dt)
 
-            self.velocity = move_vec * curr_speed
+            # Check Mire Tide speed multiplier (ignored if Waterstrider Elixir is active)
+            if getattr(self, "waterstrider_timer", 0.0) <= 0:
+                if hasattr(self, "game") and self.game and hasattr(self.game, "mire_manager"):
+                    wm = getattr(self.game, "world_manager", None)
+                    c_map = getattr(wm, "current_map_name", "") if wm else ""
+                    curr_speed *= self.game.mire_manager.get_speed_multiplier(c_map, is_in_water=True)
+
+            # Check current tile underfoot (Pillar #4 Epochs)
+            current_tile = ""
+            if hasattr(self, "game") and self.game and hasattr(self.game, "world_manager"):
+                grid = getattr(self.game.world_manager, "current_map_grid", [])
+                if grid and len(grid) > 0 and len(grid[0]) > 0:
+                    tx = max(0, min(len(grid[0]) - 1, int(self.hitbox.centerx // TILE_SIZE)))
+                    ty = max(0, min(len(grid) - 1, int(self.hitbox.centery // TILE_SIZE)))
+                    current_tile = grid[ty][tx]
+
+            # Glacial Ice Sliding Physics
+            if current_tile == "ice":
+                target_vel = move_vec * (curr_speed * 1.15)
+                self.velocity = self.velocity * 0.90 + target_vel * 0.10
+            else:
+                self.velocity = move_vec * curr_speed
         else:
-            self.state = "idle"
-            self.velocity.x = 0
-            self.velocity.y = 0
+            # Check current tile underfoot when not pressing movement keys
+            current_tile = ""
+            if hasattr(self, "game") and self.game and hasattr(self.game, "world_manager"):
+                grid = getattr(self.game.world_manager, "current_map_grid", [])
+                if grid and len(grid) > 0 and len(grid[0]) > 0:
+                    tx = max(0, min(len(grid[0]) - 1, int(self.hitbox.centerx // TILE_SIZE)))
+                    ty = max(0, min(len(grid) - 1, int(self.hitbox.centery // TILE_SIZE)))
+                    current_tile = grid[ty][tx]
+
+            if current_tile == "ice" and self.velocity.length_squared() > 0.1:
+                # Decelerate slowly on ice (friction glide)
+                self.velocity *= 0.94
+                if self.velocity.length_squared() < 0.1:
+                    self.velocity.x = 0
+                    self.velocity.y = 0
+                    self.state = "idle"
+            else:
+                self.state = "idle"
+                self.velocity.x = 0
+                self.velocity.y = 0
 
     def is_ui_active(self) -> bool:
         """Helper checking if any UI panel, dialogue, or shop window is currently active."""
@@ -604,6 +679,43 @@ class Player(BaseSprite):
             if self.combo_timer <= 0:
                 self.combo_count = 0
 
+        # Magma Hazard Tile burn check (Pillar #4 Scorched Epoch)
+        current_tile_hazard = ""
+        if hasattr(self, "game") and self.game and hasattr(self.game, "world_manager"):
+            grid = getattr(self.game.world_manager, "current_map_grid", [])
+            if grid and len(grid) > 0 and len(grid[0]) > 0:
+                tx = max(0, min(len(grid[0]) - 1, int(self.hitbox.centerx // TILE_SIZE)))
+                ty = max(0, min(len(grid) - 1, int(self.hitbox.centery // TILE_SIZE)))
+                current_tile_hazard = grid[ty][tx]
+
+        if current_tile_hazard in ["magma", "magma_tile"]:
+            from rpg.constants import ITEM_BOOTS
+            boots = self.equipment.slots.get(ITEM_BOOTS) if hasattr(self, "equipment") else None
+            boots_name = getattr(boots, "name", "").lower() if boots else ""
+            has_heat_res = (
+                "fire" in boots_name or "lava" in boots_name or "magma" in boots_name or
+                getattr(self, "waterstrider_timer", 0.0) > 0 or
+                getattr(self, "cleansing_draught_timer", 0.0) > 0
+            )
+            if not has_heat_res and self.state != "dead":
+                self.magma_burn_timer = getattr(self, "magma_burn_timer", 0.0) + dt
+                if self.magma_burn_timer >= 0.5:
+                    self.magma_burn_timer = 0.0
+                    burn_dmg = 2
+                    self.hp = max(1, self.hp - burn_dmg)
+                    self.out_of_combat_timer = 0.0
+                    from rpg.combat import DamageNumber
+                    if hasattr(self.game, "ui_sprites"):
+                        DamageNumber(self.rect.center, f"-{burn_dmg}", (255, 100, 30), [self.game.ui_sprites], size=13)
+
+        # Decrement active alchemical elixir timers
+        if self.waterstrider_timer > 0:
+            self.waterstrider_timer = max(0.0, self.waterstrider_timer - dt)
+        if self.cleansing_draught_timer > 0:
+            self.cleansing_draught_timer = max(0.0, self.cleansing_draught_timer - dt)
+        if self.leyline_surge_timer > 0:
+            self.leyline_surge_timer = max(0.0, self.leyline_surge_timer - dt)
+
         # Tick elemental status effects (DOT damage + expiry)
         expired_statuses = []
         for elem, remaining in self.elemental_statuses.items():
@@ -625,10 +737,13 @@ class Player(BaseSprite):
                     from rpg.combat import DamageNumber
                     DamageNumber(self.rect.center, f"-{fire_dot}", (255, 100, 30), [self.game.ui_sprites], size=12)
                 if ELEMENT_POISON in self.elemental_statuses and self.hp > 0:
-                    poison_dot = 2
-                    self.hp = max(1, self.hp - poison_dot)
-                    from rpg.combat import DamageNumber
-                    DamageNumber(self.rect.center, f"-{poison_dot}", (140, 255, 60), [self.game.ui_sprites], size=12)
+                    if getattr(self, "cleansing_draught_timer", 0.0) <= 0:
+                        poison_dot = 2
+                        self.hp = max(1, self.hp - poison_dot)
+                        from rpg.combat import DamageNumber
+                        DamageNumber(self.rect.center, f"-{poison_dot}", (140, 255, 60), [self.game.ui_sprites], size=12)
+                    else:
+                        del self.elemental_statuses[ELEMENT_POISON]
 
         # Update skill timers
         self.skill_manager.update(dt)
@@ -638,13 +753,16 @@ class Player(BaseSprite):
             # Regenerate stamina
             self.stamina = min(self.max_stamina, self.stamina + self.stamina_regen_rate * dt)
 
-        # Always regenerate mana slowly (+ safe zone Arcane Sanctuary bonus)
+        # Always regenerate mana slowly (+ safe zone Arcane Sanctuary bonus & Leyline Surge Tonic)
         extra_mana_regen = 0.0
         if hasattr(self, "game") and self.game and hasattr(self.game, "living_world") and hasattr(self.game.living_world, "settlement"):
             current_map = getattr(self.game.world_manager, "current_map_name", "") if hasattr(self.game, "world_manager") else ""
             extra_mana_regen = self.game.living_world.settlement.get_safe_zone_mana_regen(current_map)
 
-        self.mana = min(self.max_mana, self.mana + (self.mana_regen_rate + extra_mana_regen) * dt)
+        base_mana_rate = (self.mana_regen_rate + extra_mana_regen)
+        if getattr(self, "leyline_surge_timer", 0.0) > 0:
+            base_mana_rate *= 3.0
+        self.mana = min(self.max_mana, self.mana + base_mana_rate * dt)
 
         # 2b. Out-of-Combat HP Regeneration Mechanics
         in_active_combat = False
@@ -668,8 +786,8 @@ class Player(BaseSprite):
                 if self.game.style_scoring.kills > 0 or self.game.style_scoring.combo_hits > 0:
                     self.game.style_scoring.reset()
 
-        # Apply HP regen after 4.0 seconds of peace (Out of Combat)
-        if self.out_of_combat_timer >= 4.0 and self.hp < self.max_hp and self.state != "dead":
+        # Apply HP and Mana regen after 4.0 seconds of peace (Out of Combat)
+        if self.out_of_combat_timer >= 4.0 and self.state != "dead":
             from rpg.balance import DIFFICULTY_PROFILES
             diff_key = str(getattr(self.game, "difficulty_profile", "normal")).lower()
             diff_prof = DIFFICULTY_PROFILES.get(diff_key, DIFFICULTY_PROFILES["normal"])
@@ -677,13 +795,20 @@ class Player(BaseSprite):
 
             # Base Out-of-Combat HP Regen Rate: 2.0% of Max HP per second (min 1.5 HP/sec)
             base_regen_rate = max(1.5, self.max_hp * 0.02)
+            if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
+                hp_bonus, mana_bonus = self.game.pact_manager.get_peace_regen_bonus()
+                base_regen_rate += hp_bonus
+                if mana_bonus > 0 and self.mana < self.max_mana:
+                    self.mana = min(self.max_mana, self.mana + mana_bonus * dt)
+
             effective_regen_rate = base_regen_rate * regen_mult
 
-            self.hp_regen_accumulator += effective_regen_rate * dt
-            if self.hp_regen_accumulator >= 1.0:
-                heal_amount = int(self.hp_regen_accumulator)
-                self.hp = min(self.max_hp, self.hp + heal_amount)
-                self.hp_regen_accumulator -= heal_amount
+            if self.hp < self.max_hp:
+                self.hp_regen_accumulator += effective_regen_rate * dt
+                if self.hp_regen_accumulator >= 1.0:
+                    heal_amount = int(self.hp_regen_accumulator)
+                    self.hp = min(self.max_hp, self.hp + heal_amount)
+                    self.hp_regen_accumulator -= heal_amount
 
             # Continuous visual feedback: emit rising green sparkles every 0.4s during OOC regen
             self.regen_sparkle_timer += dt
@@ -774,6 +899,16 @@ class Player(BaseSprite):
 
         self.frame_index += anim_speed * dt
         self.image = frames[int(self.frame_index) % len(frames)]
+
+        # Apply procedural Soul Pact physical mutation overlay
+        if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
+            active_pact = self.game.pact_manager.state.active_pact_id
+            if active_pact:
+                p_tier = self.game.pact_manager.state.pact_tier
+                from rpg.animation import apply_pact_mutation_overlay
+                self.image = apply_pact_mutation_overlay(
+                    self.image, active_pact, self.direction, int(self.frame_index), pact_tier=p_tier
+                )
 
         # Flash player red briefly if hurt and invincible
         if self.is_invincible and self.state != "roll":

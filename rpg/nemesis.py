@@ -62,6 +62,50 @@ TERRITORIES = ["forest", "cave", "ruins", "lake"]
 
 
 @dataclass
+class VendettaSiege:
+    """Represents an active or historic Vendetta Siege event led by a Nemesis Captain."""
+    siege_id: str
+    captain_id: str
+    captain_name: str
+    target_territory: str
+    duration_days: int = 3
+    days_remaining: int = 3
+    is_active: bool = True
+    minions_count: int = 3
+    is_resolved: bool = False
+    outcome: Optional[str] = None  # "victory", "defeat", or None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "siege_id": self.siege_id,
+            "captain_id": self.captain_id,
+            "captain_name": self.captain_name,
+            "target_territory": self.target_territory,
+            "duration_days": self.duration_days,
+            "days_remaining": self.days_remaining,
+            "is_active": self.is_active,
+            "minions_count": self.minions_count,
+            "is_resolved": self.is_resolved,
+            "outcome": self.outcome
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "VendettaSiege":
+        return cls(
+            siege_id=data.get("siege_id", "siege_default"),
+            captain_id=data.get("captain_id", ""),
+            captain_name=data.get("captain_name", ""),
+            target_territory=data.get("target_territory", "forest"),
+            duration_days=data.get("duration_days", 3),
+            days_remaining=data.get("days_remaining", 3),
+            is_active=data.get("is_active", True),
+            minions_count=data.get("minions_count", 3),
+            is_resolved=data.get("is_resolved", False),
+            outcome=data.get("outcome", None)
+        )
+
+
+@dataclass
 class NemesisCaptain:
     """Represents an individual persistent Nemesis enemy with memory, progression, and traits."""
     captain_id: str
@@ -84,13 +128,16 @@ class NemesisCaptain:
     unique_loot_name: str = "Captain's Blood Cleaver"
 
     def level_up(self, levels: int = 1) -> None:
-        """Increases captain power, health, attack, and stats."""
-        self.level += levels
-        self.max_hp += 35 * levels
+        """Increases captain power, health, attack, and stats up to max Lv.10 and 3 traits."""
+        if self.level >= 10:
+            return
+        actual_gain = min(levels, 10 - self.level)
+        self.level += actual_gain
+        self.max_hp += 35 * actual_gain
         self.hp = self.max_hp
-        self.atk += 6 * levels
-        self.defense += 2 * levels
-        self.speed = min(3.8, self.speed + 0.1 * levels)
+        self.atk += 6 * actual_gain
+        self.defense += 2 * actual_gain
+        self.speed = min(3.8, self.speed + 0.1 * actual_gain)
 
         # Gain a new trait if under trait cap (max 3 traits)
         available_traits = [t for t in ALL_TRAITS if t not in self.traits]
@@ -176,6 +223,13 @@ class NemesisManager:
         self.game_reference: Any = None
         self.captains: Dict[str, NemesisCaptain] = {}
         self._next_id: int = 1
+        
+        # Vendetta Siege state
+        self.active_siege: Optional[VendettaSiege] = None
+        self.siege_history: List[VendettaSiege] = []
+        self.last_siege_resolved_day: int = -999
+        self.siege_cooldown_days: int = 5
+        self.siege_counter: int = 1
 
         if self.event_bus:
             self.register_event_listeners(self.event_bus)
@@ -334,10 +388,11 @@ class NemesisManager:
         self,
         captain_id: str = "",
         captain_name: str = "",
+        active_siege_id: Optional[str] = None,
         killer: Any = None,
         **kwargs: Any
     ) -> None:
-        """Handles death of a Nemesis Captain."""
+        """Handles death of a Nemesis Captain and checks active siege resolution."""
         captain = self.captains.get(captain_id)
         if not captain:
             for cap in self.captains.values():
@@ -358,11 +413,30 @@ class NemesisManager:
             # 3. Seed defeat rumor
             self._seed_nemesis_defeat_rumor(captain)
 
+            # 4. Check if this kill resolves the active Vendetta Siege
+            if self.active_siege and self.active_siege.is_active:
+                if active_siege_id == self.active_siege.siege_id or (active_siege_id is None and self.active_siege.captain_id == captain.captain_id):
+                    current_day = 1
+                    if self.game_reference and hasattr(self.game_reference, "world_state"):
+                        current_day = getattr(self.game_reference.world_state, "day", 1)
+                    self.resolve_vendetta_siege(
+                        siege_id=self.active_siege.siege_id,
+                        outcome="victory",
+                        player=killer,
+                        current_day=current_day
+                    )
+
     def _on_day_changed(self, day: int = 1, **kwargs: Any) -> None:
-        """On daily ticks, active Nemesis Captains have a chance to relocate or fortify territory."""
+        """On daily ticks, updates siege timers, triggers new sieges, and updates territory roaming."""
+        # 1. Update active siege countdown and timeout resolution
+        self.update_siege_day_tick(day)
+
+        # 2. Check conditions for high-tier Nemesis captains to launch a new Vendetta Siege
+        self.check_vendetta_siege_triggers(day)
+
+        # 3. 20% chance for undefeated captains to roam territories
         for captain in self.captains.values():
             if captain.active and not captain.is_defeated:
-                # 20% chance to roam to an adjacent territory
                 if random.random() < 0.20:
                     old_t = captain.claimed_territory
                     avail = [t for t in TERRITORIES if t != old_t]
@@ -375,6 +449,294 @@ class NemesisManager:
                             old_territory=old_t,
                             new_territory=captain.claimed_territory
                         )
+
+    # -------------------------------------------------------------
+    # Vendetta Siege Methods
+    # -------------------------------------------------------------
+    def check_vendetta_siege_triggers(self, current_day: int, force_trigger: bool = False) -> Optional[VendettaSiege]:
+        """
+        Evaluates conditions for a high-tier Nemesis Captain to launch a Vendetta Siege.
+        Requires captain level >= 4 or aggressive traits (Bloodthirsty, Cunning, Hero Slayer).
+        Enforces 1 active siege max and a 5-day inter-siege cooldown.
+        """
+        if self.active_siege and self.active_siege.is_active:
+            return None
+
+        if not force_trigger and (current_day - self.last_siege_resolved_day < self.siege_cooldown_days):
+            return None
+
+        eligible = [
+            c for c in self.captains.values()
+            if c.active and not c.is_defeated and (
+                c.level >= 4 or
+                TRAIT_BLOODTHIRSTY in c.traits or
+                TRAIT_CUNNING in c.traits or
+                TRAIT_SLAYER in c.traits or
+                c.kills_on_player >= 1
+            )
+        ]
+
+        if not eligible:
+            return None
+
+        if force_trigger or random.random() < 0.35:
+            # Pick highest threat captain
+            captain = max(eligible, key=lambda c: (c.level, c.kills_on_player, len(c.traits)))
+            target_terr = captain.claimed_territory if captain.claimed_territory in TERRITORIES else "forest"
+            return self.trigger_vendetta_siege(captain.captain_id, target_terr, current_day)
+
+        return None
+
+    def trigger_vendetta_siege(
+        self,
+        captain_id: str,
+        target_territory: Optional[str] = None,
+        current_day: int = 1
+    ) -> Optional[VendettaSiege]:
+        """Initiates a Vendetta Siege against a designated world territory."""
+        captain = self.captains.get(captain_id)
+        if not captain or not captain.active or captain.is_defeated:
+            return None
+
+        target = target_territory or captain.claimed_territory or "forest"
+        siege_id = f"siege_{captain_id}_d{current_day}_{self.siege_counter}"
+        self.siege_counter += 1
+
+        siege = VendettaSiege(
+            siege_id=siege_id,
+            captain_id=captain.captain_id,
+            captain_name=captain.name,
+            target_territory=target,
+            duration_days=3,
+            days_remaining=3,
+            is_active=True,
+            minions_count=3,
+            is_resolved=False,
+            outcome=None
+        )
+        self.active_siege = siege
+
+        # 1. Register WorldEvent in WorldState
+        if self.game_reference and hasattr(self.game_reference, "living_world"):
+            ws = getattr(self.game_reference.living_world, "world_state", None)
+            if ws and hasattr(ws, "active_events"):
+                from rpg.world_state import WorldEvent
+                evt = WorldEvent(
+                    event_id=f"vendetta_siege_{siege_id}",
+                    name=f"Vendetta Siege: {captain.name}",
+                    description=f"{captain.name} is assaulting the {target.title()} with a warband!",
+                    duration_days=3,
+                    remaining_days=3,
+                    effects={"danger_boost": 20, "prosperity_penalty": 10}
+                )
+                ws.active_events.append(evt)
+
+        # 2. Push High Priority UI Notification
+        if self.game_reference and hasattr(self.game_reference, "notification_manager") and self.game_reference.notification_manager:
+            from rpg.notification import NotificationPriority
+            self.game_reference.notification_manager.push_toast(
+                f"⚔️ VENDETTA SIEGE: {captain.name} has attacked {target.title()}! (3 days left)",
+                priority=NotificationPriority.HIGH
+            )
+
+        # 3. Seed early warning rumor in RumorBoard
+        self._seed_siege_warning_rumor(captain, target)
+
+        if self.event_bus:
+            self.event_bus.emit(
+                "vendetta_siege_started",
+                siege_id=siege_id,
+                captain_id=captain.captain_id,
+                captain_name=captain.name,
+                target_territory=target,
+                duration_days=3
+            )
+
+        return siege
+
+    def update_siege_day_tick(self, current_day: int) -> None:
+        """Counts down days on the active siege and handles timeout defeat."""
+        if not self.active_siege or not self.active_siege.is_active:
+            return
+
+        self.active_siege.days_remaining -= 1
+
+        if self.active_siege.days_remaining == 1:
+            # Emergency critical warning on final day
+            if self.game_reference and hasattr(self.game_reference, "notification_manager") and self.game_reference.notification_manager:
+                from rpg.notification import NotificationPriority
+                self.game_reference.notification_manager.push_toast(
+                    f"⚠️ SIEGE EMERGENCY: Final day to defend {self.active_siege.target_territory.title()} from {self.active_siege.captain_name}!",
+                    priority=NotificationPriority.CRITICAL
+                )
+        elif self.active_siege.days_remaining <= 0:
+            # Timeout defeat: Territory falls
+            self.resolve_vendetta_siege(
+                siege_id=self.active_siege.siege_id,
+                outcome="defeat",
+                current_day=current_day
+            )
+
+    def resolve_vendetta_siege(
+        self,
+        siege_id: str,
+        outcome: str = "victory",
+        player: Any = None,
+        current_day: int = 1
+    ) -> bool:
+        """
+        Resolves the active siege event on victory or timeout defeat.
+        Enforces strict matching with the active siege ID.
+        """
+        if not self.active_siege or self.active_siege.siege_id != siege_id or not self.active_siege.is_active:
+            return False
+
+        siege = self.active_siege
+        siege.is_active = False
+        siege.is_resolved = True
+        siege.outcome = outcome
+        self.last_siege_resolved_day = current_day
+        self.siege_history.append(siege)
+        self.active_siege = None
+
+        # Clean up WorldEvent
+        if self.game_reference and hasattr(self.game_reference, "living_world"):
+            ws = getattr(self.game_reference.living_world, "world_state", None)
+            if ws and hasattr(ws, "active_events"):
+                ws.active_events = [e for e in ws.active_events if e.event_id != f"vendetta_siege_{siege_id}"]
+
+        captain = self.captains.get(siege.captain_id)
+
+        if outcome == "victory":
+            # 1. Bonus Gold & Loot for player
+            if player and hasattr(player, "gold"):
+                player.gold += 100
+
+            # 2. Restore Stability & Prosperity
+            if self.game_reference and hasattr(self.game_reference, "living_world"):
+                lw = self.game_reference.living_world
+                fw = getattr(lw, "faction_war", None)
+                if fw and hasattr(fw, "control_points"):
+                    for cp in fw.control_points.values():
+                        if cp.map_name == siege.target_territory:
+                            cp.stability = min(100.0, cp.stability + 25.0)
+                            cp.contested = False
+                ws = getattr(lw, "world_state", None)
+                if ws:
+                    ws.prosperity = min(100, getattr(ws, "prosperity", 50) + 10)
+                    ws.road_safety = min(100.0, getattr(ws, "road_safety", 50.0) + 15.0)
+
+            # 3. Mythos Legacy Record
+            if self.game_reference and hasattr(self.game_reference, "mythos_manager") and self.game_reference.mythos_manager:
+                from rpg.mythos import CATEGORY_COMBAT
+                self.game_reference.mythos_manager.record_event({
+                    "event_type": "vendetta_siege_defended",
+                    "category": CATEGORY_COMBAT,
+                    "day": current_day,
+                    "actor": "Hero",
+                    "target": siege.captain_name,
+                    "location": siege.target_territory,
+                    "outcome": f"Thwarted the Vendetta Siege of {siege.captain_name} at {siege.target_territory.title()}"
+                })
+
+            # 4. Push UI Notification
+            if self.game_reference and hasattr(self.game_reference, "notification_manager") and self.game_reference.notification_manager:
+                from rpg.notification import NotificationPriority
+                self.game_reference.notification_manager.push_toast(
+                    f"🎉 SIEGE DEFENDED: {siege.captain_name} was defeated! (+100g, +Territory Stability)",
+                    priority=NotificationPriority.HIGH
+                )
+
+            # 5. Seed Triumph Rumor
+            self._seed_siege_resolution_rumor(siege, outcome="victory")
+
+        elif outcome == "defeat":
+            # 1. Reduce Territory Stability & Shift to Bandits
+            if self.game_reference and hasattr(self.game_reference, "living_world"):
+                lw = self.game_reference.living_world
+                fw = getattr(lw, "faction_war", None)
+                from rpg.constants import FACTION_BANDITS
+                if fw and hasattr(fw, "control_points"):
+                    for cp in fw.control_points.values():
+                        if cp.map_name == siege.target_territory:
+                            cp.stability = max(0.0, cp.stability - 30.0)
+                            cp.controlling_faction = FACTION_BANDITS
+                            cp.contested = True
+                ws = getattr(lw, "world_state", None)
+                if ws:
+                    ws.prosperity = max(0, getattr(ws, "prosperity", 50) - 10)
+                    ws.danger_level = min(100, getattr(ws, "danger_level", 20) + 15)
+                    ws.road_safety = max(0.0, getattr(ws, "road_safety", 50.0) - 20.0)
+
+            # 2. Promote Captain (respecting max Lv.10 cap)
+            if captain:
+                captain.level_up(1)
+                captain.victory_titles.append("The Conqueror")
+
+            # 3. Push UI Notification
+            if self.game_reference and hasattr(self.game_reference, "notification_manager") and self.game_reference.notification_manager:
+                from rpg.notification import NotificationPriority
+                self.game_reference.notification_manager.push_toast(
+                    f"💀 SIEGE FALLEN: {siege.target_territory.title()} was sacked by {siege.captain_name}'s warband!",
+                    priority=NotificationPriority.CRITICAL
+                )
+
+            # 4. Seed Panic Rumor
+            self._seed_siege_resolution_rumor(siege, outcome="defeat")
+
+        if self.event_bus:
+            self.event_bus.emit(
+                "vendetta_siege_resolved",
+                siege_id=siege_id,
+                outcome=outcome,
+                captain_id=siege.captain_id,
+                target_territory=siege.target_territory
+            )
+
+        return True
+
+    def _seed_siege_warning_rumor(self, captain: NemesisCaptain, target_territory: str) -> None:
+        """Seeds an early warning rumor about an impending siege on the RumorBoard."""
+        if not self.game_reference:
+            return
+        lw = getattr(self.game_reference, "living_world", None)
+        rumors = getattr(lw, "rumors", None) if lw else getattr(self.game_reference, "rumor_board", None)
+        if rumors and hasattr(rumors, "add_custom_rumor"):
+            r_id = f"rumor_siege_warn_{captain.captain_id}_{self.siege_counter}"
+            topic = f"Warband Sighted in {target_territory.title()}"
+            true_txt = f"{captain.name} is gathering cutthroats to lay siege to the {target_territory.title()}!"
+            dist_txt = f"They say {captain.name} leads an army of hundreds and vows to burn {target_territory.title()} to ashes!"
+            rumors.add_custom_rumor(
+                rumor_id=r_id,
+                topic=topic,
+                origin_npc="faye",
+                true_content=true_txt,
+                distorted_content=dist_txt
+            )
+
+    def _seed_siege_resolution_rumor(self, siege: VendettaSiege, outcome: str) -> None:
+        """Seeds rumor about the siege outcome."""
+        if not self.game_reference:
+            return
+        lw = getattr(self.game_reference, "living_world", None)
+        rumors = getattr(lw, "rumors", None) if lw else getattr(self.game_reference, "rumor_board", None)
+        if rumors and hasattr(rumors, "add_custom_rumor"):
+            r_id = f"rumor_siege_res_{siege.siege_id}_{outcome}"
+            if outcome == "victory":
+                topic = f"Relief of {siege.target_territory.title()}"
+                true_txt = f"The hero shattered {siege.captain_name}'s siege at {siege.target_territory.title()}!"
+                dist_txt = f"Bards sing that {siege.captain_name}'s entire horde fled screaming before the Hero's blade!"
+            else:
+                topic = f"Pillage of {siege.target_territory.title()}"
+                true_txt = f"{siege.captain_name}'s warband overran the defenses of {siege.target_territory.title()}."
+                dist_txt = f"Rumors claim {siege.target_territory.title()} has been reduced to smoldering rubble by {siege.captain_name}!"
+            rumors.add_custom_rumor(
+                rumor_id=r_id,
+                topic=topic,
+                origin_npc="eldrin" if outcome == "victory" else "dennis",
+                true_content=true_txt,
+                distorted_content=dist_txt
+            )
 
     def _seed_nemesis_victory_rumor(self, captain: NemesisCaptain, map_name: str, title: str) -> None:
         """Seeds a dynamic rumor on RumorBoard about the Nemesis Captain's triumph."""
@@ -419,7 +781,6 @@ class NemesisManager:
         """Decreases road safety and stability in the captain's claimed territory."""
         if not self.game_reference:
             return
-        # Faction War stability
         lw = getattr(self.game_reference, "living_world", None)
         if lw:
             fw = getattr(lw, "faction_war", None)
@@ -488,12 +849,20 @@ class NemesisManager:
         """Resets all Nemesis data for a fresh game session."""
         self.captains.clear()
         self._next_id = 1
+        self.active_siege = None
+        self.siege_history.clear()
+        self.last_siege_resolved_day = -999
+        self.siege_counter = 1
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes manager state."""
         return {
             "next_id": self._next_id,
-            "captains": {k: v.to_dict() for k, v in self.captains.items()}
+            "captains": {k: v.to_dict() for k, v in self.captains.items()},
+            "active_siege": self.active_siege.to_dict() if self.active_siege else None,
+            "siege_history": [s.to_dict() for s in self.siege_history],
+            "last_siege_resolved_day": self.last_siege_resolved_day,
+            "siege_counter": self.siege_counter
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -505,3 +874,12 @@ class NemesisManager:
         self.captains.clear()
         for k, v in raw_captains.items():
             self.captains[k] = NemesisCaptain.from_dict(v)
+
+        raw_active_siege = data.get("active_siege")
+        self.active_siege = VendettaSiege.from_dict(raw_active_siege) if raw_active_siege else None
+
+        raw_history = data.get("siege_history", [])
+        self.siege_history = [VendettaSiege.from_dict(s) for s in raw_history]
+
+        self.last_siege_resolved_day = data.get("last_siege_resolved_day", -999)
+        self.siege_counter = data.get("siege_counter", 1)

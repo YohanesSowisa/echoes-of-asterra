@@ -14,7 +14,7 @@ logger = logging.getLogger("SaveSystem")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAVES_DIR = os.path.join(BASE_DIR, "saves")
 
-SAVE_SCHEMA_VERSION = 4
+SAVE_SCHEMA_VERSION = 7
 
 
 def get_save_path(slot: int) -> str:
@@ -185,6 +185,31 @@ def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
             data["living_world"].setdefault("companions", {})
             data["living_world"].setdefault("festival", {})
 
+    if version < 5:
+        # Schema v5: Nemesis Vendetta Sieges persistence normalization
+        nem = data.get("nemesis", {})
+        if isinstance(nem, dict):
+            nem.setdefault("active_siege", None)
+            nem.setdefault("siege_history", [])
+            nem.setdefault("last_siege_resolved_day", -999)
+            nem.setdefault("siege_counter", 1)
+        if "living_world" in data and isinstance(data["living_world"], dict):
+            lw_nem = data["living_world"].get("nemesis", {})
+            if isinstance(lw_nem, dict):
+                lw_nem.setdefault("active_siege", None)
+                lw_nem.setdefault("siege_history", [])
+                lw_nem.setdefault("last_siege_resolved_day", -999)
+                lw_nem.setdefault("siege_counter", 1)
+
+    if version < 6:
+        # Schema v6: Ancestral Soul Pacts persistence normalization
+        data.setdefault("pacts", {})
+
+    if version < 7:
+        # Schema v7: Sunken Mire & Ancient Leylines persistence normalization
+        data.setdefault("sunken_mire", {"tide_phase": "low", "water_level": 0.0, "unlocked_sunken_chests": []})
+        data.setdefault("leylines", {"nodes": {}})
+
     # Upgrade schema version
     data["save_schema_version"] = SAVE_SCHEMA_VERSION
 
@@ -314,7 +339,10 @@ class SaveSystem:
                 "current_map": world_manager.current_map_name,
                 "inventory": inventory_list,
                 "equipment": equipment_dict,
-                "skills_unlocked": [name for name, s in player.skill_manager.skills.items() if s.unlocked]
+                "skills_unlocked": [name for name, s in player.skill_manager.skills.items() if s.unlocked],
+                "waterstrider_timer": getattr(player, "waterstrider_timer", 0.0),
+                "cleansing_draught_timer": getattr(player, "cleansing_draught_timer", 0.0),
+                "leyline_surge_timer": getattr(player, "leyline_surge_timer", 0.0),
             }
 
             # 2. Quest Progress
@@ -330,6 +358,7 @@ class SaveSystem:
             world_data = {
                 "chests_opened": world_manager.chests_opened,
                 "boss_defeated": world_manager.boss_defeated,
+                "leviathan_defeated": getattr(world_manager, "leviathan_defeated", False),
                 "activated_waypoints": list(world_manager.activated_waypoints)
             }
 
@@ -368,6 +397,24 @@ class SaveSystem:
                     save_payload["companions"] = player.game.companion_manager.to_dict()
                 if hasattr(player.game, "festival_manager"):
                     save_payload["festival"] = player.game.festival_manager.to_dict()
+                if hasattr(player.game, "pact_manager"):
+                    save_payload["pacts"] = player.game.pact_manager.to_dict()
+                if hasattr(player.game, "mire_manager"):
+                    save_payload["sunken_mire"] = player.game.mire_manager.to_dict()
+                if hasattr(player.game, "leyline_manager"):
+                    save_payload["leylines"] = player.game.leyline_manager.to_dict()
+                if hasattr(player.game, "conspiracy_manager"):
+                    save_payload["conspiracy"] = player.game.conspiracy_manager.to_dict()
+                if hasattr(player.game, "outpost_manager"):
+                    save_payload["outposts"] = player.game.outpost_manager.to_dict()
+                if hasattr(player.game, "epoch_manager"):
+                    save_payload["epochs"] = player.game.epoch_manager.to_dict()
+                if hasattr(player.game, "monopoly_manager"):
+                    save_payload["monopoly"] = player.game.monopoly_manager.to_dict()
+                if hasattr(player.game, "dungeon_architect"):
+                    save_payload["dungeon_architect"] = player.game.dungeon_architect.to_dict()
+                if hasattr(player.game, "chrono_manager"):
+                    save_payload["chrono"] = player.game.chrono_manager.to_dict()
 
 
             with open(filename, 'w') as f:
@@ -476,6 +523,9 @@ class SaveSystem:
             player.action_timer = 0.0
             player.frame_index = 0.0
             player.is_invincible = False
+            player.waterstrider_timer = float(player_data.get("waterstrider_timer", 0.0))
+            player.cleansing_draught_timer = float(player_data.get("cleansing_draught_timer", 0.0))
+            player.leyline_surge_timer = float(player_data.get("leyline_surge_timer", 0.0))
 
 
             # --- Unlock Skills ---
@@ -494,6 +544,7 @@ class SaveSystem:
             # --- Restore World Progress ---
             world_manager.chests_opened = world_data.get("chests_opened", {})
             world_manager.boss_defeated = world_data.get("boss_defeated", False)
+            world_manager.leviathan_defeated = world_data.get("leviathan_defeated", False)
             if "activated_waypoints" in world_data:
                 world_manager.activated_waypoints = set(world_data["activated_waypoints"])
 
@@ -528,6 +579,24 @@ class SaveSystem:
                     player.game.companion_manager.from_dict(save_payload["companions"])
                 if "festival" in save_payload and hasattr(player.game, "festival_manager"):
                     player.game.festival_manager.from_dict(save_payload["festival"])
+                if "pacts" in save_payload and hasattr(player.game, "pact_manager"):
+                    player.game.pact_manager.from_dict(save_payload["pacts"])
+                if "sunken_mire" in save_payload and hasattr(player.game, "mire_manager"):
+                    player.game.mire_manager.from_dict(save_payload["sunken_mire"])
+                if "leylines" in save_payload and hasattr(player.game, "leyline_manager"):
+                    player.game.leyline_manager.from_dict(save_payload["leylines"])
+                if "conspiracy" in save_payload and hasattr(player.game, "conspiracy_manager"):
+                    player.game.conspiracy_manager.from_dict(save_payload["conspiracy"])
+                if "outposts" in save_payload and hasattr(player.game, "outpost_manager"):
+                    player.game.outpost_manager.from_dict(save_payload["outposts"])
+                if "epochs" in save_payload and hasattr(player.game, "epoch_manager"):
+                    player.game.epoch_manager.from_dict(save_payload["epochs"])
+                if "monopoly" in save_payload and hasattr(player.game, "monopoly_manager"):
+                    player.game.monopoly_manager.from_dict(save_payload["monopoly"])
+                if "dungeon_architect" in save_payload and hasattr(player.game, "dungeon_architect"):
+                    player.game.dungeon_architect.from_dict(save_payload["dungeon_architect"])
+                if "chrono" in save_payload and hasattr(player.game, "chrono_manager"):
+                    player.game.chrono_manager.from_dict(save_payload["chrono"])
 
 
             # --- Map Transition ---

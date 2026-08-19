@@ -5,7 +5,7 @@ Defines the base enemy class, specific enemy archetypes, and dropped loot items.
 import math
 import random
 import pygame
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Optional
 from rpg.sprite import BaseSprite
 from rpg.constants import (
     DIR_DOWN, DIR_UP, DIR_LEFT, DIR_RIGHT,
@@ -352,7 +352,8 @@ class Enemy(BaseSprite):
 
         # Trigger quest kill progression
         kill_type = getattr(self, "kill_type", self.asset_key)
-        self.game.quest_manager.handle_kill(kill_type)
+        if getattr(self.game, "quest_manager", None) and hasattr(self.game.quest_manager, "handle_kill"):
+            self.game.quest_manager.handle_kill(kill_type)
 
         # Trigger bounty kill progression
         bounty_mgr = getattr(self.game, "bounty_manager", None)
@@ -392,7 +393,8 @@ class Enemy(BaseSprite):
                     dropped.pos.y += random.uniform(-15, 15)
 
         # Visual particles splash
-        self.game.particles.create_kill_splash(self.rect.center)
+        if getattr(self.game, "particles", None):
+            self.game.particles.create_kill_splash(self.rect.center)
         self.kill()
 
     def update(self, dt: float) -> None:
@@ -786,6 +788,47 @@ class Wolf(Enemy):
         self.ai = EnemyAI(self.pos, vision_radius=380.0, attack_radius=54.0)
 
 
+class SporeHostWolf(Enemy):
+    """
+    Mutated canine infected by Leyline Spore Rot (Ecology rot_level >= 60%).
+    +25% ATK (15), infused with toxic spore aura.
+    On death, erupts in a 60px toxic spore cloud dealing 15 damage and poisoning nearby entities.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Spore-Host Wolf", "wolf")
+        self.hp = 68
+        self.max_hp = 68
+        self.atk = 15
+        self.defense = 3
+        self.speed = 3.5
+        self.xp_reward = 28
+        self.gold_reward = 12
+        self.attack_cooldown = 1.0
+        self.kill_type = "spore_host_wolf"
+        self.enemy_key = "spore_host_wolf"
+
+        self.loot_table = {
+            "Luminescent Spore": 0.60,
+            "Mire Reed": 0.40,
+            "Beast Leather": 0.50
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=400.0, attack_radius=58.0)
+
+    def die(self) -> None:
+        # Trigger toxic spore death burst
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "💥 SPORE BURST!", (120, 255, 100), [self.game.ui_sprites], size=16)
+            if hasattr(self.game, "particles"):
+                self.game.particles.create_magic_sparkles(self.rect.center, (80, 240, 90))
+            if hasattr(self.game, "player") and self.game.player:
+                p = self.game.player
+                dist = (pygame.math.Vector2(self.rect.center) - p.pos).length()
+                if dist <= 60.0:
+                    p.take_damage(15)
+        super().die()
+
+
 class Skeleton(Enemy):
     """Armored undead warrior. Medium health and damage."""
     def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
@@ -951,12 +994,160 @@ class BanditLeader(Enemy):
         }
         self.ai = EnemyAI(self.pos, vision_radius=380.0, attack_radius=54.0)
 
+    def update(self, dt: float) -> None:
+        # Field Dressing HP Recovery (Pillar #5 Phase 2)
+        if self.hp < self.max_hp:
+            is_embargoed = False
+            if self.game and hasattr(self.game, "monopoly_manager") and self.game.monopoly_manager:
+                is_embargoed = self.game.monopoly_manager.is_faction_embargoed("bandits", "medicinal_herb")
+            if not is_embargoed:
+                self.hp = min(float(self.max_hp), self.hp + 3.0 * dt)
+        super().update(dt)
+
     def die(self) -> None:
         """Emits boss_bandit_leader completion flag into world_state on death."""
         if self.game and hasattr(self.game, "world_state"):
             self.game.world_state.completed_event_ids.add("boss_bandit_leader")
         if self.game and hasattr(self.game, "event_bus"):
             self.game.event_bus.emit("boss_defeated", boss_id="bandit_leader", boss_name=self.name)
+        super().die()
+
+
+class MireLurker(Enemy):
+    """Amphibious wetland stalker. Camouflages in murky mire waters and pounces."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Mire Lurker", "goblin")
+        self.hp = 65
+        self.max_hp = 65
+        self.atk = 14
+        self.defense = 3
+        self.speed = 2.8
+        self.xp_reward = 22
+        self.gold_reward = 8
+        self.attack_cooldown = 1.0
+        self.kill_type = "mire_lurker"
+        self.enemy_key = "mire_lurker"
+        self.loot_table = {
+            "Mire Reed": 0.60,
+            "Sunken Relic": 0.15,
+            "Red Potion": 0.20
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=320.0, attack_radius=50.0)
+
+
+class BogLeech(Enemy):
+    """Swarming marsh parasite. Fast, attaches on hit to inflict movement slow."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Bog Leech", "slime")
+        self.hp = 35
+        self.max_hp = 35
+        self.atk = 8
+        self.defense = 1
+        self.speed = 3.4
+        self.xp_reward = 12
+        self.gold_reward = 4
+        self.attack_cooldown = 0.8
+        self.kill_type = "bog_leech"
+        self.enemy_key = "bog_leech"
+        self.loot_table = {
+            "Leech Mucus": 0.50,
+            "Mire Reed": 0.30
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=280.0, attack_radius=36.0)
+
+
+class TempleGuardian(Enemy):
+    """Ancient stone construct safeguarding the Submerged Temple. High defense and poise."""
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Temple Guardian", "knight")
+        self.hp = 90
+        self.max_hp = 90
+        self.atk = 16
+        self.defense = 8
+        self.speed = 2.2
+        self.xp_reward = 35
+        self.gold_reward = 15
+        self.attack_cooldown = 1.3
+        self.kill_type = "temple_guardian"
+        self.enemy_key = "temple_guardian"
+        self.loot_table = {
+            "Tidal Scale": 0.30,
+            "Iron Ore": 0.50,
+            "Starlight Crystal": 0.15
+        }
+        self.ai = EnemyAI(self.pos, vision_radius=340.0, attack_radius=52.0)
+
+
+class MireLeviathanBoss(Enemy):
+    """
+    Tidal World Boss: Morvath, the Mire Leviathan.
+    Colossal amphibious serpent boss residing in the Submerged Temple Sanctum.
+    - Phase 1: High mobility, wide tail sweep strikes (AOE 80px), geyser eruptive water blasts.
+    - Phase 2 (HP <= 50%): Enrages with Tidal Miasma Surge (ATK +4, Speed +0.6), summons Bog Leech reinforcements.
+    - Drops: 2x Tidal Scale, 1x Conduit Core, 1x Sunken Relic, 150 Gold.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Morvath, the Mire Leviathan", "boss")
+        self.hp = 280
+        self.max_hp = 280
+        self.atk = 18
+        self.defense = 6
+        self.speed = 2.6
+        self.xp_reward = 250
+        self.gold_reward = 150
+        self.attack_cooldown = 1.6
+        self.kill_type = "mire_leviathan"
+        self.enemy_key = "mire_leviathan"
+        self.phase = 1
+        self.is_enraged = False
+        self.tail_sweep_timer = 0.0
+        self.geyser_timer = 0.0
+
+        # Boss scale hitbox
+        self.hitbox = pygame.Rect(0, 0, 52, 44)
+        self.hitbox.center = self.rect.center
+        self.ai = EnemyAI(self.pos, vision_radius=420.0, attack_radius=90.0, patrol_radius=0.0)
+
+        self.loot_table = {
+            "Tidal Scale": 1.0,
+            "Conduit Core": 1.0,
+            "Sunken Relic": 1.0
+        }
+
+    def take_damage(self, amount: int) -> None:
+        super().take_damage(amount)
+        if self.hp <= 0:
+            return
+
+        # Check Phase 2 Shift at 50% HP
+        if self.phase == 1 and self.hp <= self.max_hp // 2:
+            self.phase = 2
+            self.is_enraged = True
+            self.atk += 4
+            self.speed += 0.6
+            self.attack_cooldown = 1.1
+            if self.game:
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "🌊 TIDAL MIASMA SURGE! MORVATH ENRAGED!", (60, 220, 255), [self.game.ui_sprites], size=20)
+                if hasattr(self.game, "camera"):
+                    self.game.camera.trigger_shake(8.0, 250)
+                if hasattr(self.game, "particles"):
+                    self.game.particles.create_levelup_splash(self.rect.center)
+                # Spawn 2 BogLeech reinforcements
+                if hasattr(self.game, "visible_sprites") and hasattr(self.game, "enemies"):
+                    b1 = BogLeech((self.pos.x - 40, self.pos.y + 30), [self.game.visible_sprites, self.game.enemies])
+                    b2 = BogLeech((self.pos.x + 40, self.pos.y + 30), [self.game.visible_sprites, self.game.enemies])
+                    b1.game = self.game
+                    b2.game = self.game
+
+    def die(self) -> None:
+        if self.game and hasattr(self.game, "event_bus"):
+            self.game.event_bus.emit(
+                "boss_defeated",
+                boss_id="mire_leviathan",
+                boss_name=self.name,
+                location="submerged_temple"
+            )
         super().die()
 
 
@@ -1005,6 +1196,7 @@ class NemesisCaptainEnemy(Enemy):
             "Steel Blade": 0.30
         }
         self.ai = EnemyAI(self.pos, vision_radius=400.0, attack_radius=56.0)
+        self.active_siege_id: Optional[str] = None
 
     def draw_hp_bar(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         """Renders distinctive Nemesis Captain floating banner, crown symbol, and traits."""
@@ -1022,7 +1214,8 @@ class NemesisCaptainEnemy(Enemy):
         if self.nemesis_data and getattr(self.nemesis_data, "victory_titles", None):
             title_str = f'"{self.nemesis_data.victory_titles[-1]}"'
 
-        banner_text = f"⚔️ NEMESIS CAPTAIN ⚔️ {title_str}".strip()
+        leader_prefix = "⚔️ VENDETTA SIEGE LEADER ⚔️" if self.active_siege_id else "⚔️ NEMESIS CAPTAIN ⚔️"
+        banner_text = f"{leader_prefix} {title_str}".strip()
         banner_surf = font_tiny.render(banner_text, True, (255, 215, 0))
         banner_shadow = font_tiny.render(banner_text, True, (20, 0, 40))
         banner_rect = banner_surf.get_rect(center=(center_x, bar_y - 20))
@@ -1037,12 +1230,13 @@ class NemesisCaptainEnemy(Enemy):
             surface.blit(tr_surf, tr_rect)
 
     def die(self) -> None:
-        """Emits nemesis_killed signal and drops unique named loot."""
+        """Emits nemesis_killed signal with active_siege_id and drops unique named loot."""
         if self.game and hasattr(self.game, "event_bus"):
             self.game.event_bus.emit(
                 "nemesis_killed",
                 captain_id=self.nemesis_id,
                 captain_name=self.name,
+                active_siege_id=self.active_siege_id,
                 killer=self.game.player
             )
         # Drop unique loot
@@ -1057,8 +1251,298 @@ class NemesisCaptainEnemy(Enemy):
         super().die()
 
 
+class CorruptLieutenantBran(Enemy):
+    """
+    Corrupt Guard Lieutenant serving as a peripheral operative for the Shadow Syndicate.
+    Engages in heavy melee combat with sword strikes and shield deflection.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Lieutenant Bran", "knight")
+        self.suspect_id = "bran"
+        self.hp = 120
+        self.max_hp = 120
+        self.atk = 18
+        self.defense = 7
+        self.speed = 2.4
+        self.exp_reward = 100
+        self.gold_reward = 50
+        self.ai = EnemyAI(self.pos, vision_radius=320.0, attack_radius=44.0)
+        self.loot_table = {
+            "Syndicate Cipher Fragment #1": 1.0,
+            "Red Potion": 0.50,
+            "Iron Ore": 0.80
+        }
+
+    def die(self) -> None:
+        if self.game and hasattr(self.game, "conspiracy_manager") and self.game.conspiracy_manager:
+            self.game.conspiracy_manager.neutralize_suspect(self.suspect_id, getattr(self.game, "player", None))
+        super().die()
+
+
+class ShadowParasite(Enemy):
+    """
+    Spectral void parasite manipulating an afflicted NPC's mind.
+    Engages in fast erratic movements with psychic Mind Flay pulses.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group], target_npc_id: str = "garth") -> None:
+        super().__init__(pos, groups, "Shadow Parasite", "mage")
+        self.target_npc_id = target_npc_id
+        self.hp = 85
+        self.max_hp = 85
+        self.atk = 14
+        self.defense = 4
+        self.speed = 2.8
+        self.exp_reward = 80
+        self.gold_reward = 40
+        self.ai = EnemyAI(self.pos, vision_radius=350.0, attack_radius=50.0)
+        self.loot_table = {
+            "Shadow Residue": 1.0,
+            "Blue Potion": 0.50,
+            "Asterra Heart": 0.10
+        }
+
+    def die(self) -> None:
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "✨ PARASITE EXORCISED!", (140, 220, 255), [self.game.ui_sprites], size=18)
+            if hasattr(self.game, "particles"):
+                self.game.particles.create_magic_sparkles(self.rect.center, (100, 200, 255))
+            if hasattr(self.game, "sound_manager"):
+                self.game.sound_manager.play_sound("magic")
+            if hasattr(self.game, "conspiracy_manager") and self.game.conspiracy_manager:
+                self.game.conspiracy_manager.exorcise_npc(self.target_npc_id, getattr(self.game, "player", None))
+        super().die()
+
+
+class ShadowAssassin(Enemy):
+    """
+    Agile stealth operative executing covert sabotage plots for the Shadow Syndicate.
+    Possesses high movement speed and critical strike ambush lunges.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group], sabotage_id: str = "sabotage_ruins_plaza") -> None:
+        super().__init__(pos, groups, "Shadow Assassin", "bandit")
+        self.sabotage_id = sabotage_id
+        self.hp = 95
+        self.max_hp = 95
+        self.atk = 17
+        self.defense = 5
+        self.speed = 3.6
+        self.exp_reward = 75
+        self.gold_reward = 35
+        self.ai = EnemyAI(self.pos, vision_radius=360.0, attack_radius=42.0)
+        self.loot_table = {
+            "Shadow Residue": 0.60,
+            "Red Potion": 0.40,
+            "Iron Ore": 0.50
+        }
+
+    def die(self) -> None:
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "⚔️ ASSASSIN ELIMINATED!", (255, 100, 100), [self.game.ui_sprites], size=16)
+        super().die()
+
+
+class GrandUsurperBoss(Enemy):
+    """
+    Grand Inquisitor Vane, The Usurper (Pillar #2 Climax World Boss).
+    Multi-phase boss commanding the Shadow Syndicate:
+    Phase 1: Heavy Void blade strikes and Shadow Thrust.
+    Phase 2 (<50% HP): Usurper's Dominion (+4 DEF, summons 2x ShadowAssassin bodyguards, Abyssal Guillotine).
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group]) -> None:
+        super().__init__(pos, groups, "Grand Inquisitor Vane", "knight")
+        self.hp = 320
+        self.max_hp = 320
+        self.atk = 20
+        self.defense = 8
+        self.speed = 2.6
+        self.exp_reward = 300
+        self.gold_reward = 200
+        self.is_boss = True
+        self.phase_2_triggered = False
+        self.ai = EnemyAI(self.pos, vision_radius=420.0, attack_radius=55.0)
+        self.loot_table = {
+            "Usurper's Royal Signet Ring": 1.0,
+            "Crown of Shadows": 1.0,
+            "Shadow Residue": 1.0,
+            "Starlight Crystal": 0.80
+        }
+
+    def take_damage(self, amount: int) -> None:
+        super().take_damage(amount)
+        # Phase 2 Enrage Trigger (<50% HP)
+        if not self.phase_2_triggered and self.hp > 0 and self.hp <= (self.max_hp * 0.5):
+            self.phase_2_triggered = True
+            self.defense += 4
+            self.atk += 4
+            self.speed = 3.0
+            if self.game:
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "👑 USURPER'S DOMINION ACTIVATED!", (255, 60, 60), [self.game.ui_sprites], size=22)
+                if hasattr(self.game, "particles"):
+                    self.game.particles.create_kill_splash(self.rect.center, (180, 40, 220))
+                if hasattr(self.game, "sound_manager"):
+                    self.game.sound_manager.play_sound("boss_roar")
+                
+                # Summon 2x ShadowAssassin bodyguards
+                for offset_x in [-48, 48]:
+                    spawn_pos = (self.pos.x + offset_x, self.pos.y)
+                    assassin = ShadowAssassin(spawn_pos, [self.game.visible_sprites])
+                    assassin.game = self.game
+                    assassin.sound_manager = self.game.sound_manager
+                    assassin.particles = self.game.particles
+                    self.game.enemies.append(assassin)
+
+    def die(self) -> None:
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "👑 THE USURPER HAS FALLEN!", (255, 215, 0), [self.game.ui_sprites], size=22)
+            if hasattr(self.game, "particles"):
+                self.game.particles.create_levelup_splash(self.rect.center)
+            if hasattr(self.game, "sound_manager"):
+                self.game.sound_manager.play_sound("triumph")
+            if hasattr(self.game, "conspiracy_manager") and self.game.conspiracy_manager:
+                self.game.conspiracy_manager.resolve_conspiracy(getattr(self.game, "player", None))
+        super().die()
+
+
+class BanditRaider(Enemy):
+    """
+    Mercenary bandit ambushing trade caravans across regional roads (Pillar #3 Phase 3).
+    High agility raider targeting supply convoys and player escorts.
+    """
+    def __init__(self, pos: Tuple[float, float], groups: List[pygame.sprite.Group], caravan_target_id: Optional[int] = None) -> None:
+        super().__init__(pos, groups, "Bandit Raider", "goblin")
+        self.hp = 85
+        self.max_hp = 85
+        self.atk = 15
+        self.defense = 4
+        self.speed = 3.2
+        self.exp_reward = 45
+        self.gold_reward = 20
+        self.caravan_target_id = caravan_target_id
+        self.ai = EnemyAI(self.pos, vision_radius=320.0, attack_radius=38.0)
+        self.loot_table = {
+            "Iron Ore": 0.50,
+            "Red Potion": 0.35,
+            "Herb": 0.60
+        }
+
+    def update(self, dt: float) -> None:
+        # Field Dressing HP Recovery (Pillar #5 Phase 2)
+        if self.hp < self.max_hp:
+            is_embargoed = False
+            if self.game and hasattr(self.game, "monopoly_manager") and self.game.monopoly_manager:
+                is_embargoed = self.game.monopoly_manager.is_faction_embargoed("bandits", "medicinal_herb")
+            if not is_embargoed:
+                self.hp = min(float(self.max_hp), self.hp + 2.0 * dt)
+        super().update(dt)
+
+    def die(self) -> None:
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "💀 RAIDER DEFEATED!", (255, 180, 50), [self.game.ui_sprites], size=14)
+            # Notify caravan manager if associated with an ambush
+            if hasattr(self.game, "living_world") and hasattr(self.game.living_world, "caravans"):
+                self.game.living_world.caravans.on_ambush_enemy_killed(self.caravan_target_id, getattr(self.game, "player", None))
+            elif hasattr(self.game, "caravans") and self.game.caravans:
+                self.game.caravans.on_ambush_enemy_killed(self.caravan_target_id, getattr(self.game, "player", None))
+            elif hasattr(self.game, "caravan_manager") and self.game.caravan_manager:
+                self.game.caravan_manager.on_ambush_enemy_killed(self.caravan_target_id, getattr(self.game, "player", None))
+        super().die()
+
+
+class ChronoDoppelganger(Enemy):
+    """
+    Paradox Mirror Boss spawned when rewinding spacetime.
+    Mirrors the player's level, equipped weapon, armor, and combat combo strings.
+    """
+    def __init__(
+        self,
+        pos: Tuple[float, float],
+        groups: List[pygame.sprite.Group],
+        level: int = 1,
+        max_hp: float = 200.0,
+        atk: float = 22.0,
+        weapon_name: str = "Spectral Chrono-Blade",
+        armor_name: str = "Temporal Plate"
+    ) -> None:
+        super().__init__(pos, groups, "Chrono-Doppelganger", "chrono_doppelganger")
+        self.enemy_type = "chrono_doppelganger"
+        self.is_boss = True
+        self.level = level
+        self.max_hp = max_hp
+        self.hp = max_hp
+        self.atk = atk
+        self.defense = 6 + (level * 2)
+        self.speed = 2.4
+        self.xp_reward = 120
+        self.gold_reward = 150
+        self.weapon_name = weapon_name
+        self.armor_name = armor_name
+        self.attack_cooldown = 0.8
+        self.combo_timer = 0.0
+        self.ai = EnemyAI(self.pos, vision_radius=400.0, attack_radius=52.0)
+        self.loot_table = {
+            "Topaz": 0.80,
+            "Ancient Relic": 0.60
+        }
+
+    def die(self) -> None:
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "⌛ PARADOX RESOLVED!", (160, 220, 255), [self.game.ui_sprites], size=16)
+            if hasattr(self.game, "chrono_manager") and self.game.chrono_manager:
+                self.game.chrono_manager.defeat_doppelganger()
+        super().die()
+
+
+class AeonSentinel(Enemy):
+    """
+    Primordial Climax Boss guarding the Spacetime Fabric.
+    Features massive temporal health, heavy defenses, spacetime shockwaves, and guaranteed Aeon Core drop.
+    """
+    def __init__(
+        self,
+        pos: Tuple[float, float],
+        groups: List[pygame.sprite.Group],
+        level: int = 10
+    ) -> None:
+        super().__init__(pos, groups, "Aeon Sentinel", "aeon_sentinel")
+        self.enemy_type = "aeon_sentinel"
+        self.is_boss = True
+        self.level = level
+        self.max_hp = 450.0
+        self.hp = 450.0
+        self.atk = 38.0
+        self.defense = 18.0
+        self.speed = 2.0
+        self.xp_reward = 350
+        self.gold_reward = 300
+        self.attack_cooldown = 1.0
+        self.ai = EnemyAI(self.pos, vision_radius=450.0, attack_radius=60.0)
+        self.loot_table = {
+            "Aeon Core": 1.0,
+            "Topaz": 1.0,
+            "Ancient Relic": 1.0
+        }
+
+    def die(self) -> None:
+        if self.game:
+            from rpg.combat import DamageNumber
+            DamageNumber(self.rect.center, "🌌 CONTINUUM STABILIZED!", (220, 180, 255), [self.game.ui_sprites], size=18)
+            player = getattr(self.game, "player", None)
+            if hasattr(self.game, "chrono_manager") and self.game.chrono_manager:
+                self.game.chrono_manager.on_aeon_sentinel_defeated(player)
+            if hasattr(self.game, "event_bus") and self.game.event_bus:
+                self.game.event_bus.emit("aeon_sentinel_defeated", boss_name=self.name)
+        super().die()
+
+
 # Fast math helpers
 def math_sin(rad: float) -> float:
     import math
     return math.sin(rad)
+
 

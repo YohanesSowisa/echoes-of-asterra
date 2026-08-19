@@ -9,7 +9,7 @@ import pygame
 from typing import Dict, List, Tuple, Set, Optional, Any
 from rpg.constants import (
     COLOR_BLACK, COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_LIGHT_GRAY,
-    COLOR_RED, COLOR_GREEN, COLOR_YELLOW,
+    COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_GOLD,
     COLOR_UI_BG, COLOR_UI_BORDER, COLOR_UI_TEXT, COLOR_UI_HIGHLIGHT,
     COLOR_BAR_HP, COLOR_BAR_MANA, COLOR_BAR_STAMINA, COLOR_BAR_EXP,
     STATE_MENU, STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY, STATE_DIALOGUE, STATE_SHOP, STATE_SETTINGS,
@@ -305,6 +305,8 @@ class UIManager:
             self.draw_crafting_panel(surface, game.player)
         if "progression" in self.open_panels:
             self.draw_exploration_log_panel(surface, game)
+        if "warehouse" in self.open_panels:
+            self.draw_warehouse_panel(surface, game)
 
         # 4. Dialogue Box
         if game.game_state == STATE_DIALOGUE:
@@ -433,6 +435,67 @@ class UIManager:
             loc_txt = self.fonts["small"].render(f">> {map_name}{depth_str}", True, (180, 200, 220))
             surface.blit(loc_txt, (240, 56))
 
+            # 5b2. Sunken Mire Tide & Rot Badge
+            if game.world_manager.current_map_name == "sunken_mire" and hasattr(game, "mire_manager") and game.mire_manager:
+                mm = game.mire_manager
+                t_phase = mm.tide_phase.upper()
+                w_lvl = int(mm.water_level * 100)
+                tide_col = (60, 180, 255) if mm.tide_phase in ["high", "rising"] else (255, 200, 80)
+                tide_badge = pygame.Rect(380, 52, 136, 22)
+                pygame.draw.rect(surface, (20, 25, 35), tide_badge, border_radius=3)
+                pygame.draw.rect(surface, tide_col, tide_badge, 1, border_radius=3)
+                t_txt = self.fonts["tiny"].render(f"🌊 TIDE: {t_phase} ({w_lvl}%)", True, tide_col)
+                surface.blit(t_txt, (386, 56))
+
+                r_lvl = int(mm.rot_level)
+                rot_col = (255, 80, 80) if r_lvl >= 60 else (160, 240, 100)
+                rot_badge = pygame.Rect(380, 78, 136, 20)
+                pygame.draw.rect(surface, (25, 20, 30), rot_badge, border_radius=3)
+                pygame.draw.rect(surface, rot_col, rot_badge, 1, border_radius=3)
+                r_txt = self.fonts["tiny"].render(f"☣️ ROT: {r_lvl}%", True, rot_col)
+                surface.blit(r_txt, (386, 81))
+
+            # 5b3. Conspiracy Syndicate Countdown Badge
+            if hasattr(game, "conspiracy_manager") and game.conspiracy_manager:
+                cm = game.conspiracy_manager
+                c_inf = int(cm.syndicate_influence)
+                coup_day = cm.current_day
+                consp_col = (255, 80, 80) if c_inf >= 50 or cm.days_until_coup <= 5 else (200, 160, 255)
+                c_badge = pygame.Rect(240, 78, 134, 20)
+                pygame.draw.rect(surface, (25, 20, 30), c_badge, border_radius=3)
+                pygame.draw.rect(surface, consp_col, c_badge, 1, border_radius=3)
+                c_txt = self.fonts["tiny"].render(f"🕵️ COUP: D{coup_day}/30 ({c_inf}%)", True, consp_col)
+                surface.blit(c_txt, (244, 81))
+
+        # 5b3. Active Alchemical Elixir Buff Badges
+        buff_x = 524
+        if getattr(player, "waterstrider_timer", 0.0) > 0:
+            w_sec = int(player.waterstrider_timer)
+            w_badge = pygame.Rect(buff_x, 52, 110, 22)
+            pygame.draw.rect(surface, (15, 30, 45), w_badge, border_radius=3)
+            pygame.draw.rect(surface, (0, 220, 255), w_badge, 1, border_radius=3)
+            w_txt = self.fonts["tiny"].render(f"💧 STRIDER {w_sec}s", True, (160, 240, 255))
+            surface.blit(w_txt, (buff_x + 6, 56))
+            buff_x += 116
+
+        if getattr(player, "cleansing_draught_timer", 0.0) > 0:
+            c_sec = int(player.cleansing_draught_timer)
+            c_badge = pygame.Rect(buff_x, 52, 115, 22)
+            pygame.draw.rect(surface, (20, 40, 25), c_badge, border_radius=3)
+            pygame.draw.rect(surface, (100, 255, 120), c_badge, 1, border_radius=3)
+            c_txt = self.fonts["tiny"].render(f"🧪 CLEANSE {c_sec}s", True, (160, 255, 180))
+            surface.blit(c_txt, (buff_x + 6, 56))
+            buff_x += 121
+
+        if getattr(player, "leyline_surge_timer", 0.0) > 0:
+            s_sec = int(player.leyline_surge_timer)
+            s_badge = pygame.Rect(buff_x, 52, 105, 22)
+            pygame.draw.rect(surface, (40, 30, 15), s_badge, border_radius=3)
+            pygame.draw.rect(surface, (255, 220, 40), s_badge, 1, border_radius=3)
+            s_txt = self.fonts["tiny"].render(f"⚡ SURGE {s_sec}s", True, (255, 240, 160))
+            surface.blit(s_txt, (buff_x + 6, 56))
+            buff_x += 111
+
         # 5c. Harvest Moon / Stardew Valley Time & Season HUD Clock Card
         self._draw_harvest_moon_clock(surface, game)
 
@@ -537,6 +600,73 @@ class UIManager:
 
         # 8. Companion Party HUD Widget
         self._draw_companion_hud(surface, game)
+
+        # 9. Caravan Ambush Emergency HUD Badge
+        self._draw_caravan_ambush_hud(surface, game)
+
+        # 10. Cataclysm Epoch HUD Indicator Badge (Pillar #4)
+        self._draw_epoch_hud(surface, game)
+
+    def _draw_epoch_hud(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders an active Cataclysm Epoch indicator badge on the top HUD if an epoch is active."""
+        if not game or not hasattr(game, "epoch_manager"):
+            return
+        em = game.epoch_manager
+        if not em or em.current_epoch == "standard":
+            return
+
+        epoch_data = em.get_current_epoch_data()
+        badge_w, badge_h = 240, 22
+        badge_x = SCREEN_WIDTH // 2 - badge_w // 2
+        badge_y = 78
+
+        epoch_icon = "🌊" if em.current_epoch == "deluge" else ("🔥" if em.current_epoch == "scorched" else "❄️")
+        bg_col = (20, 80, 140, 210) if em.current_epoch == "deluge" else ((140, 50, 20, 210) if em.current_epoch == "scorched" else (40, 100, 150, 210))
+        border_col = (100, 220, 255) if em.current_epoch == "deluge" else ((255, 160, 40) if em.current_epoch == "scorched" else (200, 240, 255))
+
+        badge_bg = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
+        badge_bg.fill(bg_col)
+        surface.blit(badge_bg, (badge_x, badge_y))
+        pygame.draw.rect(surface, border_col, (badge_x, badge_y, badge_w, badge_h), 1, border_radius=4)
+
+        text = f"{epoch_icon} EPOCH: {epoch_data.name.split('(')[0].strip()}"
+        lbl = self.fonts["tiny"].render(text, True, (255, 255, 255))
+        surface.blit(lbl, (badge_x + badge_w // 2 - lbl.get_width() // 2, badge_y + 4))
+
+    def _draw_caravan_ambush_hud(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders emergency flashing warning badge if a trade caravan is currently under bandit attack."""
+        if not game:
+            return
+        caravan_mgr = getattr(game, "caravan_manager", None)
+        if not caravan_mgr and hasattr(game, "living_world"):
+            caravan_mgr = getattr(game.living_world, "caravans", None)
+        if not caravan_mgr or not caravan_mgr.active_ambushes:
+            return
+
+        # Display for first active ambush
+        ambush = list(caravan_mgr.active_ambushes.values())[0]
+        zone_name = str(ambush.get("target", "Wilds")).capitalize()
+        timer_left = int(ambush.get("ambush_timer", 60))
+        raiders = ambush.get("raiders_count", 3)
+
+        # Flashing red/yellow alert badge at top center
+        badge_w, badge_h = 340, 26
+        badge_x = SCREEN_WIDTH // 2 - badge_w // 2
+        badge_y = 52
+
+        import time
+        flash = int(time.time() * 4) % 2 == 0
+        bg_col = (180, 40, 40, 220) if flash else (120, 30, 30, 200)
+        border_col = (255, 215, 0) if flash else (255, 80, 80)
+
+        badge_bg = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
+        badge_bg.fill(bg_col)
+        surface.blit(badge_bg, (badge_x, badge_y))
+        pygame.draw.rect(surface, border_col, (badge_x, badge_y, badge_w, badge_h), 2, border_radius=4)
+
+        text = f"⚠️ CARAVAN ATTACKED! {zone_name} ({timer_left}s, {raiders} Raiders)"
+        lbl = self.fonts["tiny"].render(text, True, (255, 255, 255))
+        surface.blit(lbl, (badge_x + badge_w // 2 - lbl.get_width() // 2, badge_y + 6))
 
     def _draw_companion_hud(self, surface: pygame.Surface, game: Any) -> None:
         """Renders active party companion status card under the left HUD."""
@@ -1670,6 +1800,43 @@ class UIManager:
             surface.blit(lbl, (stat_x, y_pos))
             surface.blit(val_lbl, (stat_x, y_pos + 12))
 
+        # Draw active Soul Pact Badge
+        if game_ref and hasattr(game_ref, "pact_manager") and game_ref.pact_manager:
+            pact = game_ref.pact_manager.get_active_pact()
+            if pact:
+                pm = game_ref.pact_manager
+                p_tier = pm.state.pact_tier
+                t_name = pm.get_pact_tier_name()
+                pact_badge_y = stat_y + 256
+                pact_box = pygame.Rect(stat_x - 4, pact_badge_y, 144, 76)
+                if pact.pact_id == "void":
+                    pact_col = (140, 50, 220)
+                elif pact.pact_id == "solar":
+                    pact_col = (255, 215, 50)
+                else:
+                    pact_col = (240, 160, 30)
+                pygame.draw.rect(surface, (25, 20, 35), pact_box, border_radius=4)
+                pygame.draw.rect(surface, pact_col, pact_box, 1, border_radius=4)
+                p_lbl = self.fonts["tiny"].render(f"PACT: TIER {p_tier} ({t_name.upper()})", True, pact_col)
+                p_name = self.fonts["small"].render(pact.name, True, COLOR_WHITE)
+                reach_val = pm.get_attack_range_multiplier()
+                def_val = pm.get_defense_bonus()
+                p_desc = self.fonts["tiny"].render(f"Reach: {reach_val:.2f}x | Def: +{def_val}", True, (200, 200, 210))
+                surface.blit(p_lbl, (stat_x, pact_badge_y + 4))
+                surface.blit(p_name, (stat_x, pact_badge_y + 18))
+                surface.blit(p_desc, (stat_x, pact_badge_y + 36))
+
+                # Pact XP Bar
+                if p_tier < 3:
+                    xp_prog = min(1.0, pm.state.pact_xp / pm.state.xp_needed_for_next_tier)
+                    pygame.draw.rect(surface, (40, 35, 50), (stat_x, pact_badge_y + 54, 136, 6), border_radius=2)
+                    pygame.draw.rect(surface, pact_col, (stat_x, pact_badge_y + 54, int(136 * xp_prog), 6), border_radius=2)
+                    xp_lbl = self.fonts["tiny"].render(f"XP: {pm.state.pact_xp}/{pm.state.xp_needed_for_next_tier}", True, (170, 175, 185))
+                    surface.blit(xp_lbl, (stat_x, pact_badge_y + 62))
+                else:
+                    max_lbl = self.fonts["tiny"].render("★ PRIMORDIAL MASTER ★", True, (255, 215, 0))
+                    surface.blit(max_lbl, (stat_x, pact_badge_y + 56))
+
         # Tab Switcher Header (Right Section)
         active_tab = getattr(self, "active_char_tab", "factions")
 
@@ -1801,7 +1968,7 @@ class UIManager:
                 am = player.game.achievement_manager
                 ach_list = list(am.achievements.values())
                 unlocked_cnt = sum(1 for a in ach_list if a.unlocked)
-                
+
                 header_str = f"Achievements: {unlocked_cnt}/{len(ach_list)} Unlocked"
                 h_lbl = self.fonts["small"].render(header_str, True, COLOR_UI_HIGHLIGHT)
                 surface.blit(h_lbl, (tab_x, content_y))
@@ -1811,10 +1978,10 @@ class UIManager:
                     status_c = (255, 215, 0) if ach.unlocked else COLOR_GRAY
                     status_tag = f"[{ach.category}]"
                     title_str = f"{ach.icon_symbol} {ach.title} {status_tag}"
-                    
+
                     t_lbl = self.fonts["small"].render(title_str, True, status_c)
                     d_lbl = self.fonts["tiny"].render(ach.description, True, (170, 175, 185) if ach.unlocked else (100, 105, 115))
-                    
+
                     surface.blit(t_lbl, (tab_x, ay))
                     surface.blit(d_lbl, (tab_x + 16, ay + 18))
 
@@ -1824,7 +1991,7 @@ class UIManager:
                 bm = player.game.bestiary_manager
                 b_list = list(bm.entries.values())
                 unlocked_cnt = sum(1 for e in b_list if e.unlocked)
-                
+
                 header_str = f"Bestiary: {unlocked_cnt}/{len(b_list)} Discovered"
                 h_lbl = self.fonts["small"].render(header_str, True, COLOR_UI_HIGHLIGHT)
                 surface.blit(h_lbl, (tab_x, content_y))
@@ -1834,10 +2001,10 @@ class UIManager:
                     status_c = COLOR_WHITE if entry.unlocked else COLOR_GRAY
                     name_str = f"📖 {entry.name}" if entry.unlocked else "❓ Unknown Creature"
                     meta_str = f"Kills: {entry.kills} • Element: {entry.element} • Weakness: {entry.weakness}" if entry.unlocked else "Defeat this enemy to unlock lore & weaknesses"
-                    
+
                     e_lbl = self.fonts["small"].render(name_str, True, status_c)
                     d_lbl = self.fonts["tiny"].render(meta_str, True, COLOR_LIGHT_GRAY if entry.unlocked else (100, 105, 115))
-                    
+
                     surface.blit(e_lbl, (tab_x, ey))
                     surface.blit(d_lbl, (tab_x + 12, ey + 16))
 
@@ -2522,7 +2689,7 @@ class UIManager:
         surface.blit(opt_respawn, (cx - opt_respawn.get_width() // 2, cy - 10))
         surface.blit(opt_reload, (cx - opt_reload.get_width() // 2, cy + 30))
         surface.blit(opt_menu, (cx - opt_menu.get_width() // 2, cy + 70))
-        
+
         mythos_txt = self.fonts["small"].render("✨ Mythos Inheritance: Unlocked traits will be passed to your next hero!", True, (255, 215, 0))
         surface.blit(mythos_txt, (cx - mythos_txt.get_width() // 2, cy + 110))
 
@@ -3236,6 +3403,110 @@ class UIManager:
                 else:
                     from rpg.notification import NotificationPriority
                     self.notifications.push_toast(reason, NotificationPriority.MEDIUM, color=(240, 120, 30))
+
+    def draw_warehouse_panel(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders the Guild Commodity Warehouse & Territorial Concession Deeds modal."""
+        if not game or not hasattr(game, "monopoly_manager"):
+            return
+
+        mm = game.monopoly_manager
+        pw, ph = 560, 420
+        px = SCREEN_WIDTH // 2 - pw // 2
+        py = SCREEN_HEIGHT // 2 - ph // 2
+
+        # Background overlay
+        bg_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        bg_overlay.fill((0, 0, 0, 160))
+        surface.blit(bg_overlay, (0, 0))
+
+        # Main panel
+        panel_surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
+        panel_surf.fill((22, 25, 34, 245))
+        surface.blit(panel_surf, (px, py))
+        pygame.draw.rect(surface, (218, 165, 32), (px, py, pw, ph), 2, border_radius=8)
+
+        # Title
+        title = self.fonts["large"].render("🏰 GUILD COMMODITY WAREHOUSE & DEEDS", True, (255, 215, 0))
+        surface.blit(title, (px + pw // 2 - title.get_width() // 2, py + 16))
+
+        # Close hint
+        close_lbl = self.fonts["tiny"].render("[ESC/E] Close", True, (160, 160, 170))
+        surface.blit(close_lbl, (px + pw - close_lbl.get_width() - 16, py + 18))
+
+        # --- LEFT COLUMN: WAREHOUSE STOCKPILE ---
+        left_w = 250
+        left_x = px + 20
+        curr_y = py + 56
+
+        wh = mm.warehouse
+        cap_txt = f"Stockpile ({wh.get_total_items()}/{wh.capacity})"
+        cap_lbl = self.fonts["medium"].render(cap_txt, True, (100, 220, 255))
+        surface.blit(cap_lbl, (left_x, curr_y))
+        curr_y += 26
+
+        from rpg.monopoly import COMMODITY_MARKET_PRICES, COMMODITY_DISPLAY_NAMES
+        for item_id, count in wh.stock.items():
+            name = COMMODITY_DISPLAY_NAMES.get(item_id, item_id.capitalize())
+            price = COMMODITY_MARKET_PRICES.get(item_id, 5)
+            row_bg = pygame.Rect(left_x, curr_y, left_w, 32)
+            pygame.draw.rect(surface, (30, 35, 48), row_bg, border_radius=4)
+            pygame.draw.rect(surface, (60, 70, 95), row_bg, 1, border_radius=4)
+
+            item_lbl = self.fonts["small"].render(f"{name}: {count}", True, (255, 255, 255))
+            surface.blit(item_lbl, (left_x + 8, curr_y + 8))
+
+            val_lbl = self.fonts["tiny"].render(f"@{price}g", True, (255, 215, 0))
+            surface.blit(val_lbl, (left_x + left_w - val_lbl.get_width() - 8, curr_y + 10))
+            curr_y += 38
+
+        # Bulk Liquidate All Button
+        liq_rect = pygame.Rect(left_x, py + ph - 50, left_w, 34)
+        is_liq_hover = liq_rect.collidepoint(pygame.mouse.get_pos())
+        pygame.draw.rect(surface, (160, 110, 20) if is_liq_hover else (110, 75, 15), liq_rect, border_radius=6)
+        pygame.draw.rect(surface, (255, 215, 0), liq_rect, 1, border_radius=6)
+        liq_lbl = self.fonts["small"].render("💰 Liquidate All to Market", True, (255, 255, 255))
+        surface.blit(liq_lbl, (liq_rect.centerx - liq_lbl.get_width() // 2, liq_rect.centery - liq_lbl.get_height() // 2))
+
+        # --- RIGHT COLUMN: RESOURCE DEEDS ---
+        right_x = px + 290
+        right_w = 250
+        curr_y = py + 56
+
+        deeds_title = self.fonts["medium"].render("Territorial Deeds", True, (100, 220, 255))
+        surface.blit(deeds_title, (right_x, curr_y))
+        curr_y += 26
+
+        for deed in mm.deeds.values():
+            d_rect = pygame.Rect(right_x, curr_y, right_w, 82)
+            pygame.draw.rect(surface, (30, 35, 48), d_rect, border_radius=4)
+            border_c = (255, 215, 0) if deed.is_owned else (70, 80, 105)
+            pygame.draw.rect(surface, border_c, d_rect, 1, border_radius=4)
+
+            d_name = self.fonts["small"].render(deed.name[:24], True, (255, 230, 100) if deed.is_owned else (255, 255, 255))
+            surface.blit(d_name, (right_x + 8, curr_y + 6))
+
+            loc_lbl = self.fonts["tiny"].render(f"📍 {deed.location_name}", True, (180, 180, 190))
+            surface.blit(loc_lbl, (right_x + 8, curr_y + 24))
+
+            # Daily yield summary
+            yield_str = "+ " + ", ".join(f"{v} {COMMODITY_DISPLAY_NAMES.get(k, k).split()[0]}" for k, v in deed.daily_yield.items()) + "/day"
+            y_lbl = self.fonts["tiny"].render(yield_str, True, (100, 230, 120))
+            surface.blit(y_lbl, (right_x + 8, curr_y + 42))
+
+            # Status / Buy button
+            if deed.is_owned:
+                own_lbl = self.fonts["tiny"].render("✅ ACTIVE CONCESSION", True, (255, 215, 0))
+                surface.blit(own_lbl, (right_x + 8, curr_y + 60))
+            else:
+                buy_btn = pygame.Rect(right_x + right_w - 90, curr_y + 54, 82, 22)
+                is_buy_hover = buy_btn.collidepoint(pygame.mouse.get_pos())
+                pygame.draw.rect(surface, (20, 120, 60) if is_buy_hover else (15, 80, 40), buy_btn, border_radius=3)
+                pygame.draw.rect(surface, (100, 240, 140), buy_btn, 1, border_radius=3)
+                b_lbl = self.fonts["tiny"].render(f"Buy {deed.cost}g", True, (255, 255, 255))
+                surface.blit(b_lbl, (buy_btn.centerx - b_lbl.get_width() // 2, buy_btn.centery - b_lbl.get_height() // 2))
+
+            curr_y += 92
+
 
 def cy_crafting(cy: int) -> int:
     return cy

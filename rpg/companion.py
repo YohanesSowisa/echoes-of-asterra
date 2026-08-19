@@ -94,6 +94,7 @@ class Companion:
     mode: str = MODE_ATTACK
     is_recruited: bool = False
     is_in_party: bool = False
+    is_on_caravan: bool = False
     personality: str = "brave"
     expedition: Optional[ExpeditionData] = None
     equipped_gear: Dict[str, Any] = field(default_factory=dict)
@@ -203,6 +204,7 @@ class Companion:
             "mode": self.mode,
             "is_recruited": self.is_recruited,
             "is_in_party": self.is_in_party,
+            "is_on_caravan": self.is_on_caravan,
             "personality": self.personality,
             "expedition": self.expedition.to_dict() if self.expedition else None,
             "equipped_gear": dict(self.equipped_gear),
@@ -230,6 +232,7 @@ class Companion:
             mode=data.get("mode", MODE_ATTACK),
             is_recruited=data.get("is_recruited", False),
             is_in_party=data.get("is_in_party", False),
+            is_on_caravan=data.get("is_on_caravan", False),
             personality=data.get("personality", "brave"),
             expedition=exp_data,
             equipped_gear=dict(data.get("equipped_gear", {})),

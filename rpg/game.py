@@ -67,6 +67,9 @@ class Game:
         self.factions = FactionManager()
         self.factions.register_event_listeners(self.event_bus)
         self.living_world.faction_war.faction_manager = self.factions
+        self.living_world.faction_war.game_reference = self
+        self.living_world.caravans.game_reference = self
+        self.caravans = self.living_world.caravans
 
         self.npc_memory = NPCMemoryManager()
         self.npc_memory.register_event_listeners(self.event_bus)
@@ -107,6 +110,33 @@ class Game:
         self.companion_manager.game_reference = self
         self.festival_manager = self.living_world.festival
         self.festival_manager.game_reference = self
+        from rpg.pacts import PactManager
+        self.pact_manager = PactManager(self.event_bus)
+        self.pact_manager.game_reference = self
+        from rpg.sunken_mire import MireManager
+        from rpg.leylines import LeylineManager
+        self.mire_manager = MireManager(self.event_bus)
+        self.mire_manager.game_reference = self
+        self.leyline_manager = LeylineManager(self.event_bus)
+        from rpg.conspiracy import ConspiracyManager
+        self.conspiracy_manager = ConspiracyManager(self.event_bus)
+        self.conspiracy_manager.game_reference = self
+        from rpg.outpost import OutpostManager
+        self.outpost_manager = OutpostManager(self.event_bus)
+        self.outpost_manager.game_reference = self
+        from rpg.epochs import EpochManager
+        self.epoch_manager = EpochManager(self.event_bus)
+        self.epoch_manager.game_reference = self
+        from rpg.monopoly import MonopolyManager
+        self.monopoly_manager = MonopolyManager(self.event_bus)
+        from rpg.dungeon_architect import DungeonArchitectManager
+        self.dungeon_architect = DungeonArchitectManager(self.event_bus)
+        from rpg.chrono import ChronoManager
+        self.chrono_manager = ChronoManager(self.event_bus)
+        self.outpost_sprites = pygame.sprite.Group()
+        self.leyline_sprites = pygame.sprite.Group()
+        self.mire_herb_sprites = pygame.sprite.Group()
+        self.spore_nest_sprites = pygame.sprite.Group()
         self.companion_sprite = None
 
         # Sprite groups
@@ -136,10 +166,13 @@ class Game:
         from rpg.telemetry import EventTelemetry
         from rpg.achievements import AchievementManager
         self.mythos_manager = MythosManager()
+        self.mythos_manager.register_event_listeners(self.event_bus)
         self.mythos_reader = MythosReader(self)
         self.mythos_reader.apply_historical_world_buffs()
         if hasattr(self, "dialogue_manager"):
             self.mythos_reader.inject_legend_into_dialogue_manager(self.dialogue_manager)
+        if hasattr(self, "epoch_manager"):
+            self.epoch_manager.determine_starting_epoch_from_mythos(self.mythos_manager)
 
         self.telemetry = EventTelemetry()
         self.telemetry.register_event_bus(self.event_bus)
@@ -156,6 +189,7 @@ class Game:
         self.event_bus.subscribe("first_levelup", self._show_levelup_tip)
         self.event_bus.subscribe("first_quest_accepted", self._show_quest_tip)
         self.event_bus.subscribe("town_invested", self._on_town_invested)
+        self.event_bus.subscribe("boss_defeated", self._on_boss_defeated)
 
 
         # Load initial village map for menu background and start Main Menu BGM
@@ -225,9 +259,18 @@ class Game:
                 priority=NotificationPriority.HIGH
             )
 
-
-
-
+    def _on_boss_defeated(self, boss_id: str = "", boss_name: str = "", **kwargs: Any) -> None:
+        if boss_id == "mire_leviathan":
+            if hasattr(self, "world_manager"):
+                self.world_manager.leviathan_defeated = True
+            if hasattr(self, "ui_manager") and hasattr(self.ui_manager, "celebration"):
+                from rpg.celebration import CelebrationTier
+                self.ui_manager.celebration.trigger_celebration(
+                    CelebrationTier.MAJOR,
+                    "MORVATH THE MIRE LEVIATHAN SLAIN!",
+                    "The floodwaters recede. The Leylines of Asterra resonate with divine triumph!",
+                    event_bus=self.event_bus
+                )
 
     def toggle_fullscreen(self) -> None:
         """Toggles between Fullscreen and Windowed display mode cleanly with SCALED mouse mapping."""
@@ -353,6 +396,12 @@ class Game:
             self.companion_manager = self.living_world.companions
             self.festival_manager = self.living_world.festival
             self.companion_sprite = None
+        if hasattr(self, "pact_manager") and hasattr(self.pact_manager, "reset"):
+            self.pact_manager.reset()
+        if hasattr(self, "mire_manager") and hasattr(self.mire_manager, "reset"):
+            self.mire_manager.reset()
+        if hasattr(self, "leyline_manager") and hasattr(self.leyline_manager, "reset"):
+            self.leyline_manager.reset()
         if hasattr(self, "mythos_reader"):
             self.mythos_reader.apply_historical_world_buffs()
             self.mythos_reader.inject_legend_into_dialogue_manager(self.dialogue_manager)
@@ -662,6 +711,10 @@ class Game:
                     elif event.key == pygame.K_m:
                         self.minimap_enabled = not self.minimap_enabled
                         self.sound_manager.play_sound("click")
+                    elif event.key == pygame.K_z:
+                        # Trigger Active Primordial Soul Pact Ability!
+                        if hasattr(self, "player") and self.player:
+                            self.player.execute_pact_ability()
                     elif event.key == pygame.K_l:
                         # Debug cheat: gain enough XP to level up instantly
                         self.player.gain_xp(self.player.xp_needed - self.player.xp)
@@ -949,6 +1002,30 @@ class Game:
                 obelisk.interact(self.player)
                 return
 
+        # 4. Check Soul Pact Altars range
+        for altar in getattr(self, "pact_altars", []):
+            if altar.check_interaction_range(self.player.pos):
+                altar.interact(self.player)
+                return
+
+        # 5. Check Leyline Conduits range
+        for leyline in getattr(self, "leyline_sprites", []):
+            if leyline.check_interaction_range(self.player.pos):
+                leyline.interact(self.player)
+                return
+
+        # 6. Check Mire Botanical Herbs range
+        for herb in getattr(self, "mire_herb_sprites", []):
+            if herb.check_interaction_range(self.player.pos):
+                herb.interact(self.player)
+                return
+
+        # 7. Check Spore Nests range
+        for nest in getattr(self, "spore_nest_sprites", []):
+            if nest.check_interaction_range(self.player.pos):
+                nest.interact(self.player)
+                return
+
     def update(self) -> None:
         """Ticks recovery pools, triggers camera positioning, and checks portal collisions."""
         self.services.profiling.start_sample("update")
@@ -976,11 +1053,26 @@ class Game:
         if self.effects_manager.hit_stop_timer > 0:
             return
 
-        # Update NPCs and Waypoints range indicators
+        # Update NPCs, Waypoints, Pact Altars, and Mire Herbs range indicators
         for npc in self.npcs:
             npc.check_interaction_range(self.player.pos)
         for obelisk in self.waypoint_obelisks:
             obelisk.check_interaction_range(self.player.pos)
+        for altar in getattr(self, "pact_altars", []):
+            altar.check_interaction_range(self.player.pos)
+        for herb in getattr(self, "mire_herb_sprites", []):
+            herb.check_interaction_range(self.player.pos)
+        for nest in getattr(self, "spore_nest_sprites", []):
+            nest.check_interaction_range(self.player.pos)
+
+        # Update Mire and Leyline Managers
+        if hasattr(self, "mire_manager") and self.mire_manager:
+            time_of_day = getattr(self.world_state, "time_of_day", 12.0) if hasattr(self, "world_state") else 12.0
+            self.mire_manager.update(self.dt, time_of_day)
+        if hasattr(self, "leyline_manager") and self.leyline_manager:
+            # 1 in-game hour per 20 seconds (dt_hours = dt / 20.0)
+            dt_hours = self.dt / 20.0
+            self.leyline_manager.update_overcharge(dt_hours)
 
         # 1. Update Game dialogue
         if self.game_state == STATE_DIALOGUE:

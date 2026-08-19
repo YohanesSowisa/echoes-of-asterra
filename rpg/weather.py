@@ -17,6 +17,37 @@ WEATHER_RAIN = "rain"
 WEATHER_SNOW = "snow"
 WEATHER_FOG = "fog"
 WEATHER_LEAVES = "leaves"
+WEATHER_TEMPORAL_RIFT = "temporal_rift"
+
+
+class TemporalSparkle:
+    """Drifting ethereal violet-cyan chrono sparkle particle."""
+    def __init__(self, pos: pygame.math.Vector2, velocity: pygame.math.Vector2, size: float, color: Tuple[int, int, int]) -> None:
+        self.pos = pygame.math.Vector2(pos)
+        self.velocity = pygame.math.Vector2(velocity)
+        self.size = size
+        self.color = color
+        self.lifetime = random.uniform(2.0, 4.0)
+        self.timer = self.lifetime
+        self.phase = random.uniform(0, 6.28)
+
+    def update(self, dt: float) -> bool:
+        self.timer -= dt
+        if self.timer <= 0:
+            return False
+        self.phase += dt * 3.0
+        self.pos += self.velocity * dt
+        self.pos.x += math.sin(self.phase) * 15.0 * dt
+        return True
+
+    def draw(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+        screen_pos = self.pos - camera_offset
+        sx, sy = int(screen_pos.x), int(screen_pos.y)
+        if 0 <= sx <= SCREEN_WIDTH and 0 <= sy <= SCREEN_HEIGHT:
+            alpha = int(220 * (self.timer / self.lifetime))
+            sparkle_surf = pygame.Surface((int(self.size * 2 + 4), int(self.size * 2 + 4)), pygame.SRCALPHA)
+            pygame.draw.circle(sparkle_surf, (*self.color[:3], alpha), (int(self.size + 2), int(self.size + 2)), int(self.size))
+            surface.blit(sparkle_surf, (sx - int(self.size + 2), sy - int(self.size + 2)))
 
 
 class RainStreak:
@@ -202,6 +233,10 @@ class WeatherSystem:
         self.weather_particles.clear()
         self.lightning_flash_timer = 0.0
 
+    def set_weather(self, weather_type: str) -> None:
+        """Forces an immediate transition to a specific weather state."""
+        self.change_weather(weather_type)
+
     def update(self, particles: Any, camera_offset: pygame.math.Vector2, dt: float, world_state: Any = None) -> None:
         """
         Ticks the weather cycle timer, increments transition intensity,
@@ -320,10 +355,29 @@ class WeatherSystem:
                     sway_speed=sway_speed
                 ))
 
+        # 4. WEATHER_TEMPORAL_RIFT: Spawn ethereal violet and cyan chrono sparkles
+        elif self.state == WEATHER_TEMPORAL_RIFT:
+            spawn_count = int(25 * dt * self.intensity)
+            for _ in range(max(1, spawn_count)):
+                rx = random.uniform(left - 20, right + 20)
+                ry = random.uniform(top - 20, bottom + 20)
+                color = random.choice([
+                    (190, 130, 255),  # Chrono violet
+                    (100, 230, 255),  # Spacetime cyan
+                    (240, 200, 255)   # Ethereal white-pink
+                ])
+                size = random.uniform(2.5, 5.0)
+                self.weather_particles.append(TemporalSparkle(
+                    pos=pygame.math.Vector2(rx, ry),
+                    velocity=pygame.math.Vector2(random.uniform(-15, 15), random.uniform(-25, -10)),
+                    size=size,
+                    color=color
+                ))
+
     def draw_weather_overlay(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2 = None) -> None:
         """
         Renders atmospheric sky tinting overlays, rain streaks, splash ripples,
-        snowflakes, leaves, and fog mist overlays across the viewport.
+        snowflakes, leaves, temporal rift chroma, and fog mist overlays across the viewport.
         """
         if self.intensity <= 0:
             return
@@ -331,7 +385,7 @@ class WeatherSystem:
         sw, sh = surface.get_size()
         cam = camera_offset if camera_offset is not None else pygame.math.Vector2(0, 0)
 
-        # 1. Atmospheric Sky Tint Overlay (Darkens world during rain, tints snow/autumn)
+        # 1. Atmospheric Sky Tint Overlay (Darkens world during rain, tints snow/autumn/rift)
         if self.state == WEATHER_RAIN:
             # Slate-blue storm sky darkening (Darkens sky/world so raindrops pop)
             dark_tint = pygame.Surface((sw, sh), pygame.SRCALPHA)
@@ -358,6 +412,12 @@ class WeatherSystem:
             alpha = int(25 * self.intensity)
             leaf_tint.fill((230, 140, 40, alpha))
             surface.blit(leaf_tint, (0, 0))
+        elif self.state == WEATHER_TEMPORAL_RIFT:
+            # Ethereal inverted violet chromatic tint
+            rift_tint = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            alpha = int(60 * self.intensity)
+            rift_tint.fill((180, 140, 255, alpha))
+            surface.blit(rift_tint, (0, 0))
 
         # 2. Render weather particles (Rain Streaks, Ripples, Snowflakes, Leaves)
         for p in self.weather_particles:

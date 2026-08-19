@@ -99,13 +99,20 @@ def init_assets() -> None:
     initialize_font_asset()
     
     # 1. Load or Generate Tiles
-    tile_keys = ["grass", "dirt", "water", "wall", "sand", "tree", "dungeon_floor", "chest_closed", "chest_open"]
+    tile_keys = [
+        "grass", "dirt", "water", "wall", "sand", "tree", "dungeon_floor",
+        "wood_bridge", "raft", "ash_ground", "burnt_tree", "magma", "magma_tile",
+        "snow", "snow_tree", "ice", "chest_closed", "chest_open"
+    ]
     all_tiles_exist = all(os.path.exists(os.path.join(ASSETS_DIR, "tiles", f"{k}.png")) for k in tile_keys)
     
     if all_tiles_exist:
         for k in tile_keys:
             path = os.path.join(ASSETS_DIR, "tiles", f"{k}.png")
-            has_a = k in ["water", "tree", "chest_closed", "chest_open"]
+            has_a = k in [
+                "water", "tree", "wood_bridge", "raft", "burnt_tree", "snow_tree",
+                "ice", "magma", "magma_tile", "chest_closed", "chest_open"
+            ]
             tile_assets[k] = pygame.image.load(path).convert_alpha() if has_a else pygame.image.load(path).convert()
     else:
         _generate_tiles()
@@ -282,7 +289,73 @@ def _generate_tiles() -> None:
     pygame.draw.line(dungeon, (30, 30, 35), (25, 25), (20, 38), 1)
     tile_assets["dungeon_floor"] = dungeon
 
-    # 8. Chest (Interactive Container)
+    # 8. Wood Bridge / Raft Tile (Pillar #4 Deluge Epoch)
+    bridge = pygame.Surface((TILE_SIZE, TILE_SIZE))
+    bridge.fill((45, 95, 175))
+    for y in [4, 14, 24]:
+        pygame.draw.rect(bridge, (120, 80, 45), (2, y, TILE_SIZE - 4, 8), border_radius=1)
+        pygame.draw.rect(bridge, (150, 105, 65), (3, y + 1, TILE_SIZE - 6, 6))
+        pygame.draw.line(bridge, (90, 55, 30), (2, y + 7), (TILE_SIZE - 3, y + 7), 1)
+    pygame.draw.line(bridge, (200, 170, 110), (2, 0), (2, TILE_SIZE), 2)
+    pygame.draw.line(bridge, (200, 170, 110), (TILE_SIZE - 3, 0), (TILE_SIZE - 3, TILE_SIZE), 2)
+    tile_assets["wood_bridge"] = bridge
+    tile_assets["raft"] = bridge
+
+    # 9. Scorched Earth & Ash Ground Tile (Pillar #4 Scorched Epoch)
+    ash = pygame.Surface((TILE_SIZE, TILE_SIZE))
+    ash.fill((45, 45, 50))
+    for x, y in [(6, 8), (22, 14), (38, 26), (14, 38), (30, 42)]:
+        pygame.draw.rect(ash, (255, 100, 30), (x, y, 2, 2))
+        pygame.draw.rect(ash, (255, 180, 50), (x, y, 1, 1))
+    tile_assets["ash_ground"] = ash
+
+    # 10. Burnt Charred Tree Husk (Pillar #4 Scorched Epoch)
+    btree = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+    pygame.draw.rect(btree, (30, 30, 35), (TILE_SIZE // 3, TILE_SIZE // 4, TILE_SIZE // 3, 3 * TILE_SIZE // 4))
+    pygame.draw.line(btree, (25, 25, 30), (TILE_SIZE // 2, TILE_SIZE // 2), (TILE_SIZE // 4, TILE_SIZE // 4), 3)
+    pygame.draw.line(btree, (25, 25, 30), (TILE_SIZE // 2, TILE_SIZE // 3), (3 * TILE_SIZE // 4, TILE_SIZE // 5), 3)
+    pygame.draw.circle(btree, (255, 120, 40), (TILE_SIZE // 4, TILE_SIZE // 4), 2)
+    pygame.draw.circle(btree, (255, 180, 60), (3 * TILE_SIZE // 4, TILE_SIZE // 5), 2)
+    tile_assets["burnt_tree"] = _create_outline(btree)
+
+    # 11. Molten Magma Hazard Tile (Pillar #4 Scorched Epoch)
+    magma = pygame.Surface((TILE_SIZE, TILE_SIZE))
+    magma.fill((210, 60, 20))
+    pygame.draw.polygon(magma, (60, 30, 25), [(2, 2), (18, 2), (14, 16), (4, 18)])
+    pygame.draw.polygon(magma, (50, 25, 20), [(24, 6), (44, 4), (40, 22), (26, 18)])
+    pygame.draw.polygon(magma, (65, 35, 30), [(6, 26), (22, 24), (20, 44), (4, 42)])
+    pygame.draw.polygon(magma, (55, 28, 22), [(28, 28), (44, 26), (42, 44), (26, 42)])
+    for x, y in [(16, 10), (32, 20), (22, 34)]:
+        pygame.draw.circle(magma, (255, 220, 60), (x, y), 3)
+    tile_assets["magma"] = magma
+    tile_assets["magma_tile"] = magma
+
+    # 12. Powder Snow Tile (Pillar #4 Glacial Epoch)
+    snow = pygame.Surface((TILE_SIZE, TILE_SIZE))
+    snow.fill((235, 245, 255))
+    for x, y in [(8, 10), (26, 6), (38, 20), (12, 32), (32, 40)]:
+        pygame.draw.rect(snow, (255, 255, 255), (x, y, 2, 2))
+        pygame.draw.rect(snow, (190, 220, 245), (x + 2, y + 2, 1, 1))
+    tile_assets["snow"] = snow
+
+    # 13. Snowy Evergreen Pine Tree (Pillar #4 Glacial Epoch)
+    stree = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+    pygame.draw.rect(stree, (90, 60, 35), (TILE_SIZE // 3, TILE_SIZE // 2, TILE_SIZE // 3, TILE_SIZE // 2))
+    pygame.draw.polygon(stree, (25, 75, 40), [(TILE_SIZE // 2, 6), (6, TILE_SIZE // 2 + 4), (TILE_SIZE - 6, TILE_SIZE // 2 + 4)])
+    pygame.draw.polygon(stree, (240, 250, 255), [(TILE_SIZE // 2, 4), (12, 20), (TILE_SIZE - 12, 20)])
+    pygame.draw.circle(stree, (255, 255, 255), (TILE_SIZE // 2, 6), 3)
+    tile_assets["snow_tree"] = _create_outline(stree)
+
+    # 14. Frozen Ice Sheet Tile (Pillar #4 Glacial Epoch)
+    ice = pygame.Surface((TILE_SIZE, TILE_SIZE))
+    ice.fill((160, 215, 245))
+    pygame.draw.line(ice, (225, 245, 255), (4, 4), (TILE_SIZE - 4, 4), 2)
+    pygame.draw.line(ice, (210, 240, 255), (6, 16), (22, 8), 1)
+    pygame.draw.line(ice, (120, 185, 225), (14, 28), (38, 38), 2)
+    pygame.draw.line(ice, (230, 250, 255), (28, 20), (42, 12), 1)
+    tile_assets["ice"] = ice
+
+    # 15. Chest (Interactive Container)
     chest_closed = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
     pygame.draw.rect(chest_closed, (139, 69, 19), (6, 12, 36, 28))
     pygame.draw.rect(chest_closed, (205, 133, 63), (6, 12, 36, 10))
@@ -1276,3 +1349,156 @@ def _cache_boss_entity() -> None:
                     
                 frames_list.append(_create_outline(surf))
             entity_assets[name][state][direction] = frames_list
+
+
+def apply_pact_mutation_overlay(
+    surface: pygame.Surface,
+    pact_id: str,
+    direction: str = DIR_DOWN,
+    anim_frame: int = 0,
+    pact_tier: int = 1
+) -> pygame.Surface:
+    """
+    Renders 100% procedural in-memory physical mutation overlays onto the hero surface.
+    Evolves across Tier 1 (Novice) -> Tier 2 (Ascendant) -> Tier 3 (Paragon).
+    - Void Pact: Undulating dark-violet eldritch tentacles, forehead void eye, and swirling star mist.
+    - Titan Pact: Heavy granite armor plates, spiked stone pauldrons, and blazing amber runic core.
+    """
+    if not pact_id or pact_id == "none" or surface is None:
+        return surface
+
+    res_surf = surface.copy()
+    w, h = res_surf.get_size()
+    cx, cy = w // 2, h // 2
+    t = anim_frame * 0.25
+
+    if pact_id == "void":
+        # 1. Dark Violet Miasma Aura Glow (Expands with tier)
+        aura_intensity = 45 if pact_tier == 1 else (70 if pact_tier == 2 else 95)
+        aura = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.circle(aura, (140, 40, 220, aura_intensity), (cx, cy), int(w * 0.42))
+        pygame.draw.circle(aura, (90, 10, 160, int(aura_intensity * 1.5)), (cx, cy), int(w * 0.30))
+        res_surf.blit(aura, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        # 2. Primary Undulating Tentacle Arm
+        wave_offset = math.sin(t * 3.0) * 4.0
+        wave_offset2 = math.cos(t * 2.5) * 3.0
+        arm_x = cx + (10 if direction in [DIR_DOWN, DIR_RIGHT] else -10)
+        arm_y = cy + 2
+
+        tentacle_pts = [
+            (arm_x, arm_y),
+            (arm_x + (6 if direction == DIR_RIGHT else (-6 if direction == DIR_LEFT else 3)) + wave_offset, arm_y + 6),
+            (arm_x + (12 if direction == DIR_RIGHT else (-12 if direction == DIR_LEFT else 6)) + wave_offset2, arm_y + 14),
+            (arm_x + (16 if direction == DIR_RIGHT else (-16 if direction == DIR_LEFT else 8)) + wave_offset, arm_y + 20)
+        ]
+        if len(tentacle_pts) >= 2:
+            thickness = 4 if pact_tier == 1 else (5 if pact_tier == 2 else 6)
+            pygame.draw.lines(res_surf, (80, 20, 130), False, tentacle_pts, thickness)
+            pygame.draw.lines(res_surf, (210, 80, 255), False, tentacle_pts, max(1, thickness - 2))
+            pygame.draw.circle(res_surf, (240, 140, 255), (int(tentacle_pts[-1][0]), int(tentacle_pts[-1][1])), 2)
+
+        # Tier 2+: Secondary Shoulder Tendril
+        if pact_tier >= 2:
+            sh_x = cx + (-8 if direction in [DIR_DOWN, DIR_RIGHT] else 8)
+            sh_y = cy - 4
+            t2_pts = [
+                (sh_x, sh_y),
+                (sh_x - (4 if direction == DIR_RIGHT else -4) + wave_offset2, sh_y - 6),
+                (sh_x - (8 if direction == DIR_RIGHT else -8) + wave_offset, sh_y - 12)
+            ]
+            pygame.draw.lines(res_surf, (110, 30, 170), False, t2_pts, 3)
+            pygame.draw.lines(res_surf, (230, 100, 255), False, t2_pts, 1)
+
+        # Tier 3: Forehead Void Eye Glyph & Starry Sparkles
+        if pact_tier >= 3:
+            pygame.draw.circle(res_surf, (240, 50, 255), (cx, cy - 12), 2)
+            pygame.draw.circle(res_surf, (255, 255, 255), (cx, cy - 12), 1)
+
+    elif pact_id == "titan":
+        # 1. Granite/Chitin Torso Armor Plates
+        plate_color = (110, 115, 125) if pact_tier == 1 else ((95, 100, 115) if pact_tier == 2 else (75, 80, 95))
+        plate_shade = (70, 75, 85)
+        plate_highlight = (165, 175, 190)
+
+        # Torso Rock Plate
+        torso_poly = [
+            (cx - 8, cy - 6),
+            (cx + 8, cy - 6),
+            (cx + 10, cy + 6),
+            (cx, cy + 10),
+            (cx - 10, cy + 6)
+        ]
+        pygame.draw.polygon(res_surf, plate_color, torso_poly)
+        pygame.draw.polygon(res_surf, plate_shade, torso_poly, 1)
+        pygame.draw.line(res_surf, plate_highlight, (cx - 7, cy - 5), (cx + 7, cy - 5), 2)
+
+        # 2. Heavy Stone Pauldrons on Shoulders (Grow with Tier)
+        p_w = 6 if pact_tier == 1 else (8 if pact_tier == 2 else 10)
+        p_h = 7 if pact_tier == 1 else (9 if pact_tier == 2 else 11)
+        pygame.draw.rect(res_surf, plate_color, (cx - 15, cy - 8, p_w, p_h), border_radius=1)
+        pygame.draw.rect(res_surf, plate_shade, (cx - 15, cy - 8, p_w, p_h), 1, border_radius=1)
+        pygame.draw.rect(res_surf, plate_color, (cx + 9, cy - 8, p_w, p_h), border_radius=1)
+        pygame.draw.rect(res_surf, plate_shade, (cx + 9, cy - 8, p_w, p_h), 1, border_radius=1)
+
+        # Amber Core Runestone on chest
+        core_sz = 3 if pact_tier == 1 else 4
+        pygame.draw.circle(res_surf, (255, 180, 40), (cx, cy), core_sz)
+        pygame.draw.circle(res_surf, (255, 240, 150), (cx, cy), max(1, core_sz - 2))
+
+        # Tier 3: Spiked Crystal Horns / Shoulder Crags
+        if pact_tier >= 3:
+            pygame.draw.polygon(res_surf, (255, 200, 60), [(cx - 15, cy - 8), (cx - 19, cy - 14), (cx - 13, cy - 10)])
+            pygame.draw.polygon(res_surf, (255, 200, 60), [(cx + 15, cy - 8), (cx + 19, cy - 14), (cx + 13, cy - 10)])
+
+    elif pact_id == "solar":
+        # 1. Warm Golden Sunfire Aura Glow
+        aura_intensity = 40 if pact_tier == 1 else (65 if pact_tier == 2 else 90)
+        aura = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.circle(aura, (255, 215, 60, aura_intensity), (cx, cy), int(w * 0.45))
+        pygame.draw.circle(aura, (255, 160, 30, int(aura_intensity * 1.3)), (cx, cy), int(w * 0.28))
+        res_surf.blit(aura, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        # 2. Floating Celestial Golden Halo above head
+        halo_bob = int(math.sin(t * 3.0) * 2.0)
+        halo_y = cy - 15 + halo_bob
+        pygame.draw.ellipse(res_surf, (255, 215, 50), (cx - 8, halo_y, 16, 5), 2)
+        pygame.draw.ellipse(res_surf, (255, 255, 220), (cx - 6, halo_y + 1, 12, 3), 1)
+
+        # 3. Celestial Feathered Sunfire Wings (Flapping gently)
+        wing_flap = math.sin(t * 4.0) * 3.0
+        wing_span = 12 if pact_tier == 1 else (16 if pact_tier == 2 else 20)
+        wing_y = cy - 2
+
+        # Left Wing
+        left_wing_pts = [
+            (cx - 4, wing_y),
+            (cx - 8, wing_y - 8 + wing_flap),
+            (cx - 4 - wing_span, wing_y - 4 + wing_flap),
+            (cx - 8, wing_y + 6)
+        ]
+        # Right Wing
+        right_wing_pts = [
+            (cx + 4, wing_y),
+            (cx + 8, wing_y - 8 - wing_flap),
+            (cx + 4 + wing_span, wing_y - 4 - wing_flap),
+            (cx + 8, wing_y + 6)
+        ]
+
+        pygame.draw.polygon(res_surf, (255, 210, 70), left_wing_pts)
+        pygame.draw.polygon(res_surf, (255, 160, 40), left_wing_pts, 1)
+        pygame.draw.polygon(res_surf, (255, 210, 70), right_wing_pts)
+        pygame.draw.polygon(res_surf, (255, 160, 40), right_wing_pts, 1)
+
+        # Tier 3: Inner Sunfire Core & Solar Ray Flares
+        if pact_tier >= 3:
+            pygame.draw.circle(res_surf, (255, 255, 255), (cx, cy - 2), 3)
+            pygame.draw.circle(res_surf, (255, 200, 50), (cx, cy - 2), 5, 1)
+            # Solar Rays
+            for angle in [0, 45, 90, 135, 180, 225, 270, 315]:
+                rad = math.radians(angle + t * 40.0)
+                rx = cx + math.cos(rad) * 14
+                ry = (cy - 2) + math.sin(rad) * 14
+                pygame.draw.line(res_surf, (255, 230, 100), (cx, cy - 2), (rx, ry), 1)
+
+    return res_surf

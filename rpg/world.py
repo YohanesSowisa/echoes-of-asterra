@@ -5,7 +5,7 @@ Manages map transitions, entities spawning, chest states, and ambient music trig
 import pygame
 import math
 from typing import Dict, List, Any, Tuple
-from rpg.constants import MAP_VILLAGE, MAP_FOREST, MAP_LAKE, MAP_DUNGEON
+from rpg.constants import MAP_VILLAGE, MAP_FOREST, MAP_LAKE, MAP_DUNGEON, MAP_SUNKEN_MIRE, MAP_CRYPT, MAP_SUBMERGED_TEMPLE
 from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 from rpg.map_loader import MapGenerator
 from rpg.combat import DamageNumber
@@ -282,6 +282,385 @@ class SettlementDecorationProp(BaseSprite):
         else:
             pygame.draw.circle(self.image, (180, 180, 180), (16, 16), 8)
 
+
+class PactAltarSprite(BaseSprite):
+    """
+    Interactable primordial altar that allows the hero to bind to or cleanse a Soul Pact.
+    - 'void': The Void Nexus Altar (dungeon)
+    - 'titan': The Titan Lith Altar (cave)
+    - 'sanctuary': Sanctuary Purification Altar (village)
+    """
+    def __init__(self, pos: Tuple[int, int], pact_id: str, groups: List[pygame.sprite.Group]) -> None:
+        center = (float(pos[0] + TILE_SIZE / 2), float(pos[1] + TILE_SIZE / 2))
+        super().__init__(center, groups, layer=1)
+        self.pact_id = pact_id
+        self.grid_pos = pos
+        self.game = None
+        self.show_indicator = False
+        self.interact_radius = 56.0
+
+        # Build surface (32x48 standing sprite)
+        self.image = pygame.Surface((32, 48), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(midbottom=(pos[0] + 16, pos[1] + 32))
+        self.hitbox = pygame.Rect(pos[0] + 4, pos[1] + 14, 24, 18)
+        self._build_surface()
+
+    def check_interaction_range(self, player_pos: pygame.math.Vector2) -> bool:
+        dist = (self.pos - player_pos).length()
+        self.show_indicator = (dist <= self.interact_radius)
+        return self.show_indicator
+
+    def update(self, dt: float) -> None:
+        self._build_surface()
+
+    def interact(self, player: Any) -> None:
+        if not hasattr(player, "game") or not hasattr(player.game, "pact_manager"):
+            return
+
+        pm = player.game.pact_manager
+        ws = getattr(player.game, "world_state", None)
+        cur_day = getattr(ws, "day", 1) if ws else 1
+
+        if self.pact_id == "sanctuary":
+            success, msg = pm.cleanse_pact(player, current_day=cur_day)
+        else:
+            success, msg = pm.bind_pact(self.pact_id, player, current_day=cur_day)
+
+        col = (100, 240, 120) if success else (240, 80, 80)
+        from rpg.combat import DamageNumber
+        DamageNumber(player.rect.center, msg, col, [player.game.ui_sprites], size=16)
+
+    def draw_indicator(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+        """Renders floating interactive prompt above the altar."""
+        if not self.show_indicator:
+            return
+
+        offset_pos = self.pos - camera_offset
+        cx, cy = int(offset_pos.x), int(offset_pos.y) - 28
+
+        font = pygame.font.Font(None, 16)
+        if self.pact_id == "sanctuary":
+            txt = "[F] Purification Ritual"
+        elif self.pact_id == "void":
+            txt = "[F] Void Nexus Altar"
+        elif self.pact_id == "solar":
+            txt = "[F] Sunfire Altar"
+        else:
+            txt = "[F] Titan Lith Altar"
+
+        text_surf = font.render(txt, True, (245, 245, 255))
+        w, h = text_surf.get_width() + 12, text_surf.get_height() + 6
+
+        badge_rect = pygame.Rect(0, 0, w, h)
+        badge_rect.center = (cx, cy)
+
+        badge_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        if self.pact_id == "void":
+            bg_col = (20, 15, 30, 220)
+            border_col = (180, 50, 240, 255)
+        elif self.pact_id == "titan":
+            bg_col = (30, 25, 20, 220)
+            border_col = (255, 180, 40, 255)
+        elif self.pact_id == "solar":
+            bg_col = (40, 30, 15, 220)
+            border_col = (255, 220, 50, 255)
+        else:
+            bg_col = (20, 30, 45, 220)
+            border_col = (100, 220, 255, 255)
+
+        pygame.draw.rect(badge_surf, bg_col, (0, 0, w, h), border_radius=4)
+        pygame.draw.rect(badge_surf, border_col, (0, 0, w, h), 1, border_radius=4)
+
+        surface.blit(badge_surf, badge_rect.topleft)
+        text_rect = text_surf.get_rect(center=badge_rect.center)
+        surface.blit(text_surf, text_rect)
+
+    def _build_surface(self) -> None:
+        self.image.fill((0, 0, 0, 0))
+        ticks = pygame.time.get_ticks()
+        pulse = math.sin(ticks * 0.005) * 0.25 + 0.75
+
+        if self.pact_id == "void":
+            # Dark Obsidian base
+            pygame.draw.rect(self.image, (30, 15, 45), (4, 32, 24, 12), border_radius=2)
+            pygame.draw.rect(self.image, (90, 40, 140), (4, 32, 24, 12), 1, border_radius=2)
+            # Floating void eye crystal
+            bob_y = math.sin(ticks * 0.004) * 3.0
+            cy = 16 + bob_y
+            pygame.draw.circle(self.image, (140, 30, 220, int(160 * pulse)), (16, int(cy)), 9)
+            pygame.draw.circle(self.image, (220, 100, 255), (16, int(cy)), 5)
+            pygame.draw.circle(self.image, (255, 220, 255), (16, int(cy)), 2)
+
+        elif self.pact_id == "titan":
+            # Granite chiseled monolith
+            pygame.draw.polygon(self.image, (90, 95, 105), [(4, 44), (28, 44), (24, 16), (8, 16)])
+            pygame.draw.polygon(self.image, (60, 65, 75), [(4, 44), (28, 44), (24, 16), (8, 16)], 1)
+            # Glowing amber runestone core
+            bob_y = math.sin(ticks * 0.003) * 2.0
+            cy = 24 + bob_y
+            pygame.draw.polygon(self.image, (255, 180, 40), [(16, int(cy) - 6), (21, int(cy)), (16, int(cy) + 6), (11, int(cy))])
+            pygame.draw.circle(self.image, (255, 230, 150), (16, int(cy)), 2)
+
+        elif self.pact_id == "solar":
+            # Golden Sunstone Pillar
+            pygame.draw.rect(self.image, (200, 160, 60), (4, 30, 24, 14), border_radius=2)
+            pygame.draw.rect(self.image, (255, 215, 100), (4, 30, 24, 14), 1, border_radius=2)
+            # Blazing solar core orb
+            bob_y = math.sin(ticks * 0.004) * 2.5
+            cy = 14 + bob_y
+            pygame.draw.circle(self.image, (255, 215, 50, int(180 * pulse)), (16, int(cy)), 9)
+            pygame.draw.circle(self.image, (255, 245, 180), (16, int(cy)), 5)
+            pygame.draw.circle(self.image, (255, 255, 255), (16, int(cy)), 2)
+
+        else:  # sanctuary
+            # White marble shrine
+            pygame.draw.rect(self.image, (220, 225, 235), (4, 30, 24, 14), border_radius=2)
+            pygame.draw.rect(self.image, (160, 175, 195), (4, 30, 24, 14), 1, border_radius=2)
+            # Golden starlight glyph
+            bob_y = math.sin(ticks * 0.004) * 2.5
+            cy = 15 + bob_y
+            pygame.draw.circle(self.image, (255, 215, 60, int(150 * pulse)), (16, int(cy)), 8)
+            pygame.draw.circle(self.image, (255, 250, 210), (16, int(cy)), 4)
+
+
+class LeylineSprite(BaseSprite):
+    """
+    Interactable Ancient Leyline Conduit sprite.
+    Renders pulsing arcane monolith emitting crystalline rays when activated.
+    """
+    def __init__(self, pos: Tuple[int, int], node_id: str, groups: List[pygame.sprite.Group]) -> None:
+        super().__init__((float(pos[0] + 16), float(pos[1] + 32)), groups, layer=1)
+        self.node_id = node_id
+        self.grid_pos = pos
+        self.interact_radius = 56.0
+        self.show_indicator = False
+        self.game = None
+        self.image = pygame.Surface((32, 48), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(midbottom=(pos[0] + 16, pos[1] + 32))
+        self.hitbox = pygame.Rect(pos[0] + 4, pos[1] + 16, 24, 16)
+        self._build_surface()
+
+    def check_interaction_range(self, player_pos: pygame.math.Vector2) -> bool:
+        dist = (self.pos - player_pos).length()
+        self.show_indicator = (dist <= self.interact_radius)
+        return self.show_indicator
+
+    def update(self, dt: float) -> None:
+        self._build_surface()
+
+    def _build_surface(self) -> None:
+        self.image.fill((0, 0, 0, 0))
+        ticks = pygame.time.get_ticks()
+        is_active = False
+        if self.game and hasattr(self.game, "leyline_manager"):
+            node = self.game.leyline_manager.nodes.get(self.node_id)
+            if node:
+                is_active = node.is_activated
+
+        pulse = math.sin(ticks * 0.006) * 0.3 + 0.7
+        base_col = (0, 240, 255, int(150 * pulse)) if is_active else (120, 80, 180, int(60 * pulse))
+        pygame.draw.ellipse(self.image, base_col, (2, 34, 28, 12))
+
+        # Pedestal
+        pygame.draw.rect(self.image, (30, 35, 45), (6, 32, 20, 12), border_radius=2)
+        pygame.draw.rect(self.image, (0, 200, 220) if is_active else (80, 60, 110), (6, 32, 20, 12), 1, border_radius=2)
+
+        # Monolith Spire
+        bob_y = math.sin(ticks * 0.005) * 3.0
+        cy = 16 + bob_y
+        c_col = (120, 255, 255) if is_active else (160, 130, 210)
+        c_edge = (0, 220, 255) if is_active else (90, 60, 130)
+        pts = [(16, cy - 14), (8, cy), (16, cy + 12), (24, cy)]
+        pygame.draw.polygon(self.image, c_col, pts)
+        pygame.draw.polygon(self.image, c_edge, pts, 1)
+
+        # Core rune spark
+        if is_active:
+            core_pts = [(16, cy - 6), (12, cy), (16, cy + 6), (20, cy)]
+            pygame.draw.polygon(self.image, (255, 255, 255), core_pts)
+
+        # Overcharge celestial aura & golden particle ring
+        if is_active and node and getattr(node, "is_overcharged", False):
+            gold_pulse = math.sin(ticks * 0.008) * 0.35 + 0.65
+            pygame.draw.circle(self.image, (255, 220, 50, int(130 * gold_pulse)), (16, int(cy)), 18, 2)
+            pygame.draw.circle(self.image, (255, 255, 200), (16, int(cy)), 4)
+
+    def interact(self, player: Any) -> None:
+        if not self.game or not hasattr(self.game, "leyline_manager"):
+            return
+        lm = self.game.leyline_manager
+        node = lm.nodes.get(self.node_id)
+        if not node:
+            return
+
+        from rpg.combat import DamageNumber
+        if not node.is_activated:
+            # Channel node
+            succ, msg = lm.channel_node(self.node_id, player)
+            col = (0, 255, 240) if succ else (255, 100, 100)
+            DamageNumber(self.rect.center, msg, col, [self.game.ui_sprites], size=16)
+        else:
+            # Check if player has catalyst to overcharge node
+            inv = getattr(player, "inventory", None)
+            has_catalyst = inv and (inv.has_item("Starlight Crystal", 1) or inv.has_item("starlight_crystal", 1) or inv.has_item("Sunken Relic", 1) or inv.has_item("sunken_relic", 1))
+
+            if not getattr(node, "is_overcharged", False) and has_catalyst:
+                succ, msg = lm.overcharge_node(self.node_id, player)
+                if succ:
+                    DamageNumber(self.rect.center, msg, (255, 220, 50), [self.game.ui_sprites], size=16)
+                    if hasattr(self.game, "particles"):
+                        self.game.particles.create_magic_sparkles(self.rect.center, (255, 220, 50))
+                    return
+
+            # Fast travel to next available active destination
+            destinations = lm.get_fast_travel_destinations(self.game.world_manager.current_map)
+            if not destinations:
+                msg = f"Conduit Active ({node.name})."
+                if getattr(node, "is_overcharged", False):
+                    msg += f" [Overcharged {node.overcharge_hours_left:.1f}h]"
+                DamageNumber(self.rect.center, msg, (200, 200, 220), [self.game.ui_sprites], size=16)
+            else:
+                target = destinations[0]
+                succ, msg = lm.fast_travel(player, target.node_id, self.game.world_manager)
+                DamageNumber(player.rect.center, msg, (0, 240, 255), [self.game.ui_sprites], size=16)
+
+
+class MireHerbSprite(BaseSprite):
+    """
+    Forageable marsh botanical node (Bog Blossom, Glow Lotus, Luminescent Spore) in the Sunken Mire.
+    """
+    def __init__(self, pos: Tuple[int, int], herb_name: str, groups: List[pygame.sprite.Group]) -> None:
+        super().__init__((float(pos[0] + 16), float(pos[1] + 16)), groups, layer=1)
+        self.herb_name = herb_name
+        self.grid_pos = pos
+        self.interact_radius = 48.0
+        self.show_indicator = False
+        self.is_harvested = False
+        self.game = None
+        self.image = pygame.Surface((32, 32), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(center=(pos[0] + 16, pos[1] + 16))
+        self.hitbox = pygame.Rect(pos[0] + 4, pos[1] + 4, 24, 24)
+        self._build_surface()
+
+    def check_interaction_range(self, player_pos: pygame.math.Vector2) -> bool:
+        if self.is_harvested:
+            self.show_indicator = False
+            return False
+        dist = (self.pos - player_pos).length()
+        self.show_indicator = (dist <= self.interact_radius)
+        return self.show_indicator
+
+    def update(self, dt: float) -> None:
+        self._build_surface()
+
+    def _build_surface(self) -> None:
+        self.image.fill((0, 0, 0, 0))
+        if self.is_harvested:
+            # Render small harvested stem
+            pygame.draw.circle(self.image, (45, 60, 40), (16, 20), 3)
+            return
+
+        ticks = pygame.time.get_ticks()
+        pulse = math.sin(ticks * 0.005 + float(self.grid_pos[0])) * 0.2 + 0.8
+
+        if "Lotus" in self.herb_name:
+            # Glowing aquatic cyan lotus
+            pygame.draw.circle(self.image, (0, 220, 255, int(120 * pulse)), (16, 16), 12)
+            pygame.draw.circle(self.image, (40, 180, 240), (16, 16), 7)
+            pygame.draw.circle(self.image, (220, 255, 255), (16, 16), 3)
+        elif "Spore" in self.herb_name:
+            # Bioluminescent golden-amber fungal spore
+            pygame.draw.circle(self.image, (255, 180, 30, int(120 * pulse)), (16, 16), 10)
+            pygame.draw.circle(self.image, (220, 140, 20), (16, 16), 6)
+            pygame.draw.circle(self.image, (255, 240, 180), (16, 16), 3)
+        else:
+            # Deep orchid blossom
+            pygame.draw.circle(self.image, (180, 50, 220, int(100 * pulse)), (16, 16), 10)
+            pygame.draw.circle(self.image, (140, 30, 180), (16, 16), 6)
+            pygame.draw.circle(self.image, (255, 200, 255), (16, 16), 3)
+
+    def interact(self, player: Any) -> None:
+        if self.is_harvested:
+            return
+        inv = getattr(player, "inventory", None)
+        if not inv:
+            return
+
+        from rpg.items import create_item
+        harvest_item = create_item(self.herb_name, 1)
+        if harvest_item and inv.add_item(harvest_item):
+            self.is_harvested = True
+            from rpg.combat import DamageNumber
+            if "Lotus" in self.herb_name:
+                col = (0, 255, 220)
+            elif "Spore" in self.herb_name:
+                col = (255, 200, 50)
+            else:
+                col = (220, 100, 255)
+            if self.game and hasattr(self.game, "ui_sprites"):
+                DamageNumber(self.rect.center, f"+1 {self.herb_name}", col, [self.game.ui_sprites], size=16)
+            if self.game and hasattr(self.game, "particles"):
+                self.game.particles.create_magic_sparkles(self.rect.center, col)
+            if self.game and hasattr(self.game, "sound_manager"):
+                self.game.sound_manager.play_sound("click")
+
+
+class SporeNestSprite(BaseSprite):
+    """
+    Parasitic fungal spore nest in the Sunken Mire that fuels Leyline Rot.
+    Can be cleansed with [F] to eradicate and reduce global Rot by 25%.
+    """
+    def __init__(self, pos: Tuple[int, int], nest_id: str, is_cleansed: bool, groups: List[pygame.sprite.Group]) -> None:
+        super().__init__((float(pos[0] + 16), float(pos[1] + 16)), groups, layer=1)
+        self.nest_id = nest_id
+        self.grid_pos = pos
+        self.is_cleansed = is_cleansed
+        self.interact_radius = 48.0
+        self.show_indicator = False
+        self.game = None
+        self.image = pygame.Surface((32, 32), pygame.SRCALPHA)
+        self._render_nest()
+
+    def _render_nest(self) -> None:
+        self.image.fill((0, 0, 0, 0))
+        if self.is_cleansed:
+            # Cleansed ash pile
+            pygame.draw.ellipse(self.image, (60, 65, 70), (4, 18, 24, 10))
+            pygame.draw.ellipse(self.image, (40, 45, 50), (8, 20, 16, 6))
+        else:
+            # Active pulsating spore nest
+            pygame.draw.ellipse(self.image, (50, 80, 40), (2, 14, 28, 14))
+            pygame.draw.circle(self.image, (80, 180, 60), (16, 16), 10)
+            pygame.draw.circle(self.image, (140, 240, 90), (13, 13), 5)
+            pygame.draw.circle(self.image, (200, 255, 120), (19, 15), 4)
+            # Glowing pustules
+            pygame.draw.circle(self.image, (255, 230, 80), (16, 12), 2)
+
+    def interact(self, player: Any) -> None:
+        if self.is_cleansed:
+            return
+        mm = getattr(self.game, "mire_manager", None)
+        if mm:
+            cleansed = mm.cleanse_spore_nest(self.nest_id)
+            if cleansed:
+                self.is_cleansed = True
+                self._render_nest()
+                from rpg.combat import DamageNumber
+                DamageNumber(self.rect.center, "🌿 SPORE NEST CLEANSED! (-25% ROT)", (100, 255, 120), [self.game.ui_sprites], size=18)
+                if hasattr(self.game, "particles"):
+                    self.game.particles.create_magic_sparkles(self.rect.center, (80, 240, 100))
+                if hasattr(self.game, "sound_manager"):
+                    self.game.sound_manager.play_sound("magic")
+                # Award loot and XP
+                if hasattr(player, "inventory") and player.inventory:
+                    from rpg.items import create_item
+                    spores = create_item("Luminescent Spore", 2)
+                    if spores:
+                        player.inventory.add_item(spores)
+                if hasattr(player, "gain_xp"):
+                    player.gain_xp(30)
+
+
 class WorldManager:
     """
     Coordinator of map layouts, world scenes, chest state persistence, and level loading.
@@ -292,6 +671,7 @@ class WorldManager:
         self.current_map_grid: List[List[str]] = []
         self.chests_opened: Dict[str, List[Tuple[int, int]]] = {}
         self.boss_defeated = False
+        self.leviathan_defeated = False
         self.dungeon_depth = 1
         self.activated_waypoints = set(["village"])
         self.persistent_dropped_items: Dict[str, List[Dict[str, Any]]] = {}
@@ -380,6 +760,11 @@ class WorldManager:
             self.current_map_data = DungeonGenerator.generate_floor(self.dungeon_depth, seed, theme)
         else:
             self.current_map_data = MapGenerator.generate(map_name)
+
+        # Apply procedural Cataclysm Epoch in-memory overlays (Pillar #4)
+        epoch_mgr = getattr(game, "epoch_manager", None)
+        if epoch_mgr and hasattr(epoch_mgr, "apply_epoch_to_map"):
+            self.current_map_data = epoch_mgr.apply_epoch_to_map(map_name, self.current_map_data)
 
         self.current_map_grid = self.current_map_data["grid"]
         if hasattr(game, "services") and hasattr(game.services, "navigation"):
@@ -548,6 +933,119 @@ class WorldManager:
                         game.ui_manager.active_festival_minigame = "feast"
                 feast_npc.interact = interact_feast
 
+        # 5c. Spawns Ancestral Soul Pact Altars
+        if not hasattr(game, "pact_altars"):
+            game.pact_altars = pygame.sprite.Group()
+        else:
+            game.pact_altars.empty()
+
+        if map_name in ["dungeon", "crypt"]:
+            altar = PactAltarSprite((10 * TILE_SIZE, 8 * TILE_SIZE), "void", [game.visible_sprites, game.pact_altars])
+            altar.game = game
+        elif map_name == "cave":
+            altar = PactAltarSprite((12 * TILE_SIZE, 10 * TILE_SIZE), "titan", [game.visible_sprites, game.pact_altars])
+            altar.game = game
+        elif map_name == "ruins":
+            altar = PactAltarSprite((15 * TILE_SIZE, 10 * TILE_SIZE), "solar", [game.visible_sprites, game.pact_altars])
+            altar.game = game
+        elif map_name == MAP_VILLAGE:
+            altar = PactAltarSprite((6 * TILE_SIZE, 10 * TILE_SIZE), "sanctuary", [game.visible_sprites, game.pact_altars])
+            altar.game = game
+
+        # 5d. Spawns Ancient Leyline Conduits
+        if not hasattr(game, "leyline_sprites"):
+            game.leyline_sprites = pygame.sprite.Group()
+        else:
+            game.leyline_sprites.empty()
+
+        if hasattr(game, "leyline_manager") and game.leyline_manager:
+            node = game.leyline_manager.get_node_by_map(map_name)
+            if node:
+                leyline_sp = LeylineSprite(node.pos, node.node_id, [game.visible_sprites, game.leyline_sprites])
+                leyline_sp.game = game
+
+        # 5e. Spawns Mire Botanical Herb nodes
+        if not hasattr(game, "mire_herb_sprites"):
+            game.mire_herb_sprites = pygame.sprite.Group()
+        else:
+            game.mire_herb_sprites.empty()
+
+        if map_name == MAP_SUNKEN_MIRE:
+            w_tiles = GRID_WIDTH
+            h_tiles = GRID_HEIGHT
+            herb_coords = [
+                ((w_tiles // 4 * TILE_SIZE, (h_tiles // 2 - 2) * TILE_SIZE), "Bog Blossom"),
+                (((w_tiles // 4 + 2) * TILE_SIZE, (h_tiles // 2 + 2) * TILE_SIZE), "Glow Lotus"),
+                ((w_tiles // 2 * TILE_SIZE, (h_tiles // 2 - 3) * TILE_SIZE), "Bog Blossom"),
+                (((w_tiles // 2 + 3) * TILE_SIZE, (h_tiles // 2 + 2) * TILE_SIZE), "Glow Lotus"),
+                ((3 * w_tiles // 4 * TILE_SIZE, (h_tiles // 2 - 2) * TILE_SIZE), "Bog Blossom"),
+                (((3 * w_tiles // 4 - 2) * TILE_SIZE, (h_tiles // 2 + 2) * TILE_SIZE), "Luminescent Spore"),
+            ]
+            for h_pos, h_name in herb_coords:
+                herb_sp = MireHerbSprite(h_pos, h_name, [game.visible_sprites, game.mire_herb_sprites])
+                herb_sp.game = game
+
+            # Spawns Spore Nests
+            if hasattr(game, "mire_manager") and game.mire_manager:
+                mm = game.mire_manager
+                nest_coords = [
+                    (((w_tiles // 4 - 3) * TILE_SIZE, (h_tiles // 2 + 1) * TILE_SIZE), "nest_west"),
+                    (((w_tiles // 2 - 2) * TILE_SIZE, (h_tiles // 2 - 2) * TILE_SIZE), "nest_center"),
+                    (((3 * w_tiles // 4 + 2) * TILE_SIZE, (h_tiles // 2 + 1) * TILE_SIZE), "nest_east"),
+                ]
+                for n_pos, n_id in nest_coords:
+                    is_cleansed = not mm.spore_nests.get(n_id, True)
+                    nest_sp = SporeNestSprite(n_pos, n_id, is_cleansed, [game.visible_sprites, game.spore_nest_sprites if hasattr(game, "spore_nest_sprites") else game.visible_sprites])
+                    nest_sp.game = game
+
+        # 5f. Spawns Fortified Outposts & Stationed Guards (Pillar #3)
+        if not hasattr(game, "outpost_sprites"):
+            game.outpost_sprites = pygame.sprite.Group()
+        else:
+            game.outpost_sprites.empty()
+
+        if hasattr(game, "outpost_manager") and game.outpost_manager:
+            from rpg.outpost import OUTPOST_TACTICAL_CONFIGS, OutpostTowerSprite, OutpostGuardNPC
+            for cp_id, config in OUTPOST_TACTICAL_CONFIGS.items():
+                if config["map_name"] == map_name and game.outpost_manager.has_outpost(cp_id):
+                    outpost = game.outpost_manager.outposts[cp_id]
+                    # Spawn Tower with level
+                    tower = OutpostTowerSprite(config["tower_pos"], cp_id, [game.visible_sprites, game.outpost_sprites], level=outpost.level)
+                    tower.game = game
+                    # Spawn Garrison Guards based on outpost.garrison_count
+                    for idx in range(min(outpost.garrison_count, len(config["guard_positions"]))):
+                        g_pos = config["guard_positions"][idx]
+                        g_name = f"{config['name']} Sentry #{idx+1}"
+                        guard = OutpostGuardNPC(g_pos, name=g_name, groups=[game.visible_sprites, game.npcs])
+                        guard.game = game
+
+        # 5g. Spawns Caravan Ambush Skirmish Encounter (Pillar #3 Phase 3)
+        caravan_mgr = getattr(game, "caravan_manager", None)
+        if not caravan_mgr and hasattr(game, "living_world"):
+            caravan_mgr = getattr(game.living_world, "caravans", None)
+        if caravan_mgr:
+            ambush = caravan_mgr.get_active_ambush_for_map(map_name)
+            if ambush:
+                from rpg.caravan import CaravanEntity
+                from rpg.enemy import BanditRaider
+                # Spawn besieged caravan entity in map center
+                wagon_pos = (12 * TILE_SIZE, 10 * TILE_SIZE)
+                c_sp = CaravanEntity(ambush.get("type", "merchant"), wagon_pos, [game.visible_sprites], companion_captain=ambush.get("companion_captain"))
+                c_sp.game = game
+
+                # Spawn 3x BanditRaider surrounding the wagon
+                raider_offsets = [(-48, -20), (48, -20), (0, 48)]
+                for off_x, off_y in raider_offsets:
+                    r_pos = (wagon_pos[0] + off_x, wagon_pos[1] + off_y)
+                    raider = BanditRaider(r_pos, [game.visible_sprites], caravan_target_id=ambush.get("id"))
+                    raider.game = game
+                    if hasattr(game, "sound_manager"):
+                        raider.sound_manager = game.sound_manager
+                    if hasattr(game, "particles"):
+                        raider.particles = game.particles
+                    if hasattr(game, "enemies"):
+                        game.enemies.append(raider)
+
         # 6. Spawns Chests
         if map_name not in self.chests_opened:
             self.chests_opened[map_name] = []
@@ -591,7 +1089,12 @@ class WorldManager:
                 enemy.loot_table["Red Potion"] = 0.30
                 enemy.loot_table["Asterra Heart"] = 0.05
             elif e_type == "wolf":
-                enemy = Wolf(e_pos, [game.visible_sprites])
+                mm = getattr(game, "mire_manager", None)
+                if mm and getattr(mm, "rot_level", 0.0) >= 60.0:
+                    from rpg.enemy import SporeHostWolf
+                    enemy = SporeHostWolf(e_pos, [game.visible_sprites])
+                else:
+                    enemy = Wolf(e_pos, [game.visible_sprites])
             elif e_type == "skeleton":
                 enemy = Skeleton(e_pos, [game.visible_sprites])
             elif e_type == "mage":
@@ -606,6 +1109,20 @@ class WorldManager:
             elif e_type == "bandit_leader":
                 from rpg.enemy import BanditLeader
                 enemy = BanditLeader(e_pos, [game.visible_sprites])
+            elif e_type == "mire_lurker":
+                from rpg.enemy import MireLurker
+                enemy = MireLurker(e_pos, [game.visible_sprites])
+            elif e_type == "bog_leech":
+                from rpg.enemy import BogLeech
+                enemy = BogLeech(e_pos, [game.visible_sprites])
+            elif e_type == "temple_guardian":
+                from rpg.enemy import TempleGuardian
+                enemy = TempleGuardian(e_pos, [game.visible_sprites])
+            elif e_type == "mire_leviathan":
+                if getattr(self, "leviathan_defeated", False):
+                    continue
+                from rpg.enemy import MireLeviathanBoss
+                enemy = MireLeviathanBoss(e_pos, [game.visible_sprites])
             elif e_type == "boss":
                 enemy = Boss(e_pos, [game.visible_sprites], game.sound_manager, game.particles)
 
@@ -626,12 +1143,19 @@ class WorldManager:
 
             game.enemies.append(enemy)
 
-        # 7b. Spawn active Nemesis Captain if stationed in this map
+        # 7b. Spawn active Nemesis Captain (and Vendetta Siege Warband if besieged)
         if hasattr(game, "nemesis_manager") and game.nemesis_manager:
-            captain = game.nemesis_manager.get_captain_for_map(map_name)
+            active_siege = getattr(game.nemesis_manager, "active_siege", None)
+            is_siege_map = bool(active_siege and active_siege.is_active and active_siege.target_territory == map_name)
+
+            captain = None
+            if is_siege_map:
+                captain = game.nemesis_manager.captains.get(active_siege.captain_id)
+            else:
+                captain = game.nemesis_manager.get_captain_for_map(map_name)
+
             if captain and captain.active and not captain.is_defeated:
                 from rpg.enemy import NemesisCaptainEnemy
-                # Pick a spawn location from enemy spawns or fallback position
                 spawns = self.current_map_data.get("enemies", [])
                 spawn_pos = spawns[0]["pos"] if spawns else (400, 300)
                 nem_pos = (spawn_pos[0] + 32, spawn_pos[1] + 32)
@@ -639,16 +1163,53 @@ class WorldManager:
                 nemesis_enemy.game = game
                 nemesis_enemy.sound_manager = game.sound_manager
                 nemesis_enemy.particles = game.particles
+
+                if is_siege_map:
+                    nemesis_enemy.active_siege_id = active_siege.siege_id
+                    # Spawn Warband Escorts (2-3 minions)
+                    from rpg.enemy import Goblin, BanditLeader, Knight
+                    offsets = [(-48, 20), (48, 20), (0, 56)]
+                    for idx in range(min(len(offsets), active_siege.minions_count)):
+                        ox, oy = offsets[idx]
+                        minion_pos = (nem_pos[0] + ox, nem_pos[1] + oy)
+                        minion_cls = [BanditLeader, Knight, Goblin][idx % 3]
+                        minion = minion_cls(minion_pos, [game.visible_sprites])
+                        minion.game = game
+                        minion.name = f"{captain.name.split()[0]}'s Enforcer"
+                        minion.sound_manager = game.sound_manager
+                        minion.particles = game.particles
+                        game.enemies.append(minion)
+
+                    if hasattr(game, "notification_manager") and game.notification_manager:
+                        from rpg.notification import NotificationPriority
+                        game.notification_manager.push_toast(
+                            f"⚔️ VENDETTA SIEGE: {captain.name} and their warband have arrived in the {map_name.title()}!",
+                            priority=NotificationPriority.CRITICAL
+                        )
+                else:
+                    if hasattr(game, "notification_manager") and game.notification_manager:
+                        from rpg.notification import NotificationPriority
+                        game.notification_manager.push_toast(
+                            f"⚔️ NEMESIS ENCOUNTER: {captain.name} has appeared!",
+                            priority=NotificationPriority.HIGH
+                        )
+
                 game.enemies.append(nemesis_enemy)
 
-                if hasattr(game, "notification_manager") and game.notification_manager:
-                    from rpg.notification import NotificationPriority
-                    game.notification_manager.push_toast(
-                        f"⚔️ NEMESIS ENCOUNTER: {captain.name} has appeared!",
-                        priority=NotificationPriority.HIGH
-                    )
+        # 7c. Spawn Active Shadow Syndicate Suspects (e.g. Lieutenant Bran in Forest)
+        if hasattr(game, "conspiracy_manager") and game.conspiracy_manager:
+            cm = game.conspiracy_manager
+            bran_data = cm.suspects.get("bran")
+            if bran_data and bran_data.status == "active" and not bran_data.is_defeated and map_name == MAP_FOREST:
+                from rpg.enemy import CorruptLieutenantBran
+                bran_pos = (18 * TILE_SIZE, 12 * TILE_SIZE)
+                bran_enemy = CorruptLieutenantBran(bran_pos, [game.visible_sprites])
+                bran_enemy.game = game
+                bran_enemy.sound_manager = game.sound_manager
+                bran_enemy.particles = game.particles
+                game.enemies.append(bran_enemy)
 
-        # 7c. Spawn Active Party Companion if recruited and in party
+        # 7d. Spawn Active Party Companion if recruited and in party
         if hasattr(game, "companion_manager") and game.companion_manager:
             active_comp = game.companion_manager.get_active_companion()
             if active_comp and active_comp.is_in_party:
@@ -671,7 +1232,7 @@ class WorldManager:
                 if self.current_map_grid[r][c] == "tree":
                     tree_pos = (c * TILE_SIZE + TILE_SIZE // 2, r * TILE_SIZE + TILE_SIZE // 2)
                     tree_sprite = BaseSprite(tree_pos, [game.visible_sprites], layer=1)
-                    tree_sprite.image = tile_assets["tree"]
+                    tree_sprite.image = tile_assets.get("tree", pygame.Surface((TILE_SIZE, TILE_SIZE)))
                     tree_sprite.rect = tree_sprite.image.get_rect(center=tree_pos)
                     # Align hitbox with the solid tile grid cell
                     tree_sprite.hitbox = pygame.Rect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE)

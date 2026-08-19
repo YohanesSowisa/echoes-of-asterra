@@ -38,6 +38,7 @@ class FactionWarManager:
     def __init__(self) -> None:
         self.event_bus: Optional[EventBus] = None
         self.faction_manager: Any = None  # Bound to game.faction_manager during init
+        self.game_reference: Any = None
         self.control_points: Dict[str, ControlPoint] = {
             "forest_crossroads": ControlPoint("Forest Crossroads", "forest", FACTION_KNIGHTS),
             "cave_depths": ControlPoint("Cave Depths", "cave", FACTION_HUNTERS),
@@ -65,6 +66,17 @@ class FactionWarManager:
         all_factions = [FACTION_KNIGHTS, FACTION_BANDITS, FACTION_CULTISTS, FACTION_HUNTERS]
 
         for cp_key, cp in self.control_points.items():
+            # Check if an outpost is constructed at this control point
+            has_outpost = False
+            if self.game_reference and hasattr(self.game_reference, "outpost_manager"):
+                has_outpost = self.game_reference.outpost_manager.has_outpost(cp_key)
+
+            if has_outpost:
+                # Fortified outpost locks control and prevents degradation
+                cp.stability = max(cp.stability, 85.0)
+                cp.contested = False
+                continue
+
             # Get contestable factions for this control point
             contestable = CONTESTABLE_FACTIONS.get(cp_key, all_factions)
 
@@ -93,7 +105,17 @@ class FactionWarManager:
                 # Small random variance (±10) to prevent total determinism
                 variance = random.uniform(-10.0, 10.0)
 
-                scores[faction_id] = base_score + rep_bonus + zone_bonus + variance
+                # Commodity Embargo Penalties (Pillar #5 Phase 2)
+                embargo_penalty = 0.0
+                if self.game_reference and hasattr(self.game_reference, "monopoly_manager"):
+                    mm = self.game_reference.monopoly_manager
+                    if mm:
+                        if faction_id == FACTION_KNIGHTS and mm.is_faction_embargoed(FACTION_KNIGHTS, "iron_ore"):
+                            embargo_penalty -= 15.0
+                        elif faction_id == FACTION_BANDITS and mm.is_faction_embargoed(FACTION_BANDITS, "medicinal_herb"):
+                            embargo_penalty -= 15.0
+
+                scores[faction_id] = base_score + rep_bonus + zone_bonus + embargo_penalty + variance
 
             # Determine winner
             best_faction = max(scores, key=scores.get)
@@ -146,6 +168,41 @@ class FactionWarManager:
                 elif cp.controlling_faction == FACTION_CULTISTS:
                     return 35.0   # Severe void corruption
         return 0.0
+
+    def get_faction_defense_multiplier(self, faction_id: str) -> float:
+        """
+        Returns military defense multiplier for a faction based on commodity supply lines.
+        Knights of Asterra suffer a -20% DEF debuff (0.8x) during iron ore shortages/embargoes.
+        """
+        clean_fac = faction_id.lower()
+        if clean_fac in (FACTION_KNIGHTS, "knights"):
+            if self.game_reference and hasattr(self.game_reference, "monopoly_manager"):
+                mm = self.game_reference.monopoly_manager
+                if mm and mm.is_faction_embargoed(FACTION_KNIGHTS, "iron_ore"):
+                    return 0.8
+        return 1.0
+
+    def covert_shift_ownership(self, point_id: str, new_faction: str) -> bool:
+        """
+        Seamlessly shifts control point ownership during a covert syndicate sabotage
+        without open battlefield skirmishes.
+        """
+        if point_id not in self.control_points:
+            return False
+        cp = self.control_points[point_id]
+        old_owner = cp.controlling_faction
+        cp.controlling_faction = new_faction
+        cp.stability = 30.0
+        cp.contested = True
+        if self.event_bus:
+            self.event_bus.emit(
+                "territory_control_changed",
+                control_point=cp.name,
+                map_name=cp.map_name,
+                old_owner=old_owner,
+                new_owner=new_faction
+            )
+        return True
 
     def update(self, dt: float) -> None:
         """Updates internal timer."""

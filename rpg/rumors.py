@@ -41,6 +41,14 @@ INITIAL_RUMOR_TEMPLATES = [
         "true_content": "Elder Eldrin warns that dark energy pulses from the Endless Crypt floor 1.",
         "distorted_content": "The Shadow Overlord has risen and commands an army of undead at the village gates!",
         "is_true": True
+    },
+    {
+        "id": "rumor_bran_bribes",
+        "topic": "Corrupt Guard",
+        "origin": "faye",
+        "true_content": "Ranger Faye saw Guard Lieutenant Bran accepting heavy coin purses from masked cloaked figures at the Forest crossroads.",
+        "distorted_content": "Lieutenant Bran has traded the entire village garrison to shadow assassins for chests of rubies!",
+        "is_true": True
     }
 ]
 
@@ -59,17 +67,26 @@ class Rumor:
 
 class RumorBoard:
     """
-    Manages global rumor simulation across Asterra.
-    Propagates rumors between NPCs on day ticks with progressive distortion.
+    Manages the global rumor ecosystem. Rumors spread daily between NPCs
+    based on proximity and friendship networks, distorting over time.
     """
     def __init__(self, event_bus: Optional[EventBus] = None) -> None:
         self.event_bus = event_bus
         self.rumors: Dict[str, Rumor] = {}
-        self.npc_list = ["eldrin", "dennis", "silas", "faye", "garth", "kai", "mira"]
+        self.npc_list = ["eldrin", "silas", "dennis", "mira", "faye", "garth", "bran", "kai"]
         self._init_default_rumors()
 
         if self.event_bus:
             self.register_event_listeners(self.event_bus)
+            self.event_bus.subscribe("boss_defeated", self._on_boss_defeated)
+            self.event_bus.subscribe("spore_blight_escalated", self._on_spore_blight_escalated)
+            self.event_bus.subscribe("suspect_neutralized", self._on_suspect_neutralized)
+            self.event_bus.subscribe("npc_compromised", self._on_npc_compromised)
+            self.event_bus.subscribe("npc_exorcised", self._on_npc_exorcised)
+            self.event_bus.subscribe("sabotage_staged", self._on_sabotage_staged)
+            self.event_bus.subscribe("sabotage_prevented", self._on_sabotage_prevented)
+            self.event_bus.subscribe("conspiracy_resolved", self._on_conspiracy_resolved)
+            self.event_bus.subscribe("continental_trade_monopoly_achieved", self._on_trade_monopoly_achieved)
 
     def _init_default_rumors(self) -> None:
         for t in INITIAL_RUMOR_TEMPLATES:
@@ -147,6 +164,138 @@ class RumorBoard:
             )
         return r
 
+    def check_monopoly_rumors(self, monopoly_manager: Any) -> None:
+        """Injects dynamic market rumors reacting to commodity hoarding and trade embargoes."""
+        if not monopoly_manager:
+            return
+
+        # 1. Iron Ore Hoarding Rumor
+        if hasattr(monopoly_manager, "is_hoarding") and monopoly_manager.is_hoarding("iron_ore") and "rumor_iron_hoarding" not in self.rumors:
+            self.add_custom_rumor(
+                rumor_id="rumor_iron_hoarding",
+                topic="Iron Scarcity",
+                origin_npc="dennis",
+                true_content="Blacksmith Dennis laments that an iron cartel is hoarding all ore, driving weapon prices through the roof!",
+                distorted_content="They say all the iron mines collapsed and soldiers are fighting with wooden sticks!",
+                is_true=True
+            )
+
+        # 2. Bandit Medical Herb Embargo Rumor
+        if hasattr(monopoly_manager, "is_faction_embargoed") and monopoly_manager.is_faction_embargoed("bandits", "medicinal_herb") and "rumor_bandit_herb_embargo" not in self.rumors:
+            self.add_custom_rumor(
+                rumor_id="rumor_bandit_herb_embargo",
+                topic="Bandit Starvation",
+                origin_npc="silas",
+                true_content="Merchant Silas whispers that bandit raiding parties in the ruins are succumbing to infected wounds after their herb supply was cut off!",
+                distorted_content="The bandit dens are completely abandoned, haunted by plague ghosts!",
+                is_true=True
+            )
+
+    def _on_boss_defeated(self, boss_id: str = "", **kwargs: Any) -> None:
+        if boss_id == "mire_leviathan":
+            self.add_custom_rumor(
+                "rumor_leviathan_slain",
+                "Mire Leviathan Slain",
+                "eldrin",
+                "The champion braved the Submerged Temple and slew Morvath, stabilizing the marsh tides!",
+                "They say the hero single-handedly wrestled a ten-headed leviathan from the deep mud!",
+                is_true=True
+            )
+
+    def _on_spore_blight_escalated(self, rot_level: float = 60.0, **kwargs: Any) -> None:
+        self.add_custom_rumor(
+            "rumor_spore_blight",
+            "Leyline Spore Blight",
+            "faye",
+            "Toxic fungal rot is spreading from the Mire, mutating forest wolves into aggressive spore-carriers!",
+            "They say giant walking mushrooms are devouring our hunters in the Emerald Forest!",
+            is_true=True
+        )
+
+    def _on_suspect_neutralized(self, suspect_id: str = "", suspect_name: str = "", **kwargs: Any) -> None:
+        if suspect_id == "bran":
+            self.add_custom_rumor(
+                "rumor_bran_exposed",
+                "Conspiracy Operative Exposed",
+                "eldrin",
+                "Lieutenant Bran was confronted and disarmed! Encrypted Syndicate orders were found on his person!",
+                "They say Bran was a shadow shapeshifter sent to overthrow the Asterra crown!",
+                is_true=True
+            )
+
+    def _on_npc_compromised(self, npc_id: str = "", name: str = "", **kwargs: Any) -> None:
+        self.add_custom_rumor(
+            f"rumor_compromised_{npc_id}",
+            "Strange Mind Affliction",
+            "silas",
+            f"{name} has been acting strangely detached, muttering about shadows and void commands.",
+            f"They say {name} has traded their very soul to the shadow syndicate for forbidden power!",
+            is_true=True
+        )
+
+    def _on_npc_exorcised(self, npc_id: str = "", name: str = "", **kwargs: Any) -> None:
+        self.add_custom_rumor(
+            f"rumor_exorcised_{npc_id}",
+            "Mind Exorcism Miracle",
+            "eldrin",
+            f"The champion cast out a Shadow Parasite from {name}, restoring their rightful mind!",
+            f"The hero wrestled a shadowy demon straight out of {name}'s skull in a flash of holy starlight!",
+            is_true=True
+        )
+
+    def _on_sabotage_staged(self, sabotage_id: str = "", target_point_id: str = "", target_map: str = "", **kwargs: Any) -> None:
+        self.add_custom_rumor(
+            f"rumor_{sabotage_id}",
+            "Covert Sabotage Plot",
+            "faye",
+            f"Shadow cultists have been spotted lurking near {target_point_id} in the {target_map}! A sabotage plot is underway!",
+            f"Shadow assassins are planting explosive dark stones to sink the entire {target_map} underground!",
+            is_true=True
+        )
+
+    def _on_sabotage_prevented(self, sabotage_id: str = "", target_point_id: str = "", **kwargs: Any) -> None:
+        self.add_custom_rumor(
+            f"rumor_rescued_{sabotage_id}",
+            "Mage Guild Envoy Rescued",
+            "eldrin",
+            f"The brave champion defended Envoy Vaelin from Shadow Assassins, exposing royal signet coup ciphers!",
+            f"The hero obliterated twenty shadow ninjas in single combat to protect the high wizard!",
+            is_true=True
+        )
+
+    def _on_conspiracy_resolved(self, ending: str = "total_purge", description: str = "", **kwargs: Any) -> None:
+        if ending == "total_purge":
+            topic = "Conspiracy Total Purge"
+            true_txt = "The Grand Usurper has fallen! The Shadow Syndicate is eradicated from Asterra!"
+            dist_txt = "The hero summoned the sun itself to vaporize the Grand Usurper and all his shadow legions!"
+        elif ending == "shadow_sovereign":
+            topic = "The Shadow Sovereign Reigns"
+            true_txt = "The champion has assumed command of the Shadow Syndicate, ruling Asterra from the dark throne!"
+            dist_txt = "The hero transformed into a ten-foot shadow monarch with demon wings!"
+        else:
+            topic = "The Syndicate Coup"
+            true_txt = "The Syndicate has seized the kingdom in an iron grip. Resistance whispers in the dark."
+            dist_txt = "Asterra has fallen under the eternal night of the shadow overlords!"
+
+        self.add_custom_rumor(
+            f"rumor_ending_{ending}",
+            topic,
+            "eldrin",
+            true_txt,
+            dist_txt,
+            is_true=True
+        )
+
+    def _on_trade_monopoly_achieved(self, title: str = "Merchant Sovereign of Asterra", **kwargs: Any) -> None:
+        self.add_custom_rumor(
+            "rumor_continental_monopoly",
+            "Continental Trade Monopoly",
+            "silas",
+            f"Every road across Asterra now bows to the {title}! Automated courier relays ensure total trade supremacy.",
+            f"They say the {title} controls every coin and wagon moving across the continent!",
+            is_true=True
+        )
+
     def get_npc_rumor(self, npc_short_id: str) -> Optional[Tuple[str, str, float]]:
         """
         Returns an active rumor known by an NPC.
@@ -210,4 +359,8 @@ class RumorBoard:
         """Resets active rumors to default un-distorted templates."""
         self.rumors.clear()
         self._init_default_rumors()
+
+
+RumorManager = RumorBoard
+
 

@@ -7,7 +7,8 @@ import pygame
 from typing import Dict, List, Tuple, Any
 from rpg.constants import (
     MAP_VILLAGE, MAP_FOREST, MAP_RUINS, MAP_CAVE,
-    MAP_LAKE, MAP_MOUNTAIN, MAP_DUNGEON, MAP_SECRET, MAP_CRYPT
+    MAP_LAKE, MAP_MOUNTAIN, MAP_DUNGEON, MAP_SECRET, MAP_CRYPT,
+    MAP_SUNKEN_MIRE, MAP_SUBMERGED_TEMPLE
 )
 from rpg.settings import GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 
@@ -34,10 +35,17 @@ class MapGenerator:
             try:
                 with open(file_path, 'r') as f:
                     map_data = json.load(f)
-                # Reconstruct pygame.Rect objects from lists
-                for portal in map_data["portals"]:
-                    portal["rect"] = pygame.Rect(*portal["rect"])
-                return map_data
+                has_mire_portal = any(p.get("target_map") == MAP_SUNKEN_MIRE for p in map_data.get("portals", []))
+                has_temple_portal = any(p.get("target_map") == MAP_SUBMERGED_TEMPLE for p in map_data.get("portals", []))
+                if map_name == MAP_LAKE and not has_mire_portal:
+                    pass  # Force fresh generation so Lake includes portal to Sunken Mire
+                elif map_name == MAP_SUNKEN_MIRE and not has_temple_portal:
+                    pass  # Force fresh generation so Sunken Mire includes portal to Submerged Temple
+                else:
+                    # Reconstruct pygame.Rect objects from lists
+                    for portal in map_data["portals"]:
+                        portal["rect"] = pygame.Rect(*portal["rect"])
+                    return map_data
             except Exception as e:
                 print(f"Warning: Failed to load map layout {file_path} from disk. Re-generating. Details: {e}")
 
@@ -454,6 +462,16 @@ class MapGenerator:
                 "target_map": MAP_VILLAGE,
                 "target_spawn": (2 * TILE_SIZE, h // 2 * TILE_SIZE)
             })
+            # Left -> Sunken Mire
+            grid[h // 2][0] = "grass"
+            grid[h // 2 + 1][0] = "grass"
+            grid[h // 2][1] = "grass"
+            grid[h // 2 + 1][1] = "grass"
+            portals.append({
+                "rect": pygame.Rect(0, (h // 2) * TILE_SIZE, TILE_SIZE, TILE_SIZE * 2),
+                "target_map": MAP_SUNKEN_MIRE,
+                "target_spawn": ((w - 4) * TILE_SIZE, (h // 2) * TILE_SIZE)
+            })
 
             # Default spawn on grass (not center water)
             player_spawn = (w // 2 * TILE_SIZE, (h - 4) * TILE_SIZE)
@@ -612,6 +630,127 @@ class MapGenerator:
 
             # Default spawn on grass (not center water puddle)
             player_spawn = (w // 2 * TILE_SIZE, (h - 5) * TILE_SIZE)
+
+        elif map_name == MAP_SUNKEN_MIRE:
+            # Submerged wetland with dynamic marsh isthmuses
+            grid = [["water" for _ in range(w)] for _ in range(h)]
+
+            # 3 main marsh islands (West Island, Central Leyline Confluence Island, East Entrance Island)
+            island_defs = [
+                (w // 4, h // 2, 7, 5),
+                (w // 2, h // 2, 8, 6),
+                (3 * w // 4, h // 2, 7, 5),
+            ]
+            for cx, cy, hw, hh in island_defs:
+                for r in range(max(1, cy - hh), min(h - 1, cy + hh + 1)):
+                    for c in range(max(1, cx - hw), min(w - 1, cx + hw + 1)):
+                        dist = ((c - cx) / hw) ** 2 + ((r - cy) / hh) ** 2
+                        if dist <= 0.75:
+                            grid[r][c] = "grass"
+                        elif dist <= 1.0:
+                            grid[r][c] = "dirt"
+
+            # Low-tide mud passages connecting islands
+            for c in range(w // 4, 3 * w // 4 + 1):
+                for dy in [-1, 0, 1]:
+                    row = h // 2 + dy
+                    if 0 < row < h - 1 and grid[row][c] == "water":
+                        grid[row][c] = "dirt"
+
+            # Outer boundaries
+            for r in range(h):
+                grid[r][0] = "tree"
+                grid[r][w - 1] = "tree"
+            for c in range(w):
+                grid[0][c] = "tree"
+                grid[h - 1][c] = "tree"
+
+            # Clear Right portal boundary tiles (Lake entry)
+            grid[h // 2][w - 1] = "grass"
+            grid[h // 2 + 1][w - 1] = "grass"
+            grid[h // 2][w - 2] = "grass"
+            grid[h // 2 + 1][w - 2] = "grass"
+
+            # Clear North portal boundary tiles (Submerged Temple entry)
+            for dy in range(0, 4):
+                grid[dy][w // 2] = "dirt"
+                grid[dy][w // 2 + 1] = "dirt"
+
+            # Enemies (Mire Lurkers & Bog Leeches)
+            for _ in range(4):
+                enemies.append({"type": "bog_leech", "pos": _rand_pixel_pos(w, h, "grass", grid)})
+            for _ in range(3):
+                enemies.append({"type": "mire_lurker", "pos": _rand_pixel_pos(w, h, "dirt", grid)})
+
+            # Sunken Treasure Chests
+            chests.append({"pos": (w // 4 * TILE_SIZE, h // 2 * TILE_SIZE), "loot": [("Sunken Relic", 1), ("Mire Reed", 4)]})
+            chests.append({"pos": (w // 2 * TILE_SIZE, (h // 2 + 3) * TILE_SIZE), "loot": [("Leech Mucus", 3), ("Starlight Crystal", 1)]})
+
+            # Portals
+            # Right -> Lake
+            portals.append({
+                "rect": pygame.Rect((w - 1) * TILE_SIZE, (h // 2) * TILE_SIZE, TILE_SIZE, TILE_SIZE * 2),
+                "target_map": MAP_LAKE,
+                "target_spawn": (3 * TILE_SIZE, (h // 2) * TILE_SIZE)
+            })
+            # North -> Submerged Temple
+            portals.append({
+                "rect": pygame.Rect((w // 2) * TILE_SIZE, 0, TILE_SIZE * 2, TILE_SIZE),
+                "target_map": MAP_SUBMERGED_TEMPLE,
+                "target_spawn": (w // 2 * TILE_SIZE, (h - 4) * TILE_SIZE)
+            })
+
+            player_spawn = ((w - 4) * TILE_SIZE, (h // 2) * TILE_SIZE)
+
+        elif map_name == MAP_SUBMERGED_TEMPLE:
+            # Submerged ancient stone sanctuary and Morvath's sanctum
+            grid = [["wall" for _ in range(w)] for _ in range(h)]
+
+            # 1. South Entrance Chamber
+            for r in range(h - 8, h - 1):
+                for c in range(w // 2 - 5, w // 2 + 6):
+                    grid[r][c] = "dungeon_floor"
+
+            # 2. Central Flooded Corridor
+            for r in range(h // 2 - 3, h - 8):
+                for c in range(w // 2 - 3, w // 2 + 4):
+                    grid[r][c] = "dungeon_floor" if abs(c - w // 2) > 1 else "water"
+
+            # 3. North Grand Boss Arena Chamber (Morvath's Sanctum)
+            for r in range(2, h // 2 - 3):
+                for c in range(4, w - 4):
+                    grid[r][c] = "dungeon_floor"
+
+            # Submerged center pool in Boss Arena
+            for r in range(4, h // 2 - 5):
+                for c in range(w // 2 - 4, w // 2 + 5):
+                    grid[r][c] = "water"
+
+            # Clear South exit portal tiles (back to Sunken Mire)
+            grid[h - 1][w // 2] = "dungeon_floor"
+            grid[h - 1][w // 2 + 1] = "dungeon_floor"
+
+            # Enemies (Temple Guardians)
+            enemies.append({"type": "temple_guardian", "pos": ((w // 2 - 4) * TILE_SIZE, (h - 5) * TILE_SIZE)})
+            enemies.append({"type": "temple_guardian", "pos": ((w // 2 + 4) * TILE_SIZE, (h - 5) * TILE_SIZE)})
+            enemies.append({"type": "temple_guardian", "pos": ((w // 2) * TILE_SIZE, (h // 2 - 1) * TILE_SIZE)})
+
+            # Boss: Morvath, the Mire Leviathan
+            enemies.append({"type": "mire_leviathan", "pos": ((w // 2) * TILE_SIZE, 6 * TILE_SIZE)})
+
+            # Ancient Sarcophagus / Relic Chests in Boss Chamber Corners
+            chests.append({"pos": (6 * TILE_SIZE, 4 * TILE_SIZE), "loot": [("Tidal Scale", 1), ("Sunken Relic", 1)]})
+            chests.append({"pos": ((w - 7) * TILE_SIZE, 4 * TILE_SIZE), "loot": [("Starlight Crystal", 1), ("Conduit Core", 1)]})
+
+            # Portals
+            # South -> Sunken Mire
+            portals.append({
+                "rect": pygame.Rect((w // 2) * TILE_SIZE, (h - 1) * TILE_SIZE, TILE_SIZE * 2, TILE_SIZE),
+                "target_map": MAP_SUNKEN_MIRE,
+                "target_spawn": (w // 2 * TILE_SIZE, 4 * TILE_SIZE)
+            })
+
+            player_spawn = (w // 2 * TILE_SIZE, (h - 4) * TILE_SIZE)
 
         # Optional PNG tileset asset loading override (Phase 6)
         png_path = os.path.join(BASE_DIR, "assets", "textures", f"tileset_{map_name}.png")

@@ -75,8 +75,8 @@ class CollisionSystem:
         for r in range(start_row, end_row + 1):
             for c in range(start_col, end_col + 1):
                 tile_type = tile_grid[r][c]
-                # 'wall', 'tree' and 'water' are solid tiles
-                if tile_type in ['wall', 'tree', 'water']:
+                # 'wall', 'tree', 'burnt_tree', 'snow_tree' and 'water' are solid tiles
+                if tile_type in ['wall', 'tree', 'water', 'burnt_tree', 'snow_tree']:
                     solids.append(pygame.Rect(c * tile_size, r * tile_size, tile_size, tile_size))
                     
         return solids

@@ -830,6 +830,40 @@ class MinerGarth(NPC):
         if not self.on_interact_start("Garth"):
             return
         self.game.dialogue_manager.close()
+
+        # Check if Garth's mind is compromised
+        cm = getattr(self.game, "conspiracy_manager", None)
+        if cm and cm.is_npc_compromised("garth"):
+            c_data = cm.compromised_npcs.get("garth")
+            cold_text = c_data.cold_dialogue if c_data else "The deep rocks speak of darkness... do not stand in our way."
+
+            def initiate_exorcism():
+                player = self.game.player
+                if getattr(player, "mana", 0) >= 15:
+                    player.mana -= 15
+                    from rpg.enemy import ShadowParasite
+                    from rpg.constants import STATE_PLAYING
+                    spawn_pos = (self.pos.x + 32, self.pos.y)
+                    parasite = ShadowParasite(spawn_pos, [self.game.visible_sprites], target_npc_id="garth")
+                    parasite.game = self.game
+                    parasite.sound_manager = self.game.sound_manager
+                    parasite.particles = self.game.particles
+                    self.game.enemies.append(parasite)
+                    from rpg.combat import DamageNumber
+                    DamageNumber(self.rect.center, "⚔️ EXORCISM INITIATED!", (200, 140, 255), [self.game.ui_sprites], size=18)
+                    self.game.dialogue_manager.close()
+                    self.game.game_state = STATE_PLAYING
+
+            choices = [
+                DialogueChoice("✨ Perform Exorcism Ritual (15 Mana)", None, initiate_exorcism),
+                DialogueChoice("Leave", None, lambda: self.game.dialogue_manager.close())
+            ]
+            node = DialogueNode("garth_compromised", f"{self.name} [COMPROMISED]", cold_text, choices)
+            self.game.dialogue_manager.add_node(node)
+            self.game.dialogue_manager.start_dialogue("garth_compromised")
+            self.game.game_state = STATE_DIALOGUE
+            return
+
         node = DialogueNode("garth_talk", self.name, "Greetings! These caverns are rich with Iron Ores inside resource chests. Bring 5 Iron Ores to Blacksmith Dennis in the Village to forge armor!")
         self.game.dialogue_manager.add_node(node)
         self.game.dialogue_manager.start_dialogue("garth_talk")
