@@ -6,7 +6,7 @@ and maximum simultaneous toast capping to prevent visual spam.
 import pygame
 from enum import Enum
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 
 
 class NotificationPriority(Enum):
@@ -36,7 +36,9 @@ class NotificationManager:
         self.max_visible = max_visible
         self.active_toasts: List[ToastNotification] = []
         self.toast_queue: List[ToastNotification] = []
-        
+        self.notification_history: List[Dict[str, Any]] = []
+        self.max_history: int = 40
+
         # Priority default color palette
         self.priority_colors: Dict[NotificationPriority, Tuple[int, int, int]] = {
             NotificationPriority.CRITICAL: (255, 215, 0),   # Gold
@@ -54,10 +56,21 @@ class NotificationManager:
         amount: int = 1,
         duration: float = 6.0
     ) -> None:
-
-        """Pushes or merges a toast notification enforcing priority and deduplication rules."""
+        """Pushes or merges a toast notification enforcing priority, history logging, and deduplication rules."""
         chosen_color = color or self.priority_colors[priority]
-        
+
+        # Log to permanent session history
+        hist_entry = {
+            "message": message if amount == 1 else f"+{amount} {category.capitalize()}",
+            "priority": priority.name,
+            "category": category,
+            "color": chosen_color,
+            "amount": amount
+        }
+        self.notification_history.insert(0, hist_entry)
+        if len(self.notification_history) > self.max_history:
+            self.notification_history.pop()
+
         # 1. Deduplication & Merge Check for LOW/MEDIUM category items
         for toast in self.active_toasts + self.toast_queue:
             if toast.category == category and toast.category != "general":
@@ -118,7 +131,7 @@ class NotificationManager:
 
         for idx, toast in enumerate(self.active_toasts):
             y = start_y + idx * (card_h + gap)
-            
+
             # Fade alpha using TweenService easeOutCubic curve if available
             if toast.timer < 0.6:
                 t_ratio = max(0.0, min(1.0, toast.timer / 0.6))

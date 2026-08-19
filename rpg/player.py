@@ -39,9 +39,12 @@ class Player(BaseSprite):
         self.xp_needed = 180
         self.gold = 10
         self.stamina_regen_rate = 14.0
-        self.mana_regen_rate = 3.5
         self.potion_cooldown_timer = 0.0
 
+        # Town Return / Waypoint Recall Channeling
+        self.is_channeling_recall = False
+        self.recall_channel_timer = 0.0
+        self.recall_channel_duration = 3.0
 
         self.base_max_hp = 100
         self.base_max_mana = 50
@@ -195,9 +198,31 @@ class Player(BaseSprite):
             DamageNumber((self.rect.centerx, self.rect.centery - 24), f"Unlocked {skill_name}!", (250, 150, 10), [self.game.ui_sprites], size=16)
 
 
+    def start_recall(self) -> Tuple[bool, str]:
+        """Initiates Town Return / Waypoint Recall channeling."""
+        if self.is_channeling_recall:
+            return False, "Already channeling recall."
+        if self.hp <= 0 or self.state == "dead":
+            return False, "Cannot recall while dead."
+
+        self.is_channeling_recall = True
+        self.recall_channel_timer = 3.0
+        self.recall_channel_duration = 3.0
+        if hasattr(self, "game") and self.game and hasattr(self.game, "notification_manager"):
+            from rpg.notification import NotificationPriority
+            self.game.notification_manager.push_toast("✨ Channeling Recall to Town... (Do not move)", NotificationPriority.HIGH, (0, 220, 255))
+        return True, "Channeling recall."
+
     def take_damage(self, amount: int) -> None:
         """Applies damage to health, triggers death sequence if HP is empty."""
         self.out_of_combat_timer = 0.0
+        if self.is_channeling_recall:
+            self.is_channeling_recall = False
+            self.recall_channel_timer = 0.0
+            if hasattr(self, "game") and self.game and hasattr(self.game, "notification_manager"):
+                from rpg.notification import NotificationPriority
+                self.game.notification_manager.push_toast("Recall interrupted by damage!", NotificationPriority.MEDIUM, (255, 100, 100))
+
         # Check pact damage taken modifier (e.g. +20% damage at night for Solar Seraph)
         if hasattr(self, "game") and self.game and hasattr(self.game, "pact_manager") and self.game.pact_manager:
             ws = getattr(self.game, "world_state", None)
@@ -661,6 +686,24 @@ class Player(BaseSprite):
 
         if self.potion_cooldown_timer > 0:
             self.potion_cooldown_timer -= dt
+
+        # Recall Channeling update
+        if self.is_channeling_recall:
+            if self.velocity.length_squared() > 0.1 or self.state in ["attack", "roll", "dead"]:
+                self.is_channeling_recall = False
+                self.recall_channel_timer = 0.0
+                if hasattr(self, "game") and self.game and hasattr(self.game, "notification_manager"):
+                    from rpg.notification import NotificationPriority
+                    self.game.notification_manager.push_toast("Recall cancelled by movement/action.", NotificationPriority.LOW)
+            else:
+                self.recall_channel_timer -= dt
+                if self.recall_channel_timer <= 0.0:
+                    self.is_channeling_recall = False
+                    if hasattr(self, "game") and self.game:
+                        self.game.world_manager.load_map("overworld", self, portal_spawn=False, portal_coord=(400, 300))
+                        from rpg.notification import NotificationPriority
+                        self.game.notification_manager.push_toast("✨ Recalled to Asterra Village!", NotificationPriority.HIGH, (0, 220, 255))
+                        self.sound_manager.play_sound("levelup")
 
         if self.parry_window_timer > 0:
             self.parry_window_timer -= dt

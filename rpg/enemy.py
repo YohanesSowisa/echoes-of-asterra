@@ -74,8 +74,8 @@ class DroppedItem(BaseSprite):
             self.rect.center = (int(self.pos.x), int(self.pos.y) + int(y_offset))
             self.hitbox.center = self.rect.center
 
-            # Collide to pick up
-            if self.hitbox.colliderect(player.hitbox):
+            # Collide to pick up (or within instant suction proximity 28px)
+            if self.hitbox.colliderect(player.hitbox) or dist < 28.0:
                 if player.inventory.add_item(self.item):
                     # Play sound
                     player.sound_manager.play_sound("heal")

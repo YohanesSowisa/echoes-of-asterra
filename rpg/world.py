@@ -323,12 +323,49 @@ class PactAltarSprite(BaseSprite):
 
         if self.pact_id == "sanctuary":
             success, msg = pm.cleanse_pact(player, current_day=cur_day)
+            col = (100, 240, 120) if success else (240, 80, 80)
+            from rpg.combat import DamageNumber
+            DamageNumber(player.rect.center, msg, col, [player.game.ui_sprites], size=16)
         else:
-            success, msg = pm.bind_pact(self.pact_id, player, current_day=cur_day)
+            from rpg.pacts import PACT_DEFINITIONS
+            pact_def = PACT_DEFINITIONS.get(self.pact_id)
+            dm = getattr(player.game, "dialogue_manager", None)
+            if not pact_def or not dm:
+                success, msg = pm.bind_pact(self.pact_id, player, current_day=cur_day)
+                col = (100, 240, 120) if success else (240, 80, 80)
+                from rpg.combat import DamageNumber
+                DamageNumber(player.rect.center, msg, col, [player.game.ui_sprites], size=16)
+                return
 
-        col = (100, 240, 120) if success else (240, 80, 80)
-        from rpg.combat import DamageNumber
-        DamageNumber(player.rect.center, msg, col, [player.game.ui_sprites], size=16)
+            node_id = f"altar_confirm_{self.pact_id}"
+
+            def confirm_bind(p_id=self.pact_id, p=player, day=cur_day):
+                succ, m = pm.bind_pact(p_id, p, current_day=day)
+                c = (100, 240, 120) if succ else (240, 80, 80)
+                from rpg.combat import DamageNumber
+                DamageNumber(p.rect.center, m, c, [p.game.ui_sprites], size=16)
+
+            dialogue_text = (
+                f"⚡ {pact_def.name.upper()} ALTAR\n\n"
+                f"BENEFITS & CURSES:\n{pact_def.description}\n\n"
+                f"LORE:\n{pact_def.lore}\n\n"
+                f"Do you accept the primordial binding?"
+            )
+
+            from rpg.dialogue import DialogueNode, DialogueChoice
+            from rpg.constants import STATE_DIALOGUE
+            node = DialogueNode(
+                node_id,
+                f"Ancient Altar ({pact_def.name})",
+                dialogue_text,
+                [
+                    DialogueChoice(f"Accept Pact: {pact_def.name}", None, confirm_bind),
+                    DialogueChoice("Back away safely", None)
+                ]
+            )
+            dm.add_node(node)
+            dm.start_dialogue(node_id)
+            player.game.game_state = STATE_DIALOGUE
 
     def draw_indicator(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         """Renders floating interactive prompt above the altar."""

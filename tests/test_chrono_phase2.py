@@ -108,8 +108,8 @@ class TestChronoPhase2(unittest.TestCase):
         self.player.base_atk = 32.0
         self.player.rect.x, self.player.rect.y = 200, 300
 
-        scythe = create_item("Voidbrand Scythe", 1)
-        chest = create_item("Leather Chest", 1)
+        scythe = create_item("Voidbrand Scythe", 1, roll_equipment_affixes=False)
+        chest = create_item("Leather Chest", 1, roll_equipment_affixes=False)
         self.player.equipment.equip(scythe, self.player)
         self.player.equipment.equip(chest, self.player)
 
@@ -122,7 +122,7 @@ class TestChronoPhase2(unittest.TestCase):
         self.assertIsNotNone(dop)
         self.assertEqual(dop.level, 5)
         self.assertEqual(dop.atk, 32.0)
-        self.assertEqual(dop.hp, 150.0)  # 100.0 max_hp * 1.5
+        self.assertEqual(dop.hp, 150.0)
         self.assertEqual(dop.equipped_weapon, "Voidbrand Scythe")
         self.assertEqual(dop.equipped_armor, "Leather Chest")
         self.assertEqual(dop.pos, (200.0, 300.0))

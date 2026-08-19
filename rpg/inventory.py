@@ -91,7 +91,20 @@ class Inventory:
         items = [s for s in self.slots if s is not None]
         
         rarity_order = {"Legendary": 0, "Epic": 1, "Rare": 2, "Uncommon": 3, "Common": 4}
-        type_order = {"weapon": 0, "armor": 1, "shield": 2, "helmet": 3, "chest": 4, "boots": 5, "consumable": 6, "material": 7}
+        type_order = {
+            "weapon": 0,
+            "shield": 1,
+            "helmet": 2,
+            "chest": 3,
+            "boots": 4,
+            "armor": 4,
+            "accessory": 5,
+            "potion": 6,
+            "food": 6,
+            "consumable": 6,
+            "material": 7,
+            "quest": 8
+        }
         
         def sort_key(item: Any) -> Tuple[int, int, str]:
             t_rank = type_order.get(getattr(item, "item_type", "material"), 8)

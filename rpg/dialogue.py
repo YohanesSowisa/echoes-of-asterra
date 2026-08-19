@@ -49,6 +49,21 @@ class DialogueManager:
         # Choice selection variables
         self.selected_choice_idx = 0
 
+    def set_type_speed(self, speed_mode: str = "normal") -> None:
+        """Sets typing animation speed ('normal', 'fast', 'instant')."""
+        modes = {
+            "normal": 35.0,
+            "fast": 80.0,
+            "instant": 9999.0
+        }
+        self.type_speed = modes.get(speed_mode.lower(), 35.0)
+
+    def skip_typing(self) -> None:
+        """Instantly finishes typing animation for the current node."""
+        if self.current_node and not self.typing_finished:
+            self.visible_text = self.current_node.text
+            self.typing_finished = True
+
     def add_node(self, node: DialogueNode) -> None:
         """Registers a dialogue node."""
         self.nodes[node.id] = node

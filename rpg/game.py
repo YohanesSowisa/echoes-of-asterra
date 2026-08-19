@@ -178,6 +178,7 @@ class Game:
         self.telemetry.register_event_bus(self.event_bus)
         self.achievement_manager = AchievementManager(self.event_bus)
         self.difficulty_profile = "normal"
+        self.dialogue_speed = "normal"
         self.tutorial_flags = set()
 
         from rpg.style_scoring import StyleScoring
@@ -624,6 +625,10 @@ class Game:
                             # Use / Equip item in currently selected slot!
                             self.player.inventory.use_item(self.ui_manager.selected_inventory_slot, self.player)
                             continue
+                        elif event.key == pygame.K_r:
+                            self.player.inventory.auto_sort()
+                            self.sound_manager.play_sound("click")
+                            continue
                         elif event.key in [pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4]:
                             slot_num = event.key - pygame.K_1 + 1
                             item = self.player.inventory.slots[self.ui_manager.selected_inventory_slot]
@@ -693,6 +698,15 @@ class Game:
                     elif event.key == pygame.K_m:
                         self.minimap_enabled = not self.minimap_enabled
                         self.sound_manager.play_sound("click")
+                    elif event.key == pygame.K_h:
+                        mode = self.ui_manager.toggle_hud_mode()
+                        from rpg.notification import NotificationPriority
+                        self.notification_manager.push_toast(f"HUD Mode: {mode.upper()} ([H] to toggle)", NotificationPriority.LOW)
+                        self.sound_manager.play_sound("click")
+                    elif event.key == pygame.K_t:
+                        if not self.ui_manager.open_panels:
+                            self.player.start_recall()
+                            self.sound_manager.play_sound("magic")
                     elif event.key == pygame.K_z:
                         # Trigger Active Primordial Soul Pact Ability!
                         if hasattr(self, "player") and self.player:
@@ -748,6 +762,13 @@ class Game:
                             self.target_fps = fps_options[(curr_idx - 1) % len(fps_options)]
                             self.sound_manager.play_sound("click")
                         elif self.ui_manager.settings_select_idx == 4:
+                            spd_options = ["normal", "fast", "instant"]
+                            curr_spd = str(getattr(self, "dialogue_speed", "normal")).lower()
+                            curr_i = spd_options.index(curr_spd) if curr_spd in spd_options else 0
+                            self.dialogue_speed = spd_options[(curr_i - 1) % len(spd_options)]
+                            self.dialogue_manager.set_type_speed(self.dialogue_speed)
+                            self.sound_manager.play_sound("click")
+                        elif self.ui_manager.settings_select_idx == 5:
                             diff_options = ["explorer", "normal", "veteran", "nightmare"]
                             curr_diff = str(getattr(self, "difficulty_profile", "normal")).lower()
                             curr_i = diff_options.index(curr_diff) if curr_diff in diff_options else 1
@@ -769,6 +790,13 @@ class Game:
                             self.target_fps = fps_options[(curr_idx + 1) % len(fps_options)]
                             self.sound_manager.play_sound("click")
                         elif self.ui_manager.settings_select_idx == 4:
+                            spd_options = ["normal", "fast", "instant"]
+                            curr_spd = str(getattr(self, "dialogue_speed", "normal")).lower()
+                            curr_i = spd_options.index(curr_spd) if curr_spd in spd_options else 0
+                            self.dialogue_speed = spd_options[(curr_i + 1) % len(spd_options)]
+                            self.dialogue_manager.set_type_speed(self.dialogue_speed)
+                            self.sound_manager.play_sound("click")
+                        elif self.ui_manager.settings_select_idx == 5:
                             diff_options = ["explorer", "normal", "veteran", "nightmare"]
                             curr_diff = str(getattr(self, "difficulty_profile", "normal")).lower()
                             curr_i = diff_options.index(curr_diff) if curr_diff in diff_options else 1
@@ -784,12 +812,19 @@ class Game:
                             self.target_fps = fps_options[(curr_idx + 1) % len(fps_options)]
                             self.sound_manager.play_sound("click")
                         elif self.ui_manager.settings_select_idx == 4:
+                            spd_options = ["normal", "fast", "instant"]
+                            curr_spd = str(getattr(self, "dialogue_speed", "normal")).lower()
+                            curr_i = spd_options.index(curr_spd) if curr_spd in spd_options else 0
+                            self.dialogue_speed = spd_options[(curr_i + 1) % len(spd_options)]
+                            self.dialogue_manager.set_type_speed(self.dialogue_speed)
+                            self.sound_manager.play_sound("click")
+                        elif self.ui_manager.settings_select_idx == 5:
                             diff_options = ["explorer", "normal", "veteran", "nightmare"]
                             curr_diff = str(getattr(self, "difficulty_profile", "normal")).lower()
                             curr_i = diff_options.index(curr_diff) if curr_diff in diff_options else 1
                             self.difficulty_profile = diff_options[(curr_i + 1) % len(diff_options)]
                             self.sound_manager.play_sound("click")
-                        elif self.ui_manager.settings_select_idx == 5:
+                        elif self.ui_manager.settings_select_idx == 6:
                             self.sound_manager.play_sound("click")
                             self.return_from_settings()
                     elif event.key == pygame.K_ESCAPE:
@@ -850,16 +885,9 @@ class Game:
                     elif p_state in ["save_slots", "load_slots"]:
                         opts_len = 4
                     elif p_state == "slot_actions":
-                        meta = self.ui_manager.slots_meta.get(self.ui_manager.selected_slot_idx + 1, {"exists": False})
-                        if self.ui_manager.pause_action_source == "save":
-                            opts_len = 2 if not meta["exists"] else 4
-                        else:
-                            opts_len = 1 if not meta["exists"] else 4
-
-
-
+                        opts_len = len(self.ui_manager.pause_slot_actions)
                     else:
-                        opts_len = 1
+                        opts_len = 3
 
                     if event.key in [pygame.K_w, pygame.K_UP]:
                         self.ui_manager.pause_select_idx = (self.ui_manager.pause_select_idx - 1) % opts_len
@@ -870,15 +898,12 @@ class Game:
                     elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
                         self.ui_manager.execute_pause_choice(self.ui_manager.pause_select_idx, self)
                     elif event.key == pygame.K_ESCAPE:
-                        if p_state in ["save_slots", "load_slots"]:
-                            if getattr(self, "_from_main_menu", False):
-                                self.game_state = STATE_MENU
-                            else:
-                                self.ui_manager.pause_menu_state = "main"
-                                self.ui_manager.pause_select_idx = 1 if p_state == "save_slots" else 2
+                        if self.ui_manager.pause_menu_state in ["save_slots", "load_slots"]:
+                            self.ui_manager.pause_menu_state = "main"
+                            self.ui_manager.pause_select_idx = 0
                             self.sound_manager.play_sound("click")
-                        elif p_state == "slot_actions":
-                            self.ui_manager.pause_menu_state = self.ui_manager.pause_action_source + "_slots"
+                        elif self.ui_manager.pause_menu_state == "slot_actions":
+                            self.ui_manager.pause_menu_state = "save_slots" if self.ui_manager.pause_action_source == "save" else "load_slots"
                             self.ui_manager.pause_select_idx = self.ui_manager.selected_slot_idx
                             self.sound_manager.play_sound("click")
                         else:
@@ -890,11 +915,14 @@ class Game:
 
                 elif self.game_state == STATE_DIALOGUE:
                     if event.key in [pygame.K_SPACE, pygame.K_RETURN, KEY_INTERACT]:
-                        prev_st = self.game_state
-                        self.dialogue_manager.advance()
-                        # Only revert if dialogue closed and callback didn't transition state (e.g. to STATE_SHOP)
-                        if not self.dialogue_manager.current_node and self.game_state == prev_st:
-                            self.game_state = STATE_PLAYING
+                        if not self.dialogue_manager.typing_finished:
+                            self.dialogue_manager.skip_typing()
+                        else:
+                            prev_st = self.game_state
+                            self.dialogue_manager.advance()
+                            # Only revert if dialogue closed and callback didn't transition state (e.g. to STATE_SHOP)
+                            if not self.dialogue_manager.current_node and self.game_state == prev_st:
+                                self.game_state = STATE_PLAYING
                     elif event.key in [pygame.K_s, pygame.K_DOWN]:
                         self.dialogue_manager.select_next_choice()
                     elif event.key in [pygame.K_w, pygame.K_UP]:

@@ -244,6 +244,80 @@ class MonopolyManager:
 
         return total_delivered
 
+    def deposit_matching_from_inventory(self, inventory: Any) -> int:
+        """
+        Transfers all matching commodity items from player inventory into Guild Warehouse up to capacity.
+        Returns total count of items deposited.
+        """
+        if not inventory or not hasattr(inventory, "slots"):
+            return 0
+
+        name_to_id = {
+            "iron ore": "iron_ore",
+            "iron_ore": "iron_ore",
+            "granite stone": "granite_stone",
+            "granite_stone": "granite_stone",
+            "stone": "granite_stone",
+            "medicinal herbs": "medicinal_herb",
+            "medicinal herb": "medicinal_herb",
+            "herb": "medicinal_herb",
+            "luminescent spores": "luminescent_spore",
+            "luminescent spore": "luminescent_spore",
+            "oak timber": "oak_timber",
+            "oak wood": "oak_timber",
+            "oak_wood": "oak_timber",
+            "timber": "oak_timber"
+        }
+
+        total_deposited = 0
+        for slot in inventory.slots:
+            if not slot:
+                continue
+            clean_name = getattr(slot, "name", "").lower()
+            item_id = name_to_id.get(clean_name)
+            if not item_id:
+                continue
+
+            available_space = self.warehouse.get_available_capacity()
+            if available_space <= 0:
+                break
+
+            qty = getattr(slot, "quantity", 1)
+            to_deposit = min(qty, available_space)
+            deposited = self.warehouse.add_item(item_id, to_deposit)
+            if deposited > 0:
+                inventory.remove_item(slot.name, deposited)
+                total_deposited += deposited
+
+        return total_deposited
+
+    def claim_all_passive_dividends(self, game: Any = None, player: Any = None) -> Dict[str, Any]:
+        """
+        One-click collection of all passive revenue:
+        - Outpost tolls & trade revenue
+        - Auto-deposits matching inventory commodities into warehouse
+        Returns summary breakdown dict.
+        """
+        summary = {
+            "outpost_gold": 0,
+            "vault_gold": 0,
+            "deposited_commodities": 0,
+            "total_gold": 0
+        }
+
+        # 1. Collect all outpost tolls if outpost manager present
+        if game and hasattr(game, "outpost_manager") and game.outpost_manager and player:
+            tolls, _ = game.outpost_manager.collect_all_tolls(player)
+            summary["outpost_gold"] = tolls
+            summary["total_gold"] += tolls
+
+        # 2. Deposit matching inventory commodities
+        if player and hasattr(player, "inventory"):
+            deposited = self.deposit_matching_from_inventory(player.inventory)
+            summary["deposited_commodities"] = deposited
+
+        return summary
+
     def bulk_liquidate(self, item_id: str, count: Optional[int] = None, player: Any = None) -> Tuple[int, int]:
         """
         Liquidates stockpiled commodities directly to Silas/Market for Gold at current market value.

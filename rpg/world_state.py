@@ -189,8 +189,35 @@ class WorldState:
         # Roll for new events
         self._roll_for_events(event_bus)
 
-        # Emit day changed event
+        # Emit day changed event and morning briefing
+        briefing = self.get_morning_briefing(event_bus)
         event_bus.emit("day_changed", day=self.day, season=self.season)
+        event_bus.emit("morning_briefing_generated", day=self.day, season=self.season, briefing=briefing)
+
+    def get_morning_briefing(self, game_context: Any = None) -> Dict[str, Any]:
+        """Aggregates a morning recap of living-world progress, trade, tide, and active epoch."""
+        briefing = {
+            "day": self.day,
+            "season": self.season,
+            "prosperity": int(self.prosperity),
+            "danger": int(self.danger_level),
+            "trade_revenue": 0,
+            "epoch_title": "Golden Peace",
+            "tide_phase": "Normal",
+            "active_events": [e.name for e in self.active_events]
+        }
+
+        if game_context:
+            if hasattr(game_context, "epoch_manager") and game_context.epoch_manager:
+                active_ep = game_context.epoch_manager.get_active_epoch()
+                if active_ep:
+                    briefing["epoch_title"] = active_ep.name
+            if hasattr(game_context, "mire_manager") and game_context.mire_manager:
+                briefing["tide_phase"] = game_context.mire_manager.tide_phase.title()
+            if hasattr(game_context, "outpost_manager") and game_context.outpost_manager:
+                briefing["trade_revenue"] = getattr(game_context.outpost_manager, "last_daily_revenue", 0)
+
+        return briefing
 
     def _roll_for_events(self, event_bus: EventBus) -> None:
         """Evaluates conditions for new world events to trigger, biased by settlement specialization."""

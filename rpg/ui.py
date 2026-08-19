@@ -86,10 +86,16 @@ class UIManager:
         self.slots_meta = {}
 
         self.settings_select_idx = 0
-        self.settings_options = ["Music Volume", "SFX Volume", "Display Mode", "Target FPS", "Difficulty Preset", "Back to Menu"]
+        self.settings_options = ["Music Volume", "SFX Volume", "Display Mode", "Target FPS", "Dialogue Speed", "Difficulty Preset", "Back to Menu"]
 
         # Tutorial multi-page selection index
         self.tutorial_page_idx = 0
+
+        # Quest Journal sub-tab ('quests' or 'logs')
+        self.quest_tab = "quests"
+
+        # Modular HUD mode ('full', 'minimal', 'hidden')
+        self.hud_mode = "full"
 
     def navigate_tutorial_grid(self, direction: str, cols: int = 6, rows: int = 2) -> int:
         """
@@ -121,6 +127,13 @@ class UIManager:
 
         self.tutorial_page_idx = row * cols + col
         return self.tutorial_page_idx
+
+    def toggle_hud_mode(self) -> str:
+        """Cycles HUD declutter mode: full -> minimal -> hidden -> full."""
+        modes = ["full", "minimal", "hidden"]
+        curr_i = modes.index(self.hud_mode) if self.hud_mode in modes else 0
+        self.hud_mode = modes[(curr_i + 1) % len(modes)]
+        return self.hud_mode
 
 
         # Progression / Exploration log selection index
@@ -331,7 +344,7 @@ class UIManager:
         if "character" in self.open_panels:
             self.draw_character_panel(surface, game.player)
         if "quests" in self.open_panels:
-            self.draw_quests_panel(surface, game.quest_manager)
+            self.draw_quests_panel(surface, game.quest_manager, game)
         if "crafting" in self.open_panels:
             self.draw_crafting_panel(surface, game.player)
         if "progression" in self.open_panels:
@@ -433,13 +446,84 @@ class UIManager:
 
     # --- BASE HUD RENDER ---
 
+    def _draw_offscreen_boss_indicators(self, surface: pygame.Surface, game: Any) -> None:
+        """Renders pulsing danger chevrons on screen borders pointing to offscreen Bosses/Nemesis."""
+        if not game or not hasattr(game, "enemies") or not game.enemies or not hasattr(game, "camera"):
+            return
+
+        camera_offset = game.camera.get_offset()
+        for enemy in game.enemies:
+            if getattr(enemy, "hp", 0) <= 0:
+                continue
+            is_boss = getattr(enemy, "is_boss", False) or getattr(enemy, "is_nemesis", False) or enemy.__class__.__name__ == "ChronoDoppelganger"
+            if not is_boss:
+                continue
+
+            # Calculate screen coords
+            screen_x = enemy.pos.x - camera_offset.x
+            screen_y = enemy.pos.y - camera_offset.y
+
+            # Check if offscreen
+            if 40 <= screen_x <= SCREEN_WIDTH - 40 and 90 <= screen_y <= SCREEN_HEIGHT - 40:
+                continue  # Already visible on camera
+
+            clamped_x = max(50, min(SCREEN_WIDTH - 50, screen_x))
+            clamped_y = max(95, min(SCREEN_HEIGHT - 50, screen_y))
+
+            # Calculate distance
+            if hasattr(game, "player") and hasattr(game.player, "pos"):
+                dx = enemy.pos.x - game.player.pos.x
+                dy = enemy.pos.y - game.player.pos.y
+                dist_m = int(((dx * dx + dy * dy) ** 0.5) / 16.0)
+            else:
+                dist_m = 50
+
+            # Pulsing color
+            pulse = int((pygame.time.get_ticks() / 250) % 2)
+            bg_c = (140, 20, 30) if pulse == 0 else (90, 10, 20)
+            border_c = (255, 60, 80)
+
+            badge_w, badge_h = 100, 24
+            bx = int(clamped_x - badge_w // 2)
+            by = int(clamped_y - badge_h // 2)
+
+            pygame.draw.rect(surface, bg_c, (bx, by, badge_w, badge_h), border_radius=4)
+            pygame.draw.rect(surface, border_c, (bx, by, badge_w, badge_h), 1, border_radius=4)
+
+            boss_tag = f"☠️ BOSS {dist_m}m"
+            b_lbl = self.fonts["tiny"].render(boss_tag, True, (255, 240, 240))
+            surface.blit(b_lbl, (bx + badge_w // 2 - b_lbl.get_width() // 2, by + badge_h // 2 - b_lbl.get_height() // 2))
+
     def draw_hud(self, surface: pygame.Surface, player: Any, game: Any = None) -> None:
-        """Renders standard top-left health/mana bars and bottom hotkeys."""
+        """Renders standard top-left health/mana bars, location badges, active buffs, and offscreen danger chevrons with modular HUD declutter modes."""
+        if self.hud_mode == "hidden":
+            # Recall channel bar is still shown during hidden mode for vital feedback
+            if getattr(player, "is_channeling_recall", False):
+                self._draw_recall_bar(surface, player)
+            return
+
+        # Draw offscreen boss danger indicators
+        if game:
+            self._draw_offscreen_boss_indicators(surface, game)
+
+        if self.hud_mode == "minimal":
+            # Minimal compact floating bars in top-left with no backdrop bar
+            self._draw_hud_bar(surface, 20, 16, 160, 14, player.hp, player.max_hp, COLOR_BAR_HP, "HP")
+            self._draw_hud_bar(surface, 20, 34, 160, 10, player.mana, player.max_mana, COLOR_BAR_MANA, "MP")
+            self._draw_hud_bar(surface, 20, 48, 160, 10, player.stamina, player.max_stamina, COLOR_BAR_STAMINA, "STAM")
+            if getattr(player, "is_channeling_recall", False):
+                self._draw_recall_bar(surface, player)
+            return
+
         # HUD Panel background
         bg_bar = pygame.Surface((SCREEN_WIDTH, 80))
         bg_bar.fill((20, 22, 28))
         pygame.draw.line(bg_bar, COLOR_UI_BORDER, (0, 79), (SCREEN_WIDTH, 79), 2)
         surface.blit(bg_bar, (0, 0))
+
+        # Check recall bar
+        if getattr(player, "is_channeling_recall", False):
+            self._draw_recall_bar(surface, player)
 
         # 1. HP Bar
         self._draw_hud_bar(surface, 20, 16, 200, 16, player.hp, player.max_hp, COLOR_BAR_HP, "HP")
@@ -459,12 +543,22 @@ class UIManager:
         surface.blit(lvl_txt, (240, 14))
         surface.blit(gold_txt, (240, 36))
 
-        # 5b. Current Map Location Name
+        # 5b. Current Map Location Name & Safe Zone Save Indicator
         if game and hasattr(game, 'world_manager'):
             map_name = game.world_manager.current_map_name.replace("_", " ").title()
-            depth_str = f" (Floor {game.world_manager.dungeon_depth})" if game.world_manager.current_map_name == "crypt" else ""
+            depth_str = f" (F{game.world_manager.dungeon_depth})" if game.world_manager.current_map_name == "crypt" else ""
+
+            can_save = False
+            if hasattr(game, "is_save_allowed"):
+                can_save, _ = game.is_save_allowed()
+
             loc_txt = self.fonts["small"].render(f">> {map_name}{depth_str}", True, (180, 200, 220))
             surface.blit(loc_txt, (240, 56))
+
+            save_badge_c = (80, 240, 120) if can_save else (240, 140, 120)
+            save_badge_txt = "🛡️ Safe [ESC]" if can_save else "⚔️ Hostile"
+            s_badge = self.fonts["tiny"].render(save_badge_txt, True, save_badge_c)
+            surface.blit(s_badge, (330, 58))
 
             # 5b2. Sunken Mire Tide & Rot Badge
             if game.world_manager.current_map_name == "sunken_mire" and hasattr(game, "mire_manager") and game.mire_manager:
@@ -1064,6 +1158,38 @@ class UIManager:
         title_lbl = self.fonts["small"].render(title_txt, True, (240, 210, 100))
         surface.blit(title_lbl, (x + padding, y + 6))
 
+        # Waypoint Compass Direction Needle & Distance Calculation
+        landmark_coords = {
+            "silas": (400, 300), "town": (400, 300), "village": (400, 300),
+            "dennis": (450, 260), "forge": (450, 260), "elder": (360, 240),
+            "guild": (360, 240), "crypt": (960, 200), "dungeon": (960, 200),
+            "cavern": (960, 200), "mire": (800, 800), "sunken": (800, 800),
+            "outpost": (200, 700)
+        }
+        target_pos = None
+        q_text_lower = f"{quest.title} {' '.join(o.text for o in quest.objectives)}".lower()
+        for kw, coord in landmark_coords.items():
+            if kw in q_text_lower:
+                target_pos = coord
+                break
+
+        if target_pos and hasattr(game, "player") and hasattr(game.player, "pos"):
+            import math
+            px, py_pos = game.player.pos.x, game.player.pos.y
+            dx = target_pos[0] - px
+            dy = target_pos[1] - py_pos
+            dist_px = (dx * dx + dy * dy) ** 0.5
+            dist_m = int(dist_px / 16.0)
+
+            angle_deg = math.degrees(math.atan2(dy, dx))
+            arrows = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
+            arrow_idx = int((angle_deg + 22.5) % 360 / 45)
+            arrow_sym = arrows[arrow_idx]
+
+            compass_str = f"🧭{arrow_sym}{dist_m}m"
+            c_lbl = self.fonts["tiny"].render(compass_str, True, (0, 220, 255))
+            surface.blit(c_lbl, (x + w - c_lbl.get_width() - 6, y + 7))
+
         # Divider
         pygame.draw.line(surface, (60, 80, 100), (x + 6, y + 24), (x + w - 6, y + 24), 1)
 
@@ -1080,22 +1206,34 @@ class UIManager:
             cur_y += line_h
 
     def _draw_hud_bar(self, surface: pygame.Surface, x: int, y: int, w: int, h: int, val: float, val_max: float, color: Tuple[int, int, int], tag: str) -> None:
-        """Helper to render stats bar gradients with overlays."""
+        """Helper to render stats bar gradients with shape icons and high-contrast numerical overlays."""
         # Base shadow box
-        pygame.draw.rect(surface, COLOR_BLACK, (x, y, w, h), border_radius=3)
+        pygame.draw.rect(surface, (12, 14, 18), (x, y, w, h), border_radius=4)
 
         # Colored fill
         ratio = max(0.0, min(1.0, val / max(1.0, val_max)))
         if ratio > 0:
-            pygame.draw.rect(surface, color, (x, y, int(w * ratio), h), border_radius=3)
+            fill_w = max(4, int(w * ratio))
+            pygame.draw.rect(surface, color, (x, y, fill_w, h), border_radius=4)
             # Highlights shine
-            pygame.draw.rect(surface, tuple(min(255, c + 40) for c in color), (x, y, int(w * ratio), h // 3), border_radius=1)
+            pygame.draw.rect(surface, tuple(min(255, c + 45) for c in color), (x, y, fill_w, max(2, h // 3)), border_radius=2)
 
         # Draw border frame
-        pygame.draw.rect(surface, COLOR_UI_BORDER, (x, y, w, h), 1, border_radius=3)
+        pygame.draw.rect(surface, (60, 75, 95), (x, y, w, h), 1, border_radius=4)
 
-        # Tag text overlay
-        lbl = self.fonts["small"].render(f"{tag}: {int(val)}/{int(val_max)}", True, COLOR_WHITE)
+        # Shape icons mapping for colorblind accessibility
+        icons = {
+            "HP": "❤️",
+            "MP": "🔷",
+            "STAM": "⚡"
+        }
+        icon = icons.get(tag, "•")
+        lbl_str = f"{icon} {tag} {int(val)}/{int(val_max)}"
+
+        # Crisp text overlay with dark drop shadow
+        shadow = self.fonts["tiny"].render(lbl_str, True, (0, 0, 0))
+        surface.blit(shadow, (x + 7, y + h // 2 - shadow.get_height() // 2))
+        lbl = self.fonts["tiny"].render(lbl_str, True, (255, 255, 255))
         surface.blit(lbl, (x + 6, y + h // 2 - lbl.get_height() // 2 - 1))
 
     # --- MAIN MENU SCREEN ---
@@ -1175,6 +1313,9 @@ class UIManager:
                 fps_str = "MAX (UNCAPPED)" if fps_val == 0 else f"{fps_val} FPS"
                 text = f"Target FPS:  <  {fps_str}  >"
             elif idx == 4:
+                spd_val = str(getattr(game, "dialogue_speed", "normal")).upper()
+                text = f"Dialogue Speed:  <  {spd_val}  >"
+            elif idx == 5:
                 diff_val = str(getattr(game, "difficulty_profile", "normal")).upper()
                 text = f"Difficulty:  <  {diff_val}  >"
             else:
@@ -1287,16 +1428,18 @@ class UIManager:
                 ("Shield Block / Parry", "Right Click or K"),
                 ("Valorant Spells / Skills", "Q, E, C, X"),
                 ("Quick Item Consumables", "Hotbar Keys 1, 2, 3, 4"),
+                ("Skip Dialogue Text", "Spacebar, F, Enter"),
                 ("Interaction", "Press [F] (NPCs, Chests, Portals)")
             ]
             right_controls = [
-                ("Backpack Inventory", "Toggle [I]"),
+                ("Backpack (Sort: [R])", "Toggle [I]"),
                 ("Character Attributes", "Toggle [V]"),
-                ("Quest Journal", "Toggle [N]"),
+                ("Quest & Alert History", "Toggle [N]"),
                 ("Crafting Forge", "Toggle [G]"),
-                ("Exploration Log / World Map", "Toggle [R]"),
+                ("World Map & Log", "Toggle [R]"),
                 ("Radar Minimap", "Toggle [M]"),
-                ("Level Up Cheat", "Press [L]"),
+                ("HUD Mode (Full/Min/Hide)", "Press [H]"),
+                ("Town Return Recall", "Channel [T] (3s)"),
                 ("Pause / Settings / Save", "Press [ESC]")
             ]
 
@@ -1311,15 +1454,15 @@ class UIManager:
 
             pygame.draw.line(surface, (50, 60, 80), (tx + tw // 2, content_y), (tx + tw // 2, ty + th - 55), 1)
 
-            start_y = content_y + 28
+            start_y = content_y + 24
             for idx, (action, bind) in enumerate(left_controls):
-                curr_y = start_y + idx * 40
+                curr_y = start_y + idx * 36
                 act_lbl = self.fonts["small"].render(action, True, COLOR_WHITE)
                 bind_lbl = self.fonts["small"].render(bind, True, COLOR_UI_HIGHLIGHT)
                 surface.blit(act_lbl, (left_x, curr_y))
-                surface.blit(bind_lbl, (left_x, curr_y + 16))
+                surface.blit(bind_lbl, (left_x, curr_y + 14))
                 if idx < len(left_controls) - 1:
-                    pygame.draw.line(surface, (40, 45, 55), (left_x, curr_y + 36), (left_x + col_w, curr_y + 36), 1)
+                    pygame.draw.line(surface, (40, 45, 55), (left_x, curr_y + 32), (left_x + col_w, curr_y + 32), 1)
 
             for idx, (action, bind) in enumerate(right_controls):
                 curr_y = start_y + idx * 36
@@ -1367,6 +1510,7 @@ class UIManager:
                     "• Approach an obelisk and press [F] to permanently activate its waypoint.",
                     "• Fast Travel via Minimap: Click any activated Cyan Diamond on the Minimap radar (M key).",
                     "• Fast Travel via World Map: Open Exploration Log (R key), select an activated region, and click [★ Fast Travel].",
+                    "• Town Return Recall: Press [T] anywhere to channel a 3.0s teleport back to Asterra Village (cancels on move/damage).",
                     "• (Fast travel is disabled during active combat and inside subterranean Crypt depths)."
                 ]),
                 ("2. Village Notice Board Bounties", [
@@ -1394,11 +1538,11 @@ class UIManager:
                     "• Upgrading Blacksmith, Apothecary, and Market unlocks advanced crafting recipes and shop discounts.",
                     "• High-tier items (Iron Aegis, Asterra Sword, Blue Potion) require specific facility levels to forge."
                 ]),
-                ("2. ARPG Loot Affixes & Socketable Runes", [
+                ("2. ARPG Loot Affixes, Auto-Loot & Gear Comparison", [
+                    "• Auto-Loot Vacuum: Dropped loot within 28px of your hero is automatically absorbed into your bag without stopping.",
+                    "• Gear Comparison: Hovering over equipment shows side-by-side net stat differences (+gain / -drop) vs equipped items.",
                     "• Equipment drops with Rarity tiers (Common, Uncommon, Rare, Epic, Legendary) and stat Affixes.",
-                    "• Prefixes (Vicious, Heavy, Titan's) and Suffixes (of Strength, of Precision) boost HP, ATK, Def, and Crit.",
-                    "• Gear with open sockets can be socketed with Runes (Rune of Fire, Rune of Vitality, Rune of Shielding).",
-                    "• Stats from gear, affixes, and socketed runes automatically aggregate into your character attributes."
+                    "• Gear with open sockets can be socketed with Runes (Rune of Fire, Rune of Vitality, Rune of Shielding)."
                 ])
             ]
             cy_pos = content_y
@@ -1506,7 +1650,8 @@ class UIManager:
                     "Solar Flame (Ruins): +25% spell damage, HP regen, -15% max HP.",
                     "Only one pact active at a time. Binding a new pact replaces the old."
                 ]),
-                ("2. Pact Tiers & Purification", [
+                ("2. Pact Tiers, Consequence Modal & Purification", [
+                    "Altar Consequence Modal: Interacting displays full benefits & penalties before binding.",
                     "Pacts gain tiers (1 > 2 > 3) through combat kills while bound.",
                     "Higher tiers strengthen both benefits AND drawbacks proportionally.",
                     "Purification Ritual: Visit the Sanctuary Altar in the Village plaza.",
@@ -1536,8 +1681,8 @@ class UIManager:
                 ("2. Frontier Outposts & Caravans", [
                     "Build outposts (200g) at strategic map locations for daily toll income.",
                     "Upgrade outposts Lvl 1>2>3 for higher tolls (10g > 25g > 50g/day).",
-                    "Dispatch trade caravans between outposts to deliver cargo and boost",
-                    "  prosperity. Protect caravans from ambushes or lose all cargo!"
+                    "One-Click Dividends: Use [💎 Claim All] at Guild Warehouse to collect tolls in 1 click.",
+                    "Dispatch trade caravans between outposts to deliver cargo and boost prosperity."
                 ])
             ]
             cy_pos = content_y
@@ -1616,11 +1761,12 @@ class UIManager:
                     "Level 8+: Engage Nemesis captains, build outposts, manage economy."
                 ]),
                 ("2. Essential Tips", [
-                    "Save frequently! Use ESC > Save Game before entering dangerous zones.",
+                    "Safe Zones: Watch top HUD for [🛡️ Safe [ESC]] to know where saving is permitted vs [⚔️ Hostile Zone].",
+                    "Off-Screen Danger: Watch pulsing red skull chevrons on screen edges pointing toward active off-screen Bosses.",
+                    "Alert History: Review missed world announcements anytime via [🔔 Alert History] in Quest Journal [N].",
+                    "HUD Declutter: Press [H] to toggle between full HUD, minimal floating bars, and hidden cinematic view.",
                     "Perfect Parry (block within 0.2s) is the strongest defensive tool.",
-                    "Keep Waterstrider Elixirs stocked before entering the Sunken Mire.",
-                    "Watch the Conspiracy COUP countdown -- neglect leads to Doomsday!",
-                    "Overcharge Leyline Nodes with catalysts for permanent regional buffs."
+                    "Keep Waterstrider Elixirs stocked before entering the Sunken Mire."
                 ])
             ]
             cy_pos = content_y
@@ -1901,7 +2047,7 @@ class UIManager:
         surface.blit(sort_lbl, (sort_rect.centerx - sort_lbl.get_width() // 2, sort_rect.centery - sort_lbl.get_height() // 2))
 
         # Draw hint text next to sort button (2 crisp, readable lines)
-        h1 = self.fonts["small"].render("[WASD] Select  •  [Enter] Use", True, (140, 220, 255))
+        h1 = self.fonts["small"].render("[WASD] Select  •  [Enter] Use  •  [R] Sort", True, (140, 220, 255))
         h2 = self.fonts["small"].render("[1-4] Bind Quick-Slot Key", True, COLOR_UI_HIGHLIGHT)
         surface.blit(h1, (ix + 124, iy + ih - 44))
         surface.blit(h2, (ix + 124, iy + ih - 26))
@@ -2321,8 +2467,8 @@ class UIManager:
 
     # --- QUEST LOG PANEL ---
 
-    def draw_quests_panel(self, surface: pygame.Surface, quest_manager: Any) -> None:
-        """Renders active side/main quests tasks checklist."""
+    def draw_quests_panel(self, surface: pygame.Surface, quest_manager: Any, game: Any = None) -> None:
+        """Renders active side/main quests tasks checklist and notification alert history."""
         qx, qy = 40, 100
         qw, qh = 480, 440
 
@@ -2330,12 +2476,64 @@ class UIManager:
         pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=6)
         pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=6)
 
-        hdr = self.fonts["medium"].render("Quest Journal", True, COLOR_UI_HIGHLIGHT)
-        surface.blit(hdr, (qx + 16, qy + 16))
+        # Tab Navigation Header
+        m_pos = pygame.mouse.get_pos()
+        tab_q = pygame.Rect(qx + 16, qy + 14, 110, 26)
+        tab_l = pygame.Rect(qx + 132, qy + 14, 130, 26)
+
+        is_q_active = (self.quest_tab == "quests")
+        is_l_active = (self.quest_tab == "logs")
+
+        pygame.draw.rect(surface, (0, 140, 180) if is_q_active else ((50, 65, 85) if tab_q.collidepoint(m_pos) else (30, 38, 50)), tab_q, border_radius=4)
+        pygame.draw.rect(surface, (0, 220, 255) if is_q_active else (60, 75, 95), tab_q, 1, border_radius=4)
+        q_lbl = self.fonts["small"].render("📜 Active Quests", True, COLOR_WHITE if is_q_active else COLOR_GRAY)
+        surface.blit(q_lbl, (tab_q.centerx - q_lbl.get_width() // 2, tab_q.centery - q_lbl.get_height() // 2))
+
+        pygame.draw.rect(surface, (0, 140, 180) if is_l_active else ((50, 65, 85) if tab_l.collidepoint(m_pos) else (30, 38, 50)), tab_l, border_radius=4)
+        pygame.draw.rect(surface, (0, 220, 255) if is_l_active else (60, 75, 95), tab_l, 1, border_radius=4)
+        l_lbl = self.fonts["small"].render("🔔 Alert History", True, COLOR_WHITE if is_l_active else COLOR_GRAY)
+        surface.blit(l_lbl, (tab_l.centerx - l_lbl.get_width() // 2, tab_l.centery - l_lbl.get_height() // 2))
 
         cls = self.fonts["small"].render("[N] Close", True, COLOR_GRAY)
         surface.blit(cls, (qx + qw - cls.get_width() - 16, qy + 18))
 
+        if self.quest_tab == "logs":
+            # --- NOTIFICATION HISTORY LOG ---
+            history = []
+            if game and hasattr(game, "notification_manager") and hasattr(game.notification_manager, "notification_history"):
+                history = game.notification_manager.notification_history
+
+            if not history:
+                empty_lbl = self.fonts["small"].render("No recent alerts in history log.", True, COLOR_GRAY)
+                surface.blit(empty_lbl, (qx + 24, qy + 60))
+                return
+
+            curr_y = qy + 52
+            for entry in history[:10]:
+                p_name = entry.get("priority", "LOW")
+                msg = entry.get("message", "")
+                cat = entry.get("category", "general")
+                c_val = entry.get("color", (220, 220, 230))
+
+                row_rect = pygame.Rect(qx + 12, curr_y - 2, qw - 24, 28)
+                pygame.draw.rect(surface, (28, 33, 44), row_rect, border_radius=3)
+                pygame.draw.rect(surface, (45, 52, 68), row_rect, 1, border_radius=3)
+
+                p_badge = self.fonts["tiny"].render(f"[{p_name}]", True, c_val)
+                surface.blit(p_badge, (qx + 18, curr_y + 4))
+
+                avail_w = qw - 130
+                if self.fonts["small"].size(msg)[0] > avail_w:
+                    while msg and self.fonts["small"].size(msg + "...")[0] > avail_w:
+                        msg = msg[:-1]
+                    msg += "..."
+
+                msg_lbl = self.fonts["small"].render(msg, True, (240, 240, 245))
+                surface.blit(msg_lbl, (qx + 95, curr_y + 3))
+                curr_y += 34
+            return
+
+        # --- QUESTS VIEW ---
         active_quests = quest_manager.get_active_quests()
         if not active_quests:
             empty_lbl = self.fonts["small"].render("No active quests.", True, COLOR_GRAY)
@@ -2343,7 +2541,6 @@ class UIManager:
             return
 
         self.slot_rects["quest_panel"].clear()
-        m_pos = pygame.mouse.get_pos()
         curr_y = qy + 52
 
         for quest in active_quests:
@@ -2719,7 +2916,11 @@ class UIManager:
 
     def draw_tooltip(self, surface: pygame.Surface, item: Any, mouse_pos: Tuple[int, int], player: Any = None) -> None:
         """Floating tooltip showing description, stats, rarity colors, and side-by-side equipped gear comparison."""
-        tw, th = 240, 136
+        stat_count = len(getattr(item, "stats", {})) if hasattr(item, "stats") and item.stats else 0
+        eq_item = player.equipment.slots.get(item.item_type) if (player and hasattr(item, "item_type") and hasattr(player, "equipment")) else None
+
+        tw = 260
+        th = 60 + max(1, stat_count) * 18 + (20 if eq_item and eq_item != item else 0) + 24
         is_anchored = "inventory" in self.open_panels
         tx = mouse_pos[0] if is_anchored else mouse_pos[0] + 16
         ty = mouse_pos[1] if is_anchored else mouse_pos[1] + 16
@@ -2729,9 +2930,8 @@ class UIManager:
         if ty + th > SCREEN_HEIGHT: ty = SCREEN_HEIGHT - th - 10
         if ty < 10: ty = 10
 
-
         box = pygame.Rect(tx, ty, tw, th)
-        pygame.draw.rect(surface, (15, 17, 24, 240), box, border_radius=4)
+        pygame.draw.rect(surface, (15, 17, 24, 245), box, border_radius=4)
 
         # Color outline by rarity
         rarity_c = RARITY_COLORS.get(item.rarity, COLOR_UI_BORDER)
@@ -2739,7 +2939,7 @@ class UIManager:
 
         # 1. Item Name
         name_lbl = self.fonts["medium"].render(item.name, True, rarity_c)
-        surface.blit(name_lbl, (tx + 10, ty + 10))
+        surface.blit(name_lbl, (tx + 10, ty + 8))
 
         # 2. Item Rarity / Category label
         cat_lbl = self.fonts["small"].render(f"{item.rarity} {item.item_type.title()}", True, COLOR_GRAY)
@@ -2751,11 +2951,16 @@ class UIManager:
             val_lbl = self.fonts["small"].render(f"Sell: {sell_val}g", True, COLOR_YELLOW)
             surface.blit(val_lbl, (tx + tw - val_lbl.get_width() - 10, ty + 28))
 
-        # 3. Item stats & Side-by-Side Equipment Comparison
-        stat_y = ty + 46
-        if item.stats:
-            eq_item = player.equipment.slots.get(item.item_type) if (player and hasattr(item, "item_type")) else None
+        # 2c. Equipped item preview header if replacing gear
+        curr_y = ty + 46
+        if eq_item and eq_item != item:
+            eq_name = getattr(eq_item, "name", "None")[:20]
+            eq_lbl = self.fonts["tiny"].render(f"Equipped: [{eq_name}]", True, (160, 180, 200))
+            surface.blit(eq_lbl, (tx + 10, curr_y))
+            curr_y += 16
 
+        # 3. Item stats & Side-by-Side Equipment Comparison
+        if item.stats:
             for k, val in item.stats.items():
                 eq_val = eq_item.stats.get(k, 0) if (eq_item and hasattr(eq_item, "stats")) else 0
                 diff = val - eq_val
@@ -2764,10 +2969,10 @@ class UIManager:
                 diff_c = COLOR_GREEN
                 if eq_item and eq_item != item:
                     if diff > 0:
-                        diff_str = f" (+{diff} net gain)"
+                        diff_str = f" (+{diff} gain)"
                         diff_c = (100, 240, 140)
                     elif diff < 0:
-                        diff_str = f" ({diff} net drop)"
+                        diff_str = f" ({diff} drop)"
                         diff_c = (240, 100, 100)
                     else:
                         diff_str = " (= same)"
@@ -2775,12 +2980,13 @@ class UIManager:
 
                 stat_txt = f"+{val} {k.upper()}{diff_str}"
                 stat_lbl = self.fonts["small"].render(stat_txt, True, diff_c)
-                surface.blit(stat_lbl, (tx + 10, stat_y))
-                stat_y += 18
+                surface.blit(stat_lbl, (tx + 10, curr_y))
+                curr_y += 18
 
-        # 4. Item Description text (wraps slightly)
-        desc_lbl = self.fonts["small"].render(item.description[:38], True, COLOR_WHITE)
-        surface.blit(desc_lbl, (tx + 10, stat_y))
+        # 4. Item Description text
+        desc_txt = getattr(item, "description", "")[:40]
+        desc_lbl = self.fonts["tiny"].render(desc_txt, True, (200, 200, 210))
+        surface.blit(desc_lbl, (tx + 10, curr_y + 2))
 
     # --- DIALOGUE WINDOW ---
 
@@ -3268,13 +3474,60 @@ class UIManager:
 
         # 4. Inventory Backpack & Equipment slots & Quest Journal interactions
         elif state == STATE_PLAYING:
-            # Quest Journal panel clicks (pin/track active quest)
+            # Quest Journal panel clicks (tab switching and pin/track active quest)
             if "quests" in self.open_panels:
-                for rect, q_id in self.slot_rects.get("quest_panel", []):
-                    if rect.collidepoint(mouse_pos) and not right_click:
-                        game.quest_manager.set_tracked_quest(q_id)
-                        player.sound_manager.play_sound("click")
-                        return
+                tab_q = pygame.Rect(40 + 16, 100 + 14, 110, 26)
+                tab_l = pygame.Rect(40 + 132, 100 + 14, 130, 26)
+                if tab_q.collidepoint(mouse_pos):
+                    self.quest_tab = "quests"
+                    game.sound_manager.play_sound("click")
+                    return
+                elif tab_l.collidepoint(mouse_pos):
+                    self.quest_tab = "logs"
+                    game.sound_manager.play_sound("click")
+                    return
+
+                if self.quest_tab == "quests":
+                    for rect, q_id in self.slot_rects.get("quest_panel", []):
+                        if rect.collidepoint(mouse_pos):
+                            game.quest_manager.set_tracked_quest(q_id)
+                            game.sound_manager.play_sound("click")
+                            return
+
+            # Warehouse panel clicks (Deposit matching, Liquidate all, Claim all passive dividends)
+            if "warehouse" in self.open_panels and hasattr(game, "monopoly_manager"):
+                pw, ph = 560, 420
+                px = SCREEN_WIDTH // 2 - pw // 2
+                py = SCREEN_HEIGHT // 2 - ph // 2
+                left_x = px + 20
+                dep_rect = pygame.Rect(left_x, py + ph - 50, 78, 34)
+                liq_rect = pygame.Rect(left_x + 84, py + ph - 50, 78, 34)
+                claim_rect = pygame.Rect(left_x + 168, py + ph - 50, 82, 34)
+                if dep_rect.collidepoint(mouse_pos):
+                    dep_count = game.monopoly_manager.deposit_matching_from_inventory(player.inventory)
+                    if dep_count > 0:
+                        from rpg.notification import NotificationPriority
+                        game.notification_manager.push_toast(f"Deposited {dep_count} items to warehouse!", NotificationPriority.MEDIUM)
+                        game.sound_manager.play_sound("buy")
+                    else:
+                        from rpg.notification import NotificationPriority
+                        game.notification_manager.push_toast("No matching commodities in bag.", NotificationPriority.LOW)
+                    return
+                elif liq_rect.collidepoint(mouse_pos):
+                    total_sold, total_rev = game.monopoly_manager.liquidate_all(player)
+                    if total_sold > 0:
+                        from rpg.notification import NotificationPriority
+                        game.notification_manager.push_toast(f"Sold {total_sold} commodities for +{total_rev}G!", NotificationPriority.HIGH)
+                        game.sound_manager.play_sound("coin")
+                    return
+                elif claim_rect.collidepoint(mouse_pos):
+                    div_summary = game.monopoly_manager.claim_all_passive_dividends(game, player)
+                    gold_earned = div_summary.get("total_gold", 0)
+                    dep_items = div_summary.get("deposited_commodities", 0)
+                    from rpg.notification import NotificationPriority
+                    game.notification_manager.push_toast(f"Claimed +{gold_earned}G & deposited {dep_items} items!", NotificationPriority.CRITICAL, (255, 215, 0))
+                    game.sound_manager.play_sound("levelup")
+                    return
 
             # Sort button click
             ix, iy = 40, 120
@@ -3729,13 +3982,30 @@ class UIManager:
             surface.blit(val_lbl, (left_x + left_w - val_lbl.get_width() - 8, curr_y + 10))
             curr_y += 38
 
-        # Bulk Liquidate All Button
-        liq_rect = pygame.Rect(left_x, py + ph - 50, left_w, 34)
-        is_liq_hover = liq_rect.collidepoint(pygame.mouse.get_pos())
-        pygame.draw.rect(surface, (160, 110, 20) if is_liq_hover else (110, 75, 15), liq_rect, border_radius=6)
-        pygame.draw.rect(surface, (255, 215, 0), liq_rect, 1, border_radius=6)
-        liq_lbl = self.fonts["small"].render("💰 Liquidate All to Market", True, (255, 255, 255))
+        # Bulk Actions: Quick-Deposit, Liquidate All, and Claim All Dividends
+        dep_rect = pygame.Rect(left_x, py + ph - 50, 78, 34)
+        liq_rect = pygame.Rect(left_x + 84, py + ph - 50, 78, 34)
+        claim_rect = pygame.Rect(left_x + 168, py + ph - 50, 82, 34)
+
+        m_pos = pygame.mouse.get_pos()
+        is_dep_hover = dep_rect.collidepoint(m_pos)
+        is_liq_hover = liq_rect.collidepoint(m_pos)
+        is_claim_hover = claim_rect.collidepoint(m_pos)
+
+        pygame.draw.rect(surface, (30, 90, 60) if is_dep_hover else (20, 65, 40), dep_rect, border_radius=5)
+        pygame.draw.rect(surface, (100, 240, 140), dep_rect, 1, border_radius=5)
+        dep_lbl = self.fonts["tiny"].render("📥 Deposit", True, (255, 255, 255))
+        surface.blit(dep_lbl, (dep_rect.centerx - dep_lbl.get_width() // 2, dep_rect.centery - dep_lbl.get_height() // 2))
+
+        pygame.draw.rect(surface, (160, 110, 20) if is_liq_hover else (110, 75, 15), liq_rect, border_radius=5)
+        pygame.draw.rect(surface, (255, 215, 0), liq_rect, 1, border_radius=5)
+        liq_lbl = self.fonts["tiny"].render("💰 Sell All", True, (255, 255, 255))
         surface.blit(liq_lbl, (liq_rect.centerx - liq_lbl.get_width() // 2, liq_rect.centery - liq_lbl.get_height() // 2))
+
+        pygame.draw.rect(surface, (80, 40, 120) if is_claim_hover else (55, 25, 85), claim_rect, border_radius=5)
+        pygame.draw.rect(surface, (200, 140, 255), claim_rect, 1, border_radius=5)
+        claim_lbl = self.fonts["tiny"].render("💎 Claim All", True, (255, 255, 255))
+        surface.blit(claim_lbl, (claim_rect.centerx - claim_lbl.get_width() // 2, claim_rect.centery - claim_lbl.get_height() // 2))
 
         # --- RIGHT COLUMN: RESOURCE DEEDS ---
         right_x = px + 290
