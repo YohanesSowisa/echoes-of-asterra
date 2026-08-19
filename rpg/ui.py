@@ -91,6 +91,37 @@ class UIManager:
         # Tutorial multi-page selection index
         self.tutorial_page_idx = 0
 
+    def navigate_tutorial_grid(self, direction: str, cols: int = 6, rows: int = 2) -> int:
+        """
+        Navigates 2D tutorial tab grid with true row-wrapping and column-wrapping.
+        - 'left' / 'a': wraps within the current row
+        - 'right' / 'd': wraps within the current row
+        - 'up' / 'w': wraps vertically between rows in the same column
+        - 'down' / 's': wraps vertically between rows in the same column
+        - 'tab' / 'next': 1D linear advance across all tabs
+        - 'prev': 1D linear regress across all tabs
+        """
+        dir_clean = direction.lower()
+        if dir_clean in ["tab", "next"]:
+            self.tutorial_page_idx = (self.tutorial_page_idx + 1) % (cols * rows)
+            return self.tutorial_page_idx
+        elif dir_clean in ["prev"]:
+            self.tutorial_page_idx = (self.tutorial_page_idx - 1) % (cols * rows)
+            return self.tutorial_page_idx
+
+        row, col = divmod(self.tutorial_page_idx, cols)
+        if dir_clean in ["left", "a"]:
+            col = (col - 1) % cols
+        elif dir_clean in ["right", "d"]:
+            col = (col + 1) % cols
+        elif dir_clean in ["up", "w"]:
+            row = (row - 1) % rows
+        elif dir_clean in ["down", "s"]:
+            row = (row + 1) % rows
+
+        self.tutorial_page_idx = row * cols + col
+        return self.tutorial_page_idx
+
 
         # Progression / Exploration log selection index
         self.progression_select_idx = 0

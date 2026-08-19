@@ -189,14 +189,14 @@ echoes-of-asterra/
 
 ## 🧪 4. Status Pengujian & Kompilasi
 
-Seluruh 360 unit test di 49 test modules telah diuji secara otomatis dan lulus 100%:
+Seluruh **365 unit test** di **57 test modules** telah diuji secara otomatis dan lulus 100%:
 
 ```bash
 python3 -m py_compile main.py rpg/*.py rpg/services/*.py tests/*.py
 # Output: ALL modules compiled 100% clean!
 
 python3 -m unittest discover -s tests
-# Output: Ran 360 tests - OK
+# Output: Ran 365 tests in 0.910s - OK
 ```
 
 ---
@@ -209,6 +209,118 @@ Bagi AI Agent / Developer yang menerima sesi chat baru:
 2. **Aturan Penting Pengembangan**:
    - Selalu biarkan pengguna (*User*) melakukan `git commit` sendiri.
    - Jangan menambahkan dependency berat eksternal (sistem dirancang 100% offline & deterministik).
-   - Pastikan Save Schema (`SAVE_SCHEMA_VERSION = 6`) dan migrasi backward compatibility selalu terjaga.
+   - Pastikan Save Schema (`SAVE_SCHEMA_VERSION = 7`) dan migrasi backward compatibility selalu terjaga di `rpg/save.py`.
    - Selalu uji dengan `python3 -m py_compile main.py rpg/*.py rpg/services/*.py` dan `python3 -m unittest discover -s tests` setelah mengedit kode.
    - Catat setiap penambahan fitur / bug fix baru ke dalam berkas `update_logs.md` dengan format timestamp `[yyyy-mm-dd hh:mm:ss WIB]`.
+
+---
+
+## 🗺️ 6. Module Dependency Map & Architecture Matrix
+
+Berikut adalah peta ketergantungan lengkap seluruh modul `rpg/*.py` (30+ modul terintegrasi). Gunakan matriks ini untuk menganalisis dampak perubahan (*blast radius*) sebelum memodifikasi file.
+
+### A. Pengelompokan Modul Berdasarkan Subsistem
+
+| Kategori | Modul | Tanggung Jawab Utama |
+|---|---|---|
+| **Core Engine** | `game.py`, `settings.py`, `constants.py`, `events.py`, `scheduler.py`, `save.py`, `services/*` | State machine, event pub/sub, time loop, serialisasi data |
+| **Player & Combat** | `player.py`, `combat.py`, `weapon_types.py`, `skills.py`, `equipment.py`, `inventory.py`, `items.py`, `crafting.py` | Kontrol hero, kombo senjata, sistem poise, spell trees, inventory |
+| **Enemies & AI** | `enemy.py`, `boss.py`, `ai.py`, `director.py` | Arketipe musuh, AI state machines, encounter pacing |
+| **World & Environment** | `world.py`, `map_loader.py`, `dungeon_gen.py`, `weather.py`, `lighting.py`, `hazards.py`, `camera.py`, `collision.py`, `particles.py`, `sound.py` | Rendering peta, BSP dungeon, cuaca dinamis, siklus siang-malam |
+| **Living Simulation** | `living_world.py`, `world_state.py`, `factions.py`, `faction_war.py`, `settlement.py`, `economy.py`, `ecology.py`, `rumors.py`, `consequences.py`, `emergent_quests.py`, `rival.py` | Simulasi otonom dunia, perang wilayah, faksi, rumor, ekologi |
+| **Memory & Social** | `npc.py`, `npc_memory.py`, `npc_schedule.py`, `memory.py`, `social.py`, `bard.py`, `mythos.py`, `mythos_reader.py` | Memori sosial, relasi NPC, balada Bard Finn, pewarisan pahlawan |
+| **UI & Feedback** | `ui.py`, `notification.py`, `style_scoring.py`, `balance.py`, `telemetry.py` | HUD gauges, tab tutorial 2D grid, toast queue, style scoring |
+
+---
+
+### B. Matriks Ketergantungan 8 Expansion Pillars
+
+Daftar modul 8 Pillar, apa yang diimpor olehnya (*Dependencies*), dan siapa yang mengimpornya (*Reverse Dependencies*):
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                               8 MASTER EXPANSION PILLARS                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 🌊 Pillar 1: Sunken Mire & Ancient Leylines (`sunken_mire.py`, `leylines.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `items.py`, `events.py`, `settings.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `world.py`: Men-spawn `LeylineSprite` dan `MireHerbSprite` di map.
+  - `player.py`: Menghitung penalti kecepatan air rawa (`get_speed_multiplier()`) dan durasi elixir (`waterstrider_timer`).
+  - `ui.py`: Menampilkan HUD status badge pasang-surut (`TIDE`) dan kontaminasi spora (`ROT`).
+  - `save.py`: Serialisasi status pasang-surut dan nodus leylines aktif (Schema v7).
+  - `game.py`: Memanggil `mire_manager.update()` dan `leyline_manager.update()`.
+
+#### 🕵️ Pillar 2: Doomsday Conspiracy & Infiltration (`conspiracy.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `items.py`, `events.py`, `rumors.py`, `npc_memory.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `game.py`: Mengelola siklus countdown 30 hari konspirasi.
+  - `ui.py`: Merender badge status darurat `🕵️ COUP: Dxx/30 (xx%)` di HUD.
+  - `world.py`: Men-spawn agen sindikat `CorruptLieutenantBran`.
+  - `faction_war.py`: Memproses sabotase terselubung (`covert_shift_ownership`).
+  - `save.py`: Serialisasi data pengaruh sindikat dan status tersangka.
+
+#### 🏰 Pillar 3: Frontier Outposts & Sovereign Caravans (`outpost.py`, `caravan.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `events.py`, `items.py`, `companion.py`, `settlement.py`, `faction_war.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `game.py`: Menangani timer simulasi ambush karavan dan perpindahan konvoi.
+  - `world.py`: Men-spawn menara outpost (`OutpostTowerSprite`), sentri penjaga, dan gerobak karavan (`CaravanEntity`).
+  - `ui.py`: Menampilkan peringatan darurat sergapan karavan (`⚠️ CARAVAN ATTACKED!`).
+  - `save.py`: Serialisasi data kepemilikan outpost, level benteng, dan ledger pajak.
+- ⚠️ **Klaster Keterikatan Erat (Tightly Coupled Group)**:
+  `outpost.py` $\longleftrightarrow$ `caravan.py` $\longleftrightarrow$ `settlement.py` $\longleftrightarrow$ `companion.py`
+  *(Perubahan pada sistem karavan wajib memeriksa status pos luar dan sekutu yang ditugaskan sebagai kapten).*
+
+#### ❄️ Pillar 4: Cataclysm Epochs (`epochs.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `events.py`, `settings.py`, `weather.py`, `animation.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `world.py`: Menerapkan mutasi tilemap prosedural in-memory (Deluge, Scorched, Glacial, Withered).
+  - `player.py`: Menangani kontak hazard magma cair (-4 HP/s) dan inersia luncur es licin (`ice`).
+  - `ui.py`: Merender badge indikator era aktif di layar.
+  - `mythos.py`: Mewariskan era awal generasi berikutnya berdasarkan kekalahan hero terdahulu.
+  - `save.py`: Serialisasi era siklus kataklisme aktif.
+
+#### 💰 Pillar 5: Continental Monopoly & Trade Guilds (`monopoly.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `items.py`, `events.py`, `economy.py`, `faction_war.py`, `rumors.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `game.py`: Menghitung bunga harian brankas emas (+2% per hari).
+  - `ui.py`: Menampilkan modal antarmuka gudang komoditas dan pembelian akta konsesi.
+  - `economy.py`: Menerapkan lonjakan harga 2.5x saat terjadi penimbunan pasokan (*hoarding*).
+  - `save.py`: Serialisasi akta konsesi, stok gudang komoditas, dan status embargo faksi.
+
+#### 🔮 Pillar 6: Ancestral Soul Pacts (`pacts.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `items.py`, `events.py`, `combat.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `player.py`: Menghitung jangkauan serangan (`get_attack_range_multiplier()`) dan spell aktif (`cast_pact_ability()`).
+  - `equipment.py`: Menerapkan bonus defense Titan (+6..+12) dan penalti kecepatan gerak (0.90x).
+  - `world.py`: Men-spawn altar perjanjian (`PactAltarSprite`) di dungeon, cave, ruins, dan sanctuary village.
+  - `animation.py`: Merender mutasi fisik prosedural (tentakel void, pauldrons granit, sayap emas solar).
+  - `ui.py`: Menampilkan status pakta dan progress mastery tier di lembar karakter (`'V'`).
+  - `save.py`: Serialisasi pakta aktif dan tier ascension.
+
+#### 🏛️ Pillar 7: Living Dungeon Architect (`dungeon_architect.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `items.py`, `events.py`, `enemy.py`, `combat.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `game.py`: Menjalankan invasi periodik raider 3 hari sekali dan engine jebakan real-time.
+  - `ui.py`: Menampilkan menu konstruksi jebakan, ledger infamy, dan ekskavasi lantai subterranean.
+  - `enemy.py`: Menyediakan data monster liar yang dapat dijinakkan (`can_capture_enemy()`).
+  - `save.py`: Serialisasi kepemilikan dungeon core, layout jebakan, dan monster peliharaan.
+
+#### ⏳ Pillar 8: Chrono-Echoes & Spacetime Fractures (`chrono.py`)
+- **Impor Langsung (Dependencies)**: `constants.py`, `items.py`, `events.py`, `weather.py`, `npc_memory.py`, `mythos.py`
+- **Diimpor Oleh (Reverse Dependencies)**:
+  - `game.py`: Memproses pemutaran waktu atomik 3 hari (`execute_temporal_rewind()`).
+  - `weather.py`: Memicu cuaca anomali celah temporal (`WEATHER_TEMPORAL_RIFT`).
+  - `npc_memory.py`: Mengaktifkan cabang dialog déjà-vu pada tokoh desa.
+  - `enemy.py`: Men-spawn bos cermin `ChronoDoppelganger` dan bos pamungkas `AeonSentinel`.
+  - `save.py`: Serialisasi snapshot riwayat waktu dan celah fraktur aktif.
+
+---
+
+### C. Panduan Keamanan Modifikasi (Blast Radius Rules)
+
+1. **Mengubah `constants.py` / `settings.py`**: Berdampak pada SELURUH game. Pastikan tidak menghapus ID yang dipakai serialisasi `save.py`.
+2. **Mengubah `player.py`**: Pastikan recalculation stats di `equipment.py` tetap sinkron (termasuk modifier Soul Pacts dan Alchemical Elixirs).
+3. **Mengubah `world.py`**: Pastikan koordinat spawn entitas baru tidak bertabrakan dengan entitas existing di map yang sama (lihat koordinat aman di catatan audit).
+4. **Menambahkan Sistem Baru**: Selalu manfaatkan `EventBus` (`events.py`) untuk decoupled pub/sub daripada menambahkan hard circular references.

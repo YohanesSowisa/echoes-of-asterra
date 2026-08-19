@@ -797,18 +797,20 @@ class Game:
                         self.return_from_settings()
 
                 elif self.game_state == STATE_TUTORIAL:
-                    total_tabs = 12
                     if event.key in [pygame.K_a, pygame.K_LEFT]:
-                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx - 1) % total_tabs
+                        self.ui_manager.navigate_tutorial_grid("left")
                         self.sound_manager.play_sound("click")
-                    elif event.key in [pygame.K_d, pygame.K_RIGHT, pygame.K_TAB]:
-                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx + 1) % total_tabs
+                    elif event.key in [pygame.K_d, pygame.K_RIGHT]:
+                        self.ui_manager.navigate_tutorial_grid("right")
                         self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_w, pygame.K_UP]:
-                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx - 6) % total_tabs
+                        self.ui_manager.navigate_tutorial_grid("up")
                         self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_s, pygame.K_DOWN]:
-                        self.ui_manager.tutorial_page_idx = (self.ui_manager.tutorial_page_idx + 6) % total_tabs
+                        self.ui_manager.navigate_tutorial_grid("down")
+                        self.sound_manager.play_sound("click")
+                    elif event.key == pygame.K_TAB:
+                        self.ui_manager.navigate_tutorial_grid("tab")
                         self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE]:
                         self.sound_manager.play_sound("click")

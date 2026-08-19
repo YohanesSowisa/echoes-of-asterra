@@ -104,7 +104,7 @@ class TestChronoPhase2(unittest.TestCase):
         # Advance to Day 4 with custom weapon and armor
         self.game.day = 4
         self.player.level = 5
-        self.player.max_hp = 120.0
+        self.player.max_hp = 100.0
         self.player.base_atk = 32.0
         self.player.rect.x, self.player.rect.y = 200, 300
 
