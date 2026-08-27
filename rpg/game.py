@@ -8,7 +8,7 @@ import sys
 from typing import List, Tuple, Any
 from rpg.constants import (
     STATE_MENU, STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY, STATE_DIALOGUE, STATE_SHOP, STATE_SETTINGS,
-    STATE_TUTORIAL, MAP_VILLAGE, COLOR_BLACK,
+    STATE_TUTORIAL, MAP_VILLAGE, MAP_FOREST, MAP_LAKE, MAP_DUNGEON, COLOR_BLACK,
     SKILL_FIREBALL, SKILL_ICE_SPIKE, SKILL_HEALING, SKILL_DASH
 )
 from rpg.settings import (
@@ -283,8 +283,27 @@ class Game:
         if getattr(self, "_from_pause_menu", False):
             self.game_state = STATE_PAUSED
             self._from_pause_menu = False
+            self.resume_map_music()
         else:
             self.game_state = STATE_MENU
+
+    def resume_map_music(self) -> None:
+        """Resumes the appropriate background music for the current map location."""
+        if not hasattr(self, "world_manager") or not self.world_manager:
+            return
+        map_name = getattr(self.world_manager, "current_map_name", None)
+        if not map_name:
+            return
+        if map_name == MAP_VILLAGE:
+            self.sound_manager.play_music("village_music", force=True)
+        elif map_name == MAP_FOREST:
+            self.sound_manager.play_music("forest_music", force=True)
+        elif map_name == MAP_LAKE:
+            self.sound_manager.play_music("lake_music", force=True)
+        elif map_name == MAP_DUNGEON and not getattr(self.world_manager, "boss_defeated", False):
+            self.sound_manager.play_music("boss_music", force=True)
+        else:
+            self.sound_manager.play_music("dungeon_music", force=True)
 
     def is_save_allowed(self) -> Tuple[bool, str]:
         """
@@ -849,7 +868,12 @@ class Game:
                         self.sound_manager.play_sound("click")
                     elif event.key in [pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE]:
                         self.sound_manager.play_sound("click")
-                        self.game_state = STATE_MENU
+                        if getattr(self, "_from_pause_menu", False):
+                            self.game_state = STATE_PAUSED
+                            self._from_pause_menu = False
+                            self.resume_map_music()
+                        else:
+                            self.game_state = STATE_MENU
 
                 elif self.game_state == STATE_PAUSED:
                     # Rename Profile input typing mode
@@ -899,8 +923,11 @@ class Game:
                         self.ui_manager.execute_pause_choice(self.ui_manager.pause_select_idx, self)
                     elif event.key == pygame.K_ESCAPE:
                         if self.ui_manager.pause_menu_state in ["save_slots", "load_slots"]:
-                            self.ui_manager.pause_menu_state = "main"
-                            self.ui_manager.pause_select_idx = 0
+                            if getattr(self, "_from_main_menu", False):
+                                self.game_state = STATE_MENU
+                            else:
+                                self.ui_manager.pause_menu_state = "main"
+                                self.ui_manager.pause_select_idx = 0
                             self.sound_manager.play_sound("click")
                         elif self.ui_manager.pause_menu_state == "slot_actions":
                             self.ui_manager.pause_menu_state = "save_slots" if self.ui_manager.pause_action_source == "save" else "load_slots"
@@ -911,6 +938,7 @@ class Game:
                                 self.game_state = STATE_MENU
                             else:
                                 self.game_state = STATE_PLAYING
+                                self.resume_map_music()
                             self.sound_manager.play_sound("click")
 
                 elif self.game_state == STATE_DIALOGUE:
@@ -1054,8 +1082,8 @@ class Game:
         # Process inputs
         self.process_events()
 
-        # Play main menu music when in menu state
-        if self.game_state in [STATE_MENU, STATE_TUTORIAL]:
+        # Play main menu music when in main menu or tutorial opened from title menu
+        if self.game_state == STATE_MENU or (self.game_state == STATE_TUTORIAL and not getattr(self, "_from_pause_menu", False)):
             self.sound_manager.play_music("menu_music")
 
         # Skip updates if in menu, paused, or victory splash

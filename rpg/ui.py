@@ -13,7 +13,7 @@ from rpg.constants import (
     COLOR_UI_BG, COLOR_UI_BORDER, COLOR_UI_TEXT, COLOR_UI_HIGHLIGHT,
     COLOR_BAR_HP, COLOR_BAR_MANA, COLOR_BAR_STAMINA, COLOR_BAR_EXP,
     STATE_MENU, STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER, STATE_VICTORY, STATE_DIALOGUE, STATE_SHOP, STATE_SETTINGS,
-    STATE_TUTORIAL,
+    STATE_TUTORIAL, GAME_VERSION,
     RARITY_COLORS, SKILL_FIREBALL, SKILL_ICE_SPIKE, SKILL_HEALING, SKILL_DASH
 )
 from rpg.settings import SCREEN_WIDTH, SCREEN_HEIGHT
@@ -78,7 +78,7 @@ class UIManager:
         self.menu_options = ["New Adventure", "Load Adventure", "Tutorial", "Settings", "Quit Game"]
 
         self.pause_select_idx = 0
-        self.pause_options = ["Resume", "Save Game", "Load Game", "Settings", "Main Menu"]
+        self.pause_options = ["Resume", "Save Game", "Load Game", "Tutorial", "Settings", "Main Menu"]
         self.pause_menu_state = "main"
         self.pause_action_source = "save"
         self.selected_slot_idx = 0
@@ -96,6 +96,44 @@ class UIManager:
 
         # Modular HUD mode ('full', 'minimal', 'hidden')
         self.hud_mode = "full"
+
+        # Progression / Exploration log selection index
+        self.progression_select_idx = 0
+
+        # Tooltip item hovering cache
+        self.hovered_item: Optional[Any] = None
+        self.hovered_rect: Optional[pygame.Rect] = None
+
+        # Drag slot positions cache
+        self.slot_rects: Dict[str, List[Any]] = {
+            "inventory": [],
+            "equipment": [],
+            "shop": [],
+            "quest_panel": []
+        }
+
+        # Banner notification system
+        self.banner_title: str = ""
+        self.banner_subtitle: str = ""
+        self.banner_color: Tuple[int, int, int] = (240, 140, 30)
+        self.banner_timer: float = 0.0
+        self.banner_duration: float = 4.0
+
+        # Centralized Managers
+        from rpg.celebration import CelebrationManager
+        from rpg.notification import NotificationManager
+        self.celebration = CelebrationManager()
+        self.notifications = NotificationManager()
+        self.notification_manager = self.notifications
+
+        # Progressive Information Disclosure Timers
+        self.playtime_seconds: float = 0.0
+        self.onboarding_stage: int = 0 # 0: Talk only, 1: Combat prompts, 2: Inventory tutorial, 3: Toasts active, 4: Forecasts active
+
+        # Double click tracker & WASD inventory selection cursor
+        self.last_click_time = 0
+        self.last_click_slot = -1
+        self.selected_inventory_slot: int = 0
 
     def navigate_tutorial_grid(self, direction: str, cols: int = 6, rows: int = 2) -> int:
         """
@@ -136,46 +174,6 @@ class UIManager:
         return self.hud_mode
 
 
-        # Progression / Exploration log selection index
-        self.progression_select_idx = 0
-
-        # Tooltip item hovering cache
-        self.hovered_item: Optional[Any] = None
-        self.hovered_rect: Optional[pygame.Rect] = None
-
-        # Drag slot positions cache
-        self.slot_rects: Dict[str, List[Any]] = {
-            "inventory": [],
-            "equipment": [],
-            "shop": [],
-            "quest_panel": []
-        }
-
-        # Banner notification system
-        self.banner_title: str = ""
-        self.banner_subtitle: str = ""
-        self.banner_color: Tuple[int, int, int] = (240, 140, 30)
-        self.banner_timer: float = 0.0
-        self.banner_duration: float = 4.0
-
-        # Centralized Managers
-        from rpg.celebration import CelebrationManager
-        from rpg.notification import NotificationManager
-        self.celebration = CelebrationManager()
-        self.notifications = NotificationManager()
-        self.notification_manager = self.notifications
-
-
-        # Progressive Information Disclosure Timers
-        self.playtime_seconds: float = 0.0
-        self.onboarding_stage: int = 0 # 0: Talk only, 1: Combat prompts, 2: Inventory tutorial, 3: Toasts active, 4: Forecasts active
-
-        # Double click tracker & WASD inventory selection cursor
-        self.last_click_time = 0
-        self.last_click_slot = -1
-        self.selected_inventory_slot: int = 0
-
-
     def get_item_sell_price(self, item: Any) -> int:
         """Returns the sell gold value for an item, with fallback calculation for any item in the game."""
         if not item:
@@ -213,6 +211,15 @@ class UIManager:
             2: SaveSystem.get_slot_meta(2),
             3: SaveSystem.get_slot_meta(3)
         }
+
+    @property
+    def pause_slot_actions(self) -> List[str]:
+        """Returns the list of active slot actions available based on slot state and action source."""
+        meta = self.slots_meta.get(self.selected_slot_idx + 1, {"exists": False})
+        if self.pause_action_source == "save":
+            return ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
+        else:
+            return ["Load Profile", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
 
     def _load_fallback_fonts(self) -> None:
         """Loads Arial system fonts as a fallback."""
@@ -1267,6 +1274,10 @@ class UIManager:
             lbl = self.fonts["medium"].render(opt, True, text_c)
             surface.blit(lbl, (x + 140 - lbl.get_width() // 2, y + 22 - lbl.get_height() // 2))
 
+        # Version watermark in bottom right corner
+        ver_lbl = self.fonts["small"].render(GAME_VERSION, True, (120, 130, 150))
+        surface.blit(ver_lbl, (SCREEN_WIDTH - ver_lbl.get_width() - 16, SCREEN_HEIGHT - ver_lbl.get_height() - 12))
+
     # --- SETTINGS MENU SCREEN ---
 
     def draw_settings_menu(self, surface: pygame.Surface, game: Any) -> None:
@@ -1363,6 +1374,14 @@ class UIManager:
         # Header title
         hdr = self.fonts["large"].render("Echoes of Asterra - Game Guide & Systems", True, COLOR_UI_HIGHLIGHT)
         surface.blit(hdr, (tx + tw // 2 - hdr.get_width() // 2, ty + 16))
+
+        # Close button in top-right
+        close_rect = pygame.Rect(tx + tw - 36, ty + 12, 24, 24)
+        is_close_hover = close_rect.collidepoint(pygame.mouse.get_pos())
+        pygame.draw.rect(surface, (180, 50, 50) if is_close_hover else (80, 30, 30), close_rect, border_radius=4)
+        pygame.draw.rect(surface, (255, 100, 100) if is_close_hover else (140, 60, 60), close_rect, 1, border_radius=4)
+        x_txt = self.fonts["small"].render("X", True, COLOR_WHITE)
+        surface.blit(x_txt, (close_rect.centerx - x_txt.get_width() // 2, close_rect.centery - x_txt.get_height() // 2))
 
         # --- Tab Navigation Bar ---
         tabs = [
@@ -1819,26 +1838,29 @@ class UIManager:
         # 1. Main Pause Menu State
         if state == "main":
             px = SCREEN_WIDTH // 2 - 160
-            py = SCREEN_HEIGHT // 2 - 200
-            pw, ph = 320, 390
+            py = SCREEN_HEIGHT // 2 - 215
+            pw, ph = 320, 430
 
             box = pygame.Rect(px, py, pw, ph)
             pygame.draw.rect(surface, COLOR_UI_BG, box, border_radius=8)
             pygame.draw.rect(surface, COLOR_UI_BORDER, box, 2, border_radius=8)
 
             p_txt = self.fonts["large"].render("GAME PAUSED", True, COLOR_UI_HIGHLIGHT)
-            surface.blit(p_txt, (px + 160 - p_txt.get_width() // 2, py + 20))
+            surface.blit(p_txt, (px + 160 - p_txt.get_width() // 2, py + 18))
+
+            # Subtle version badge in top right of pause dialog
+            v_txt = self.fonts["tiny"].render(GAME_VERSION, True, (100, 110, 130))
+            surface.blit(v_txt, (px + pw - v_txt.get_width() - 12, py + 12))
 
             can_save = True
             if game and hasattr(game, "is_save_allowed"):
                 can_save, _ = game.is_save_allowed()
 
-
             for idx, opt in enumerate(self.pause_options):
                 bx = px + 30
-                by = py + 68 + idx * 58
+                by = py + 62 + idx * 56
 
-                option_box = pygame.Rect(bx, by, 260, 40)
+                option_box = pygame.Rect(bx, by, 260, 42)
                 is_hover = (idx == self.pause_select_idx)
 
                 is_disabled_save = (opt == "Save Game" and not can_save)
@@ -1856,8 +1878,7 @@ class UIManager:
                 pygame.draw.rect(surface, COLOR_UI_BORDER if not is_disabled_save else (45, 50, 60), option_box, 1, border_radius=4)
 
                 lbl = self.fonts["medium"].render(opt_display, True, text_c)
-                surface.blit(lbl, (bx + 130 - lbl.get_width() // 2, by + 20 - lbl.get_height() // 2))
-
+                surface.blit(lbl, (bx + 130 - lbl.get_width() // 2, by + 21 - lbl.get_height() // 2))
 
         # 2. Save / Load Slots Selector State
         elif state in ["save_slots", "load_slots"]:
@@ -1953,10 +1974,7 @@ class UIManager:
                 surface.blit(lbl1, (sbx + 12, sby + 18))
 
             # Determine dynamic actions
-            if self.pause_action_source == "save":
-                opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
-            else:
-                opts = ["Load Profile", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
+            opts = self.pause_slot_actions
 
 
             # Draw action buttons
@@ -3241,10 +3259,12 @@ class UIManager:
         elif state == STATE_PAUSED:
             p_state = self.pause_menu_state
             if p_state == "main":
+                px = SCREEN_WIDTH // 2 - 160
+                py = SCREEN_HEIGHT // 2 - 215
                 for idx in range(len(self.pause_options)):
-                    bx = SCREEN_WIDTH // 2 - 160
-                    by = SCREEN_HEIGHT // 2 - 200 + 68 + idx * 58
-                    rect = pygame.Rect(bx, by, 260, 40)
+                    bx = px + 30
+                    by = py + 62 + idx * 56
+                    rect = pygame.Rect(bx, by, 260, 42)
                     if rect.collidepoint(mouse_pos):
                         self.execute_pause_choice(idx, game)
                         return
@@ -3267,10 +3287,7 @@ class UIManager:
                 px = SCREEN_WIDTH // 2 - 200
                 py = SCREEN_HEIGHT // 2 - 180
                 meta = self.slots_meta.get(self.selected_slot_idx + 1, {"exists": False})
-                if self.pause_action_source == "save":
-                    opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Export Backup", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
-                else:
-                    opts = ["Load Profile", "Export Backup", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
+                opts = self.pause_slot_actions
 
                 for idx, opt in enumerate(opts):
                     bx = px + 30
@@ -3285,6 +3302,18 @@ class UIManager:
             tw, th = 800, 520
             tx = (SCREEN_WIDTH - tw) // 2
             ty = (SCREEN_HEIGHT - th) // 2
+
+            close_rect = pygame.Rect(tx + tw - 36, ty + 12, 24, 24)
+            if close_rect.collidepoint(mouse_pos):
+                game.sound_manager.play_sound("click")
+                if getattr(game, "_from_pause_menu", False):
+                    game.game_state = STATE_PAUSED
+                    game._from_pause_menu = False
+                    if hasattr(game, "resume_map_music"):
+                        game.resume_map_music()
+                else:
+                    game.game_state = STATE_MENU
+                return
 
             tabs = [
                 "Controls", "Combat", "Travel", "Upgrades",
@@ -3610,6 +3639,8 @@ class UIManager:
             if idx == 0:
                 # Resume
                 game.game_state = STATE_PLAYING
+                if hasattr(game, "resume_map_music"):
+                    game.resume_map_music()
             elif idx == 1:
                 # Save options safety check
                 can_save, reason = game.is_save_allowed()
@@ -3630,11 +3661,15 @@ class UIManager:
                 self.pause_select_idx = 0
                 self.refresh_slots_metadata()
             elif idx == 3:
+                # Tutorial
+                game._from_pause_menu = True
+                game.game_state = STATE_TUTORIAL
+            elif idx == 4:
                 # Settings
                 game._from_pause_menu = True
                 self.settings_select_idx = 0
                 game.game_state = STATE_SETTINGS
-            elif idx == 4:
+            elif idx == 5:
                 # Main Menu
                 game.sound_manager.stop_music()
                 game.game_state = STATE_MENU
@@ -3667,12 +3702,7 @@ class UIManager:
         # 4. Slot Action options
         elif self.pause_menu_state == "slot_actions":
             meta = self.slots_meta.get(self.selected_slot_idx + 1, {"exists": False})
-
-            # Determine options list
-            if self.pause_action_source == "save":
-                opts = ["Create Save" if not meta["exists"] else "Overwrite Save", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Create Save", "Back"]
-            else:
-                opts = ["Load Profile", "Rename Profile", "Delete Save", "Back"] if meta["exists"] else ["Back"]
+            opts = self.pause_slot_actions
 
             # Out of bounds safety check
             if idx >= len(opts):

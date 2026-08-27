@@ -201,17 +201,29 @@ python3 -m unittest discover -s tests
 
 ---
 
-## 📌 5. Panduan Melanjutkan di Sesi Chat Baru
+## 📌 5. Panduan Melanjutkan di Sesi Chat Baru & Protokol Wajib AI
 
 Bagi AI Agent / Developer yang menerima sesi chat baru:
 
-1. **Baca Berkas Ini (`handover.md`)** dan `update_logs.md` untuk melihat histori perubahan terkini.
-2. **Aturan Penting Pengembangan**:
-   - Selalu biarkan pengguna (*User*) melakukan `git commit` sendiri.
-   - Jangan menambahkan dependency berat eksternal (sistem dirancang 100% offline & deterministik).
-   - Pastikan Save Schema (`SAVE_SCHEMA_VERSION = 7`) dan migrasi backward compatibility selalu terjaga di `rpg/save.py`.
-   - Selalu uji dengan `python3 -m py_compile main.py rpg/*.py rpg/services/*.py` dan `python3 -m unittest discover -s tests` setelah mengedit kode.
-   - Catat setiap penambahan fitur / bug fix baru ke dalam berkas `update_logs.md` dengan format timestamp `[yyyy-mm-dd hh:mm:ss WIB]`.
+> ### ⚠️ PROTOKOL WAJIB SETIAP PERUBAHAN CODEBASE (MANDATORY INSTRUCTION)
+> Setiap kali melakukan perubahan, penambahan fitur, atau perbaikan bug pada codebase, Anda **WAJIB** secara otomatis memperbarui 4 komponen berikut tanpa perlu diminta ulang:
+>
+> 1. **Update Versi Game (`rpg/constants.py`)**:
+>    - Perbarui konstanta `GAME_VERSION = "vx.x.x"` mengikuti kaidah *Semantic Versioning*:
+>      * **Patch (`vx.x.Z`)**: Perbaikan bug, optimasi internal, atau penyesuaian minor.
+>      * **Minor (`vx.Y.0`)**: Penambahan fitur baru, subsistem baru, atau paket QoL.
+>      * **Major (`vX.0.0`)**: Perombakan arsitektur besar / milestone rilis baru.
+> 2. **Update Log Histori (`update_logs.md`)**:
+>    - Catat setiap perubahan di baris paling atas bagian `## Timeline Log` dengan format wajib:
+>      `- **yyyy-mm-dd hh:mm:ss WIB** | **[tipe_pekerjaan]**: [penjelasan detail pekerjaan]`
+> 3. **Update Dokumentasi Utama (`README.md`)**:
+>    - Sinkronkan nomor versi game (`vX.X.X`), daftar fitur/subsistem baru, tabel shortcut controls, dan status test suite.
+> 4. **Update Panduan Handover (`handover.md`)**:
+>    - Perbarui status matriks modul, ringkasan fitur, dan catatan teknis terkini agar sesi chat berikutnya memiliki konteks akurat.
+> 5. **Jangan Jalankan `git commit`**:
+>    - **DILARANG KERAS** mengeksekusi perintah `git commit` secara mandiri. Manajemen commit sepenuhnya dikendalikan oleh User.
+> 6. **Jaminan 100% Green Unit Tests**:
+>    - Selalu verifikasi kode dengan menjalankan `python3 -m unittest discover -s tests` (seluruh pengujian wajib berstatus **100% OK / Green**).
 
 ---
 

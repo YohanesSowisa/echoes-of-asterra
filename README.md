@@ -1,9 +1,11 @@
-# Echoes of Asterra — Living World Expansion
+# Echoes of Asterra — Living World Action RPG (`v2.1.2`)
 
+> 🏷️ **Version**: `v2.1.2` (Main Menu Load Screen ESC Handler Fix, 8 Pillars, 15 QoL Systems & 12-Tab Tutorial)  
+> 🧪 **Automated Tests**: **383 / 383 Unit Tests Passing (100% Green)**  
 > 📘 **Dokumen Serah Terima AI / Developer**: Lihat [handover.md](handover.md) untuk panduan arsitektur & kelanjutan proyek di sesi chat baru.  
 > 📜 **Histori Log Pembaruan**: Lihat [update_logs.md](update_logs.md) untuk riwayat lengkap penambahan fitur & perbaikan bug.
 
-**Echoes of Asterra** is a complete, production-quality, top-down Action RPG built from scratch in Python 3.12+ using **Pygame Community Edition (`pygame-ce`)**.
+**Echoes of Asterra** is a complete, production-quality, top-down Action RPG built from scratch in Python 3.10+ using **Pygame Community Edition (`pygame-ce`)**.
 
 The game features an explorable world across multiple procedural maps, real-time combo combat with weapon identities, deeply integrated living world systems (Dynamic World, Player-Driven Faction Warfare, Monster Ecology, Persistent NPC Memory, Multi-Day Consequence Chains, Rumor Mill Gossip, Cross-Run Mythos Inheritance, and Procedural Endless Dungeons), deep RPG mechanics (leveling, inventory, equipment, crafting, and mutually exclusive alliance quests), branching dialogue, ambient systems (day-night cycle, dynamic atmospheric weather with thunderstorm lightning & fog), and a procedural audio synthesizer.
 
@@ -13,28 +15,31 @@ The game features an explorable world across multiple procedural maps, real-time
 
 | Action | Control (Keyboard/Mouse) |
 | :--- | :--- |
-| **Move** | `W`, `A`, `S`, `D` |
+| **Move / Walk** | `W`, `A`, `S`, `D` |
 | **Sprinting** | Hold `Left Shift` |
-| **Dodge Roll / Phase Dash** | `Spacebar` |
+| **Dodge Roll / Phase Dash** | `Spacebar` (Invincibility Frames) |
 | **Melee Attack / Combo** | `J` or Left Click |
-| **Shield Block / Parry** | Hold `K` or Hold Right Click (requires equipped shield) |
-| **Interact** | `F` (Talk to NPCs, Open chests, Harvest items) |
+| **Shield Block / Timed Parry** | Hold `K` or Hold Right Click (requires equipped shield) |
+| **Interact / Harvest / Talk** | `F` (Talk to NPCs, Open chests, Harvest herbs/altars) |
 | **Quick Ability Skills** | `Q` (Fireball), `E` (Ice Spike), `C` (Healing), `X` (Dash) |
 | **Quick Consumable Slots** | `1`, `2`, `3`, `4` (Health Potions, Mana Potions, Food) |
-| **Backpack Inventory** | Toggle `I` |
-| **Quest Journal** | Toggle `N` |
+| **Backpack Inventory** | Toggle `I` (Press `R` inside bag to **Auto-Sort Items**) |
+| **Quest & Alert History Log** | Toggle `N` (Tabs: Active Quests / `[🔔 Alert History]`) |
 | **Character Sheet & Factions** | Toggle `V` (Tabs 1–6: Factions, Social, Town, Achiev, Bestiary, Nemesis) |
 | **Crafting Forge** | Toggle `G` |
+| **Exploration Log & World Map** | Toggle `R` |
 | **Radar Minimap** | Toggle `M` |
+| **Modular HUD Declutter** | Press `H` (Cycles: `full` $\rightarrow$ `minimal` $\rightarrow$ `hidden`) |
+| **Town Return Recall** | Channel `T` (3.0s teleport cast to Asterra Village sanctuary) |
+| **Dialogue Text Fast-Skip** | `Spacebar`, `F`, `Enter` |
 | **Use Consumables / Equip** | Right-click item inside inventory Backpack |
 | **Unequip Gear** | Right-click equipped slot in Character Sheet |
 | **Sell Items at Silas** | Right-click backpack items while Silas shop is open |
-| **Save / Load Game** | Pause the game (`ESC`), select Save/Load buttons |
-| **Pause Game / Exit Shop** | Press `ESC` |
+| **Pause / Settings / Save** | Press `ESC` (Includes Save/Load Slots, Tutorial, Settings) |
 
 ---
 
-## 🌟 Living World Features (14 Integrated Subsystems)
+## 🌟 Living World Features (22 Integrated Subsystems)
 
 1. **Dynamic World (`world_state.py`)**: Persistent day/season simulation engine tracking prosperity (0-100), danger level (0-100), and 8 dynamic world events (Village Festival, Merchant Caravan, Bandit Outbreak, Harvest Season, etc.).
 2. **Faction Warfare & Reputation (`factions.py`, `faction_war.py`)**: 6 factions (Knights, Mages, Hunters, Merchants, Bandits, Void Cult). Territory control points (*Forest Crossroads, Cave Depths, Ruins Plaza, Lake Pier*) shift based on player reputation and combat activity (`zone_kills`).
@@ -87,6 +92,23 @@ The game features an explorable world across multiple procedural maps, real-time
     - **Atmospheric Temporal Rifts & Time Dilation (`WEATHER_TEMPORAL_RIFT`)**: Chromatic inverted violet-cyan sky tint with drifting chrono sparkles and 0.75x time-slow dilation during active fractures.
     - **NPC Déjà-Vu Reactivity (`NPCMemory`, `get_deja_vu_dialogue`)**: Village figures (Eldrin, Silas, Dennis, Faye, Mira) experience psychic resonance of erased timelines, unlocking contextual dialogue branches.
     - **Primordial Climax Boss: Aeon Sentinel (`AeonSentinel`) & Mythos Chronicle**: Face the ancient guardian of the spacetime fabric to stabilize the continuum, earning the prestige title *"Chrono-Weaver Supreme"* and inscribing `TEMPORAL_FABRIC_MENDED` into generational `Mythos` records.
+22. **Quality of Life (QoL) Suite & 12-Topic Interactive Guide (`ui.py`, `dialogue.py`, `inventory.py`, `enemy.py`, `world_state.py`)**:
+    - **Proximity Auto-Loot Vacuum Magnet**: Dropped item suction within 28px without stopping hero movement.
+    - **Notification History Drawer**: 40-entry ring buffer accessible via `[🔔 Alert History]` sub-tab in Quest Journal (`[N]`).
+    - **Configurable Dialogue Speeds & Instant-Skip**: Normal (35 cps), Fast (80 cps), and Instant (9999 cps) in Settings, plus `Spacebar`/`F`/`Enter` typewriter skip.
+    - **Backpack Auto-Sort & Quick-Deposit**: `[R]` inventory sorting by category and rarity, plus one-click `[📥 Deposit Bag]` in Guild Warehouse.
+    - **8-Directional Compass Waypoint Tracker**: Real-time angle needle and metric distance (`🧭 ↗ 240m`) to tracked quest landmarks.
+    - **Side-by-Side Equipment Comparison Tooltip**: Instant stat gains/losses (`+gain / -drop`) compared against currently equipped gear.
+    - **Modular HUD Declutter (`[H]`)**: Key `[H]` toggles between `full`, `minimal` floating bars, and `hidden` cinematic view.
+    - **Town Return Recall Channeling (`[T]`)**: 3.0s channeling with on-screen casting bar back to Asterra Haven sanctuary.
+    - **World Morning Briefing & Session Recap**: Daily summary of world metrics (`☀️ Dawn of Day X`: prosperity, danger, active epoch, dividends).
+    - **Unified Active Buff Ribbon**: Live countdown badge ribbon for alchemical elixirs, covenants, and leyline surges.
+    - **Safe Zone Save Indicator**: Clear location header badge (`🛡️ Safe [ESC]` in town vs `⚔️ Hostile`).
+    - **High-Contrast Shape-Assisted Status Bars**: Integrated shape icons (`❤️ HP`, `🔷 MP`, `⚡ STAM`) with numerical fraction overlays.
+    - **Primordial Altar Consequence Modal**: Transparent confirmation popup showing positive buffs vs negative curses before binding pacts.
+    - **One-Click Claim All Dividends**: Harvest outpost tolls, bank interest, and deposit commodities in one click (`[💎 Claim All]`).
+    - **Off-Screen Boss Danger Chevrons**: Pulsing red edge chevrons (`☠️ BOSS 45m`) pointing toward active off-screen bosses.
+    - **12-Topic Interactive Tutorial Grid**: True 2D row/column navigation (6x2 grid) accessible from Title Screen and in-game Pause Menu with seamless map music preservation.
 
 ---
 
