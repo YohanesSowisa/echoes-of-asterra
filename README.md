@@ -1,7 +1,7 @@
-# Echoes of Asterra — Living World Action RPG (`v2.1.2`)
+# Echoes of Asterra — Living World Action RPG (`v2.1.3`)
 
-> 🏷️ **Version**: `v2.1.2` (Main Menu Load Screen ESC Handler Fix, 8 Pillars, 15 QoL Systems & 12-Tab Tutorial)  
-> 🧪 **Automated Tests**: **383 / 383 Unit Tests Passing (100% Green)**  
+> 🏷️ **Version**: `v2.1.3` (30-Day Living-World Soak Integration Test, Engine Bugfixes, Multi-Pillar Invariants & Profiling)  
+> 🧪 **Automated Tests**: **385 / 385 Tests Passing (100% Green)** (383 Unit Tests + 2 Full Integration Soak Tests)  
 > 📘 **Dokumen Serah Terima AI / Developer**: Lihat [handover.md](handover.md) untuk panduan arsitektur & kelanjutan proyek di sesi chat baru.  
 > 📜 **Histori Log Pembaruan**: Lihat [update_logs.md](update_logs.md) untuk riwayat lengkap penambahan fitur & perbaikan bug.
 

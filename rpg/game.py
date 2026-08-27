@@ -46,6 +46,11 @@ class Game:
         self.is_fullscreen = False
         self.target_fps = TARGET_FPS
 
+        # Ensure entity assets are initialized
+        from rpg.animation import entity_assets, init_assets
+        if not entity_assets:
+            init_assets()
+
         # State machine
         self.game_state = STATE_MENU
 
@@ -1317,6 +1322,33 @@ class Game:
     @enemies.setter
     def enemies(self, val: List[Any]) -> None:
         self._enemies_list = val
+
+    @property
+    def day(self) -> int:
+        """Single source of truth for in-game day."""
+        return getattr(self.world_state, "day", 1)
+
+    @day.setter
+    def day(self, val: int) -> None:
+        if hasattr(self, "world_state") and self.world_state:
+            self.world_state.day = val
+        if hasattr(self, "living_world") and hasattr(self.living_world, "scheduler") and self.living_world.scheduler:
+            self.living_world.scheduler.day = val
+
+    @property
+    def time_of_day(self) -> float:
+        """Returns in-game hour (0.0 to 24.0)."""
+        if hasattr(self, "living_world") and hasattr(self.living_world, "scheduler") and self.living_world.scheduler:
+            return self.living_world.scheduler.time_of_day
+        return getattr(self.world_state, "time_of_day", 8.0)
+
+    @time_of_day.setter
+    def time_of_day(self, val: float) -> None:
+        from rpg.settings import DAY_LENGTH_SECONDS
+        if hasattr(self, "living_world") and hasattr(self.living_world, "scheduler") and self.living_world.scheduler:
+            self.living_world.scheduler.time_accumulator = (val / 24.0) * DAY_LENGTH_SECONDS
+        if hasattr(self, "world_state") and self.world_state:
+            self.world_state.time_accumulator = (val / 24.0) * DAY_LENGTH_SECONDS
 
     def trigger_hit_stop(self, duration: float) -> None:
         """Trigger update freezes (e.g. from hit stops)."""

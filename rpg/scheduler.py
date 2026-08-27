@@ -159,11 +159,11 @@ class WorldScheduler:
             self.season_index = ((self.day - 1) // 30) % len(SEASONS_ORDER)
             self.year = ((self.day - 1) // 120) + 1
             
-            # Dispatch Day Tick
+            # Dispatch Day Tick (subscriber LivingWorldManager triggers world_state.day_tick which emits day_changed)
             self._dispatch_tick(TickType.DAY.value, day=self.day, season=self.season, year=self.year)
             
-            # Legacy event bus emit for backward compatibility
-            if self.event_bus:
+            # Standalone fallback event bus emit only if no TickType.DAY subscribers handled it
+            if self.event_bus and not self._subscribers.get(TickType.DAY.value):
                 self.event_bus.emit("day_changed", day=self.day, season=self.season)
 
             # Week Tick (every 7 days)

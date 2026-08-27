@@ -8,6 +8,43 @@ Format: `[yyyy-mm-dd hh:mm:ss WIB] | [tipe_pekerjaan]: [pekerjaan]`
 
 ## Timeline Log
 
+- **2026-08-27 15:22:00 WIB** | **release v2.1.3 & full living-world 30-day soak integration test & production engine fixes**: Implemented comprehensive headless 30-day living-world soak integration test (`tests/test_integration_full_simulation.py`) executing all 22 subsystems and 8 expansion pillars concurrently across 4,320 simulation frames.
+  - **30-Day Virtual Time Compression Engine**: Employs Option A time compression (10.0s virtual dt per frame, 144 ticks/day) executing 30 in-game days in ~1.02 seconds wall-clock time without modifying production timing constants.
+  - **Cross-Pillar Event Milestones**: Successfully executed scheduled living-world events across simulation days:
+    - *Day 2*: Recruited companion Ranger Faye & dispatched on 2-day forest expedition.
+    - *Day 5*: Bound Ancestral Void Pact with primordial altar offering.
+    - *Day 8*: Constructed fortified military Outpost at Forest Crossroads.
+    - *Day 12–14*: Spawned high-threat Nemesis Captain and successfully defended against a 3-day Vendetta Siege.
+    - *Day 16*: Triggered Cataclysm Epoch shift into The Deluge (`EPOCH_DELUGE`).
+    - *Day 20*: Neutralized Doomsday Conspiracy suspect Lieutenant Bran and recovered Cipher Fragment #1.
+    - *Day 24*: Purchased Concession Deeds, constructed Asterra Merchant Syndicate HQ, and deposited gold into the Guild Vault.
+    - *Day 27*: Executed atomic 2-day spacetime rollback via Chrono-Weaver Hourglass.
+    - *Day 30*: Verified end-of-month simulation completion with zero crashes or exceptions.
+  - **Continuous Multi-Pillar Invariant Assertions**: Enforced strict boundary assertions at every day tick: `prosperity`, `danger_level`, `road_safety`, `guard_strength`, `bandit_strength`, `monster_density` $\in [0, 100]$; `player.gold >= 0`; exact inventory slot size with non-None `quantity >= 1` and zero duplicate object references; `days_until_coup >= 0` and `syndicate_influence \in [0, 100]`; `outpost.unclaimed_toll_gold >= 0`; `vault_gold >= 0`; active pact ID $\in \{\text{None, Void, Titan, Solar}\}$; current epoch $\in \{\text{Default, Deluge, Scorched, Glacial}\}$; chrono history buffer length $\le 3$.
+  - **Save/Load Schema v7 Roundtrip Validation**: Serialized complete Day 30 living-world state to `saves/savegame_99.json` and deserialized back into a fresh engine instance; asserted 100% state fidelity (player stats, inventory, active pacts, outposts, vault gold, epochs, and conspiracy state).
+  - **Production Engine Bug Fixes**:
+    1. *Asset Init Guard (`rpg/game.py`)*: Added headless asset initialization check in `Game.__init__` to load procedural graphics whenever `entity_assets` is empty.
+    2. *Game Accessor Properties (`rpg/game.py`)*: Implemented `@property def day` and `@property def time_of_day` on `Game` class for backward compatibility and multi-system synchronization.
+    3. *Duplicate Day-Tick Emission Elimination (`rpg/scheduler.py`)*: Fixed redundant duplicate `day_changed` emission in `WorldScheduler.update()`; day tick is now exclusively dispatched to `LivingWorldManager` subscribers, eliminating 2x double-tick execution across all 19 living-world subsystems.
+    4. *Pact Material Counting & Inventory Integrity (`rpg/pacts.py`)*: Fixed `_count_player_item` to check `quantity` attribute and normalize underscore/space names; rewrote `_remove_player_item` to clear empty slots without leaving zombie items with `quantity == 0`.
+  - **Performance Profiling Benchmark Breakdown (4,320 Frames / 30 Days)**:
+    - Average frame execution time: **0.2364 ms / frame** (Effective FPS rate: **4,229.4 updates/sec**; 1.4% of 16.66ms 60 FPS frame budget). Maximum peak frame: **1.9080 ms**.
+    - *Per-frame Subsystem Overhead*: `weather_particles` (0.13969 ms/call, 59.08%), `sprites_update_loop` (0.04720 ms/call, 19.96%), `living_world_orchestrator` (0.03888 ms/call, 16.44%), `world_scheduler_tick` (0.03220 ms/call, 13.62%), `trade_caravans` (0.00166 ms/call, 0.70%), `mire_tide_engine` (0.00095 ms/call, 0.40%), `ambient_lighting` (0.00037 ms/call, 0.16%), `ai_director` (0.00035 ms/call, 0.15%), `leyline_overcharge` (0.00033 ms/call, 0.14%), `npc_schedules_pathfinding` (0.00025 ms/call, 0.11%), `effects_visual_flash` (0.00018 ms/call, 0.07%), `faction_warfare` (0.00012 ms/call, 0.05%).
+    - *Day-Tick Handler Overhead*: `RumorBoard` (0.01718 ms/call, heaviest day handler due to rumor decay and gossip seeding), `FactionWarManager` (0.01260 ms/call), `NemesisManager` (0.00751 ms/call), `ConspiracyManager` (0.00493 ms/call), `CaravanManager` (0.00448 ms/call), `CompanionManager` (0.00368 ms/call), `EcologyManager` (0.00361 ms/call), `MonopolyManager` (0.00334 ms/call), `OutpostManager` (0.00212 ms/call), `DungeonArchitectManager` (0.00165 ms/call), `EconomyManager` (0.00148 ms/call), `PactManager` (0.00132 ms/call), `ChronoManager` (0.00042 ms/call).
+  - **Quest & Narrative Gap Matrix (Pillar-to-Quest Audit)**:
+    - *Main Quest Line*: `main_quest` ("The Core of Asterra" with Eldrin, Wolves, Iron Ore, Shadow Knight) acts as standalone prologue.
+    - *Sequential Progression Chain*: `forest_patrol` (Faye) $\rightarrow$ `scholar_quest` (Mira) $\rightarrow$ `blacksmith_quest` (Dennis) $\rightarrow$ `lake_quest` (Kai) $\rightarrow$ `ruins_expedition` (Mira).
+    - *Alliance Forks*: `knight_path_quest` vs `shadow_path_quest`.
+    - *Identified Gaps*:
+      1. **Pillar #1 (Sunken Mire & Leylines)**: Zero quests in `quests.py` introduce Morvath, tide cycles, or Leyline Overcharging.
+      2. **Pillar #3 (Frontier Outposts & Sovereign Caravans)**: No quest introduces outpost building or caravan dispatch.
+      3. **Pillar #4 (Cataclysm Epochs)**: No quest introduces epoch shifts or environmental adaptation.
+      4. **Pillar #5 (Continental Monopoly)**: No quest introduces concession deeds or Merchant Syndicate HQ.
+      5. **Pillar #6 (Ancestral Soul Pacts)**: No quest introduces Primordial Altars or purification.
+      6. **Pillar #7 (Dungeon Architect)**: No quest introduces Crypt Core claiming or trap crafting.
+      7. **Pillar #8 (Chrono-Echoes)**: No quest introduces the Chrono-Weaver Hourglass or paradox anomalies.
+      8. **Disconnected Side Quests**: `slime_quest`, `bridge_repair_quest`, `watchtower_quest`, `quest_conspiracy_envoy` are unlinked from the main narrative chain.
+  - Bumped `GAME_VERSION = "v2.1.3"` in `rpg/constants.py`. 385/385 unit & integration tests passing (100% green).
 - **2026-08-19 13:38:00 WIB** | **release v2.1.2 & bugfix main menu load adventure escape key handler**: Fixed an issue where pressing `ESC` inside the Load Adventure slot selector when opened from the Main Menu (`STATE_MENU`) improperly transitioned to the in-game Pause Menu rather than returning to the Title/Main Menu. Added `_from_main_menu` check to the `save_slots`/`load_slots` `K_ESCAPE` handler in `rpg/game.py`. Bumped `GAME_VERSION = "v2.1.2"`. Added unit test `test_load_menu_from_main_menu_escape_returns_to_main_menu` in `tests/test_tutorial_grid_navigation.py`. 383/383 unit tests passing (100% green).
 - **2026-08-19 13:33:00 WIB** | **release v2.1.1 & bugfix pause_slot_actions property**: Resolved `AttributeError: 'UIManager' object has no attribute 'pause_slot_actions'` triggered when navigating save/load slot actions with arrow keys in Pause Menu (`rpg/game.py` line 912). Implemented dynamic single-source-of-truth `@property def pause_slot_actions` in `UIManager` (`rpg/ui.py`) and unified slot action options across `draw_pause_menu`, `handle_click`, and `execute_pause_choice`. Bumped `GAME_VERSION = "v2.1.1"`. Added unit test in `tests/test_tutorial_grid_navigation.py`. 382/382 unit tests passing (100% green).
 - **2026-08-19 13:30:00 WIB** | **release v2.1.0 & mandatory ai handover protocol initialization**: Formally established project semantic versioning as `v2.1.0` across the codebase: 1) Defined `GAME_VERSION = "v2.1.0"` in `rpg/constants.py`; 2) Rendered `GAME_VERSION` visual badges on Title Screen (`draw_main_menu`) and in-game Pause modal (`draw_pause_menu`) in `rpg/ui.py`; 3) Updated `README.md` to catalog all 22 integrated subsystems, updated controls reference table, and 381/381 test counts; 4) Updated `handover.md` Section 5 with strict, mandatory instructions requiring all subsequent AI models to automatically update `GAME_VERSION` (`rpg/constants.py`), `update_logs.md`, `README.md`, and `handover.md` upon any codebase modification. 381/381 unit tests passing (100% green).

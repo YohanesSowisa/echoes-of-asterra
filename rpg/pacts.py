@@ -628,11 +628,12 @@ class PactManager:
         inv = player.inventory
         slots = getattr(inv, "slots", inv) if not isinstance(inv, list) else inv
         count = 0
+        target_clean = item_name.lower().replace("_", " ")
         for it in slots:
             if it:
                 it_name = getattr(it, "name", it.get("name", "") if isinstance(it, dict) else str(it))
-                if it_name.lower() == item_name.lower():
-                    qty = getattr(it, "qty", it.get("qty", 1) if isinstance(it, dict) else 1)
+                if it_name.lower().replace("_", " ") == target_clean:
+                    qty = getattr(it, "quantity", getattr(it, "qty", it.get("quantity", it.get("qty", 1)) if isinstance(it, dict) else 1))
                     count += qty
         return count
 
@@ -641,21 +642,52 @@ class PactManager:
         if not hasattr(player, "inventory"):
             return
         inv = player.inventory
+        if hasattr(inv, "remove_item") and hasattr(inv, "slots"):
+            target_clean = item_name.lower().replace("_", " ")
+            for slot in list(inv.slots):
+                if slot:
+                    s_name = getattr(slot, "name", "")
+                    if s_name.lower().replace("_", " ") == target_clean:
+                        try:
+                            if inv.remove_item(s_name, qty_to_remove):
+                                return
+                        except TypeError:
+                            try:
+                                inv.remove_item(slot)
+                                return
+                            except Exception:
+                                pass
+
         slots = getattr(inv, "slots", inv) if not isinstance(inv, list) else inv
         remaining = qty_to_remove
-        for it in slots:
+        target_clean = item_name.lower().replace("_", " ")
+        for i in range(len(slots)):
+            it = slots[i]
             if it and remaining > 0:
                 it_name = getattr(it, "name", it.get("name", "") if isinstance(it, dict) else str(it))
-                if it_name.lower() == item_name.lower():
-                    if hasattr(it, "qty"):
+                if it_name.lower().replace("_", " ") == target_clean:
+                    if hasattr(it, "quantity"):
+                        take = min(it.quantity, remaining)
+                        it.quantity -= take
+                        remaining -= take
+                        if it.quantity <= 0:
+                            slots[i] = None
+                    elif hasattr(it, "qty"):
                         take = min(it.qty, remaining)
                         it.qty -= take
                         remaining -= take
-                        if it.qty <= 0 and hasattr(inv, "remove_item"):
-                            inv.remove_item(it)
+                        if it.qty <= 0:
+                            slots[i] = None
                     elif isinstance(it, dict):
-                        take = min(it.get("qty", 1), remaining)
-                        it["qty"] = it.get("qty", 1) - take
+                        take = min(it.get("quantity", it.get("qty", 1)), remaining)
+                        if "quantity" in it:
+                            it["quantity"] -= take
+                            if it["quantity"] <= 0:
+                                slots[i] = None
+                        if "qty" in it:
+                            it["qty"] -= take
+                            if it["qty"] <= 0:
+                                slots[i] = None
                         remaining -= take
 
     def _enforce_equipment_restrictions(self, player: Any, defn: PactDefinition) -> None:
