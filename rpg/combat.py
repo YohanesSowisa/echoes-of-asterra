@@ -233,6 +233,7 @@ class CombatSystem:
                     enemy_key=getattr(attacker, "enemy_key", "bandit"),
                     map_name=current_map
                 )
+                defender.game.event_bus.emit("player_died", player=defender, map_name=current_map)
 
         # Wire style scoring: player hit taken
         if hasattr(defender, 'game') and hasattr(defender.game, 'style_scoring'):

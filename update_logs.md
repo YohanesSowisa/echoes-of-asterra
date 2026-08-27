@@ -8,6 +8,32 @@ Format: `[yyyy-mm-dd hh:mm:ss WIB] | [tipe_pekerjaan]: [pekerjaan]`
 
 ## Timeline Log
 
+- **2026-08-27 16:48:00 WIB** | **patch v2.2.1 & systematic cross-module reference repairs & event system synchronization**: Completed systematic audit and resolution of cross-module interface defects, event signature mismatches, dead event subscriptions, save migration normalization, and test mock synchronizations across all 22 subsystems.
+  - **Kelompok 1 (4 Fatal Blockers Resolved)**:
+    1. *Leyline Fast Travel Crash (`rpg/leylines.py:201`)*: Replaced non-existent `world_manager.change_map(...)` with `world_manager.load_map(target_node.region_map, player=player, portal_spawn=True, portal_coord=(target_x, target_y))`. Synchronized `tests/test_sunken_mire_leylines.py` mock from `change_map` to `load_map`.
+    2. *Morning Briefing Epoch Crash (`rpg/world_state.py:212`)*: Replaced `epoch_manager.get_active_epoch()` with `epoch_manager.get_current_epoch_data()` and safe `.name` string extraction.
+    3. *Quest State Chrono Rewind Rollback (`rpg/quests.py` & `rpg/chrono.py`)*: Implemented `to_dict()` and `from_dict()` on `QuestManager`, enabling temporal rollback to accurately restore quest statuses, objective progress, and tracked quest ID.
+    4. *Discovery State Save/Load Restoration (`rpg/save.py:602`)*: Added deserialization of `save_payload["discovery"]` in `SaveSystem.load_game()`.
+  - **Kelompok 2 (Event Mismatches & Dead Subscriptions Resolved)**:
+    5. *Settlement Specialization Sync (`rpg/world_state.py:124`)*: Subscribed to `"settlement_specialized"` (supporting legacy `"specialization_chosen"`), directly syncing `SettlementManager.set_specialization()` to `WorldState`.
+    6. *Discovery Control Point Alignment (`rpg/discovery.py:34-35`)*: Replaced dead `control_point_captured`/`stabilized` listeners with `"territory_control_changed"` (`control_point`, `map_name`, `old_owner`, `new_owner`), correctly triggering `lead_outposts`.
+    7. *Dead Event Decision Framework*:
+       - `quest_accepted`: Activated in `QuestManager.accept_quest()`, notifying `DiscoveryManager` and future quest listeners upon any quest acceptance.
+       - `EVENT_WORLD_CHANGED`: Removed dead orphan subscription from `rpg/services/navigation.py` (cache invalidation already handled in `set_grid()`).
+       - `player_died`: Emitted from `rpg/combat.py` upon player death, updating `WorldState.recent_deaths` and `_combat_losses`.
+       - `gold_gained`: Implemented `Player.add_gold(amount)` emitting `"gold_gained"`, correctly triggering `AchievementManager` unlocks (`wealthy_merchant`).
+  - **Kelompok 3 (Minor Improvements & Polish)**:
+    8. *Epoch Map Exclusion (`rpg/epochs.py:152`)*: Added `"dungeon"` to interior exclusion list `["crypt", "submerged_temple", "dungeon"]`.
+    9. *Grand Usurper Boss Event (`rpg/enemy.py:1397`)*: Added `boss_defeated` emission with `boss_id="grand_usurper"` in `GrandUsurperBoss.die()`.
+    10. *Save Schema v8 Migration (`rpg/save.py`)*: Upgraded `SAVE_SCHEMA_VERSION = 8` and added migration defaults for 7 newer subsystems (`conspiracy`, `outposts`, `epochs`, `monopoly`, `dungeon_architect`, `chrono`, `discovery`).
+    11. *Outpost Daily Revenue Tracking (`rpg/outpost.py:135, 370`)*: Added `last_daily_revenue` tracking, serialization, and morning briefing integration.
+  - **Known Technical Debt Recorded**:
+    - *Item 12 (150+ Map String Literals)*: Documented in `handover.md` for a dedicated future refactoring session to migrate hardcoded map name literals to `MAP_*` constants.
+  - **Testing & Verification**:
+    - Added 14 new regression tests across `test_audit_group1_fixes.py`, `test_audit_group2_fixes.py`, and `test_audit_group3_fixes.py`.
+    - Full test suite: **416 / 416 tests passing (100% Green)**.
+
+
 - **2026-08-27 15:45:00 WIB** | **feature v2.2.0 & Dynamic Lead System (8 Pillars + 4 Side Quests Connected) & Bugfix Crypt Boss ID**: Implemented the Dynamic Lead & Discoverability System (`rpg/discovery.py`) bridging all 8 Master Expansion Pillars and 4 isolated side quests through contextual NotificationManager toasts, distinct true vs distorted RumorBoard gossip, and diegetic NPC dialogue nodes.
   - **Pre-existing Bug Fix (Pillar #7 Dungeon Architect & Boss Defeat Event)**:
     - *Investigation*: Discovered that `rpg/dungeon_architect.py` listened for `boss_defeated` with `boss_id in ["crypt_guardian", "bone_monarch"]`. However, the crypt boss in `MAP_DUNGEON` (`boss.py` / `world.py`) emits `boss_id="shadow_overlord"`. Consequently, defeating the crypt boss never triggered `dungeon_core_unlockable`, leaving the Dungeon Core Stone unreachable in normal gameplay.

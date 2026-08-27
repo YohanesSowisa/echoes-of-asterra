@@ -1,7 +1,7 @@
-# Echoes of Asterra — Living World Action RPG (`v2.2.0`)
+# Echoes of Asterra — Living World Action RPG (`v2.2.1`)
 
-> 🏷️ **Version**: `v2.2.0` (Dynamic Lead System, 8 Pillars & 4 Side Quests Connected, Crypt Boss ID Fix & 402 Tests Passing)  
-> 🧪 **Automated Tests**: **402 / 402 Tests Passing (100% Green)** (385 Unit/Soak Tests + 17 Dynamic Lead Tests)  
+> 🏷️ **Version**: `v2.2.1` (Cross-Module Reference Repairs, Event System Synchronization & 416 Tests Passing)  
+> 🧪 **Automated Tests**: **416 / 416 Tests Passing (100% Green)** (385 Unit/Soak Tests + 17 Dynamic Lead Tests + 14 Cross-Module Audit Tests)  
 > 📘 **Dokumen Serah Terima AI / Developer**: Lihat [handover.md](handover.md) untuk panduan arsitektur & kelanjutan proyek di sesi chat baru.  
 > 📜 **Histori Log Pembaruan**: Lihat [update_logs.md](update_logs.md) untuk riwayat lengkap penambahan fitur & perbaikan bug.
 

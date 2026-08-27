@@ -121,6 +121,7 @@ class WorldState:
         event_bus.subscribe("enemy_killed", self._on_enemy_killed)
         event_bus.subscribe("quest_completed", self._on_quest_completed)
         event_bus.subscribe("player_died", self._on_player_died)
+        event_bus.subscribe("settlement_specialized", self._on_specialization_chosen)
         event_bus.subscribe("specialization_chosen", self._on_specialization_chosen)
 
     def _on_specialization_chosen(self, specialization: str = "", **kwargs: Any) -> None:
@@ -209,9 +210,10 @@ class WorldState:
 
         if game_context:
             if hasattr(game_context, "epoch_manager") and game_context.epoch_manager:
-                active_ep = game_context.epoch_manager.get_active_epoch()
-                if active_ep:
-                    briefing["epoch_title"] = active_ep.name
+                if hasattr(game_context.epoch_manager, "get_current_epoch_data"):
+                    active_ep = game_context.epoch_manager.get_current_epoch_data()
+                    if active_ep and hasattr(active_ep, "name"):
+                        briefing["epoch_title"] = active_ep.name
             if hasattr(game_context, "mire_manager") and game_context.mire_manager:
                 briefing["tide_phase"] = game_context.mire_manager.tide_phase.title()
             if hasattr(game_context, "outpost_manager") and game_context.outpost_manager:

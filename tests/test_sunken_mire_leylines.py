@@ -45,10 +45,13 @@ class MockWorldManager:
         self.current_map_name = MAP_SUNKEN_MIRE
         self.spawn_pos = None
 
-    def change_map(self, target_map: str, spawn_pos: Any = None):
-        self.current_map = target_map
-        self.current_map_name = target_map
-        self.spawn_pos = spawn_pos
+    def load_map(self, map_name: str, player: Any = None, portal_spawn: bool = True, portal_coord: Any = None):
+        self.current_map = map_name
+        self.current_map_name = map_name
+        self.spawn_pos = portal_coord
+        if player and portal_coord:
+            player.pos.x = portal_coord[0]
+            player.pos.y = portal_coord[1]
 
 
 class MockGame:
@@ -219,7 +222,6 @@ class TestSunkenMireAndLeylines(unittest.TestCase):
         }
         migrated = migrate_save(legacy_v6_payload)
         self.assertEqual(migrated["save_schema_version"], SAVE_SCHEMA_VERSION)
-        self.assertEqual(migrated["save_schema_version"], 7)
         self.assertIn("sunken_mire", migrated)
         self.assertIn("leylines", migrated)
         self.assertEqual(migrated["sunken_mire"]["tide_phase"], "low")

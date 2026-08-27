@@ -149,7 +149,7 @@ class EpochManager:
         if self.current_epoch == EPOCH_DEFAULT:
             return map_data
 
-        if map_name in ["crypt", "submerged_temple"]:
+        if map_name in ["crypt", "submerged_temple", "dungeon"]:
             return map_data  # Keep interior dungeons unmutated
 
         # Create a deep copy of map data to preserve procedural integrity

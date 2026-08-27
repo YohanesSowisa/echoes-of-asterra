@@ -287,6 +287,7 @@ class QuestManager:
                 return
             quest.status = QUEST_ACTIVE
             if hasattr(self, "event_bus") and self.event_bus:
+                self.event_bus.emit("quest_accepted", quest_id=quest_id)
                 self.event_bus.emit("first_quest_accepted", quest_id=quest_id)
                 if quest_id in ["knight_path_quest", "shadow_path_quest"]:
                     alliance = "knights" if quest_id == "knight_path_quest" else "cult"
@@ -346,7 +347,10 @@ class QuestManager:
                     
                     # Grant Exp, Gold
                     player.gain_xp(quest.rewards.get("exp", 0))
-                    player.gold += quest.rewards.get("gold", 0)
+                    if hasattr(player, "add_gold"):
+                        player.add_gold(quest.rewards.get("gold", 0))
+                    else:
+                        player.gold += quest.rewards.get("gold", 0)
                     
                     # Grant Items
                     for item_name, qty in quest.rewards.get("items", []):
@@ -397,3 +401,38 @@ class QuestManager:
             main_q = next((q for q in active if q.id == "main_quest"), None)
             return main_q if main_q else active[0]
         return None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes current quest states, objective progress, and tracked quest ID."""
+        quest_data = {}
+        for q_id, quest in self.quests.items():
+            quest_data[q_id] = {
+                "status": quest.status,
+                "progress": [obj.current_count for obj in quest.objectives]
+            }
+        return {
+            "quests": quest_data,
+            "tracked_quest_id": self.tracked_quest_id
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Restores quest states, objective progress, and tracked quest ID."""
+        if not isinstance(data, dict):
+            return
+        
+        # Support both {"quests": {...}, "tracked_quest_id": ...} and direct dictionary {q_id: {...}}
+        quest_data = data.get("quests", data)
+        if isinstance(quest_data, dict):
+            for q_id, q_info in quest_data.items():
+                if isinstance(q_info, dict):
+                    quest = self.quests.get(q_id)
+                    if quest:
+                        quest.status = q_info.get("status", quest.status)
+                        progress = q_info.get("progress", [])
+                        for idx, count in enumerate(progress):
+                            if idx < len(quest.objectives):
+                                quest.objectives[idx].set_progress(count)
+
+        if "tracked_quest_id" in data:
+            self.tracked_quest_id = data.get("tracked_quest_id")
+

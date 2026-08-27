@@ -1396,6 +1396,13 @@ class GrandUsurperBoss(Enemy):
 
     def die(self) -> None:
         if self.game:
+            if hasattr(self.game, "event_bus") and self.game.event_bus:
+                self.game.event_bus.emit(
+                    "boss_defeated",
+                    boss_id="grand_usurper",
+                    boss_name=self.name,
+                    location="dungeon"
+                )
             from rpg.combat import DamageNumber
             DamageNumber(self.rect.center, "👑 THE USURPER HAS FALLEN!", (255, 215, 0), [self.game.ui_sprites], size=22)
             if hasattr(self.game, "particles"):

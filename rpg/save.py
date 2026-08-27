@@ -14,7 +14,7 @@ logger = logging.getLogger("SaveSystem")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAVES_DIR = os.path.join(BASE_DIR, "saves")
 
-SAVE_SCHEMA_VERSION = 7
+SAVE_SCHEMA_VERSION = 8
 
 
 def get_save_path(slot: int) -> str:
@@ -209,6 +209,18 @@ def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
         # Schema v7: Sunken Mire & Ancient Leylines persistence normalization
         data.setdefault("sunken_mire", {"tide_phase": "low", "water_level": 0.0, "unlocked_sunken_chests": []})
         data.setdefault("leylines", {"nodes": {}})
+
+    if version < 8:
+        # Schema v8: Master Pillars & Subsystems persistence normalization
+        data.setdefault("conspiracy", {})
+        data.setdefault("outposts", {})
+        data.setdefault("epochs", {})
+        data.setdefault("monopoly", {})
+        data.setdefault("dungeon_architect", {})
+        data.setdefault("chrono", {})
+        data.setdefault("discovery", {})
+        if "living_world" in data and isinstance(data["living_world"], dict):
+            data["living_world"].setdefault("outposts", {})
 
     # Upgrade schema version
     data["save_schema_version"] = SAVE_SCHEMA_VERSION
@@ -599,6 +611,8 @@ class SaveSystem:
                     player.game.dungeon_architect.from_dict(save_payload["dungeon_architect"])
                 if "chrono" in save_payload and hasattr(player.game, "chrono_manager"):
                     player.game.chrono_manager.from_dict(save_payload["chrono"])
+                if "discovery" in save_payload and hasattr(player.game, "discovery_manager"):
+                    player.game.discovery_manager.from_dict(save_payload["discovery"])
 
 
             # --- Map Transition ---

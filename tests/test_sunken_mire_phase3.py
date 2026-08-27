@@ -226,21 +226,21 @@ class TestSunkenMirePhase3(unittest.TestCase):
     def test_resonant_equipment_stats_and_equipping(self):
         """Verifies equipping resonant equipment applies stats to player."""
         # 1. Equip Leviathan Scale Mail
-        scale_mail = create_item("Leviathan Scale Mail", 1)
+        scale_mail = create_item("Leviathan Scale Mail", 1, roll_equipment_affixes=False)
         scale_mail.affixes = []
         self.player.equipment.equip(scale_mail, self.player)
         self.assertEqual(self.player.defense, 19)  # 5 base + 14 armor
         self.assertEqual(self.player.max_hp, 135)  # 100 base + 35 armor
 
         # 2. Equip Tidecaller Trident
-        trident = create_item("Tidecaller Trident", 1)
+        trident = create_item("Tidecaller Trident", 1, roll_equipment_affixes=False)
         trident.affixes = []
         self.player.equipment.equip(trident, self.player)
         self.assertEqual(self.player.atk, 30)  # 10 base + 20 weapon
         self.assertEqual(self.player.magic, 20)  # 8 base + 12 weapon
 
         # 3. Equip Conduit Ring of Leylines
-        ring = create_item("Conduit Ring of Leylines", 1)
+        ring = create_item("Conduit Ring of Leylines", 1, roll_equipment_affixes=False)
         ring.affixes = []
         self.player.equipment.equip(ring, self.player)
         self.assertEqual(self.player.max_mana, 80)  # 50 base + 30 ring

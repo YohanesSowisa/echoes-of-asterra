@@ -135,6 +135,7 @@ class OutpostManager:
         self.event_bus = event_bus
         self.outposts: Dict[str, OutpostData] = {}
         self.continental_monopoly_achieved: bool = False
+        self.last_daily_revenue: int = 0
         self.game_reference: Any = None
         self.reset()
 
@@ -145,6 +146,7 @@ class OutpostManager:
         """Resets all outposts to unbuilt initial state."""
         self.outposts.clear()
         self.continental_monopoly_achieved = False
+        self.last_daily_revenue = 0
         for cp_id, config in OUTPOST_TACTICAL_CONFIGS.items():
             self.outposts[cp_id] = OutpostData(
                 outpost_id=f"outpost_{cp_id}",
@@ -368,9 +370,11 @@ class OutpostManager:
         for Level 3 outposts, and preserves regional stability.
         """
         player = getattr(self.game_reference, "player", None) if self.game_reference else None
+        daily_total = 0
 
         for outpost in self.outposts.values():
             if outpost.is_built:
+                daily_total += outpost.daily_toll_income
                 if outpost.has_automated_courier or outpost.level >= 3:
                     # Automated Courier Relay: directly deposit to player's bank
                     if player:
@@ -381,6 +385,8 @@ class OutpostManager:
                         outpost.total_toll_collected += outpost.daily_toll_income
                 else:
                     outpost.unclaimed_toll_gold += outpost.daily_toll_income
+
+        self.last_daily_revenue = daily_total
 
         # Enforce stability lock on faction war control points
         if self.game_reference:
@@ -398,7 +404,8 @@ class OutpostManager:
         """Serializes outpost states for savegame."""
         return {
             "outposts": {k: v.to_dict() for k, v in self.outposts.items()},
-            "continental_monopoly_achieved": self.continental_monopoly_achieved
+            "continental_monopoly_achieved": self.continental_monopoly_achieved,
+            "last_daily_revenue": self.last_daily_revenue
         }
 
     def from_dict(self, data: Dict[str, Any]) -> None:
@@ -413,6 +420,7 @@ class OutpostManager:
                 else:
                     self.outposts[k] = OutpostData.from_dict(v)
         self.continental_monopoly_achieved = bool(data.get("continental_monopoly_achieved", False))
+        self.last_daily_revenue = int(data.get("last_daily_revenue", 0))
 
 
 class OutpostTowerSprite(BaseSprite):

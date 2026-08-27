@@ -197,6 +197,12 @@ class Player(BaseSprite):
         for skill_name in newly_unlocked:
             DamageNumber((self.rect.centerx, self.rect.centery - 24), f"Unlocked {skill_name}!", (250, 150, 10), [self.game.ui_sprites], size=16)
 
+    def add_gold(self, amount: int) -> None:
+        """Adds gold to player and emits gold_gained event."""
+        self.gold = max(0, self.gold + amount)
+        if hasattr(self, "game") and hasattr(self.game, "event_bus") and self.game.event_bus:
+            self.game.event_bus.emit("gold_gained", amount=amount, total_gold=self.gold, player=self, game=self.game)
+
 
     def start_recall(self) -> Tuple[bool, str]:
         """Initiates Town Return / Waypoint Recall channeling."""

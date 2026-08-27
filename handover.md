@@ -377,3 +377,22 @@ Daftar modul 8 Pillar, apa yang diimpor olehnya (*Dependencies*), dan siapa yang
 2. **Mengubah `player.py`**: Pastikan recalculation stats di `equipment.py` tetap sinkron (termasuk modifier Soul Pacts dan Alchemical Elixirs).
 3. **Mengubah `world.py`**: Pastikan koordinat spawn entitas baru tidak bertabrakan dengan entitas existing di map yang sama (lihat koordinat aman di catatan audit).
 4. **Menambahkan Sistem Baru**: Selalu manfaatkan `EventBus` (`events.py`) untuk decoupled pub/sub daripada menambahkan hard circular references.
+
+---
+
+## 📌 7. Status Terkini & Known Technical Debt (`v2.2.1`)
+
+- **Versi Saat Ini**: `v2.2.1`
+- **Status Test Suite**: **416 / 416 Tests Passing (100% Green)**
+- **Kompilasi Bytecode**: `py_compile` 100% bersih tanpa syntax / import error.
+- **Rangkuman Perbaikan v2.2.1**:
+  - *Kelompok 1 (Fatal Blockers)*: Leyline `load_map` fast travel, Morning Briefing Epoch Title data accessor, `QuestManager` serialization & Chrono Rewind rollback, and `SaveSystem` Discovery load pipeline.
+  - *Kelompok 2 (Event Synchronizations)*: Settlement specialization dual event compatibility, Discovery `territory_control_changed` subscription, `quest_accepted` emission, dead `EVENT_WORLD_CHANGED` cleanup, `player_died` danger updates, and `Player.add_gold()` achievement unlock trigger.
+  - *Kelompok 3 (Minor Polish & Robustness)*: Epoch interior dungeon exclusion, `GrandUsurperBoss` `boss_defeated` emission, Save Schema v8 migration defaults for 7 subsystems, and `OutpostManager` `last_daily_revenue` ledger tracking.
+
+### ⚠️ Known Technical Debt (Catatan untuk Sesi Refactoring Khusus)
+- **Item 12: Standardisasi String Literal Map ke `MAP_*` Constants**:
+  - Terdapat lebih dari 150 string literal nama map (seperti `"village"`, `"forest"`, `"lake"`, `"cave"`, `"dungeon"`, `"ruins"`, `"sunken_mire"`, `"submerged_temple"`) yang tersebar di 14 modul codebase (`world.py`, `ai.py`, `director.py`, `living_world.py`, `conspiracy.py`, `outpost.py`, dll.) alih-alih menggunakan konstanta terpusat `MAP_*` dari `rpg/constants.py`.
+  - **Blast Radius**: Sangat luas (lintas hampir semua subsistem engine dan serialisasi save).
+  - **Rekomendasi**: Dikerjakan dalam sesi refactoring terisolasi tersendiri dengan verifikasi automated test menyeluruh.
+

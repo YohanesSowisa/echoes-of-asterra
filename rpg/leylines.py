@@ -198,7 +198,7 @@ class LeylineManager:
 
         # Change map and position player near node
         target_x, target_y = target_node.pos[0], target_node.pos[1] + 36
-        world_manager.change_map(target_node.region_map, spawn_pos=(target_x, target_y))
+        world_manager.load_map(target_node.region_map, player=player, portal_spawn=True, portal_coord=(target_x, target_y))
         
         if self.event_bus:
             self.event_bus.emit(

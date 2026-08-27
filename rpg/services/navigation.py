@@ -41,9 +41,6 @@ class NavigationService:
         # Performance tracking
         self.last_compute_time_ms: float = 0.0
 
-        if self.event_bus and hasattr(self.event_bus, "subscribe"):
-            self.event_bus.subscribe("EVENT_WORLD_CHANGED", self.invalidate_cache)
-
     def set_grid(self, grid_matrix: List[List[int]]) -> None:
         """Sets or updates the tile obstacle matrix (0 = walkable, 1 = solid)."""
         self.grid_matrix = grid_matrix

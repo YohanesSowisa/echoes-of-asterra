@@ -31,8 +31,7 @@ class DiscoveryManager:
         event_bus.subscribe("day_changed", self._on_day_changed)
         event_bus.subscribe("epoch_changed", self._on_epoch_changed)
         event_bus.subscribe("boss_defeated", self._on_boss_defeated)
-        event_bus.subscribe("control_point_captured", self._on_control_point_captured)
-        event_bus.subscribe("control_point_stabilized", self._on_control_point_stabilized)
+        event_bus.subscribe("territory_control_changed", self._on_territory_control_changed)
         event_bus.subscribe("quest_accepted", self._on_quest_accepted)
 
     def evaluate_leads(self, game: Optional[Any] = None) -> None:
@@ -106,11 +105,7 @@ class DiscoveryManager:
         if boss_id in ("shadow_overlord", "crypt_guardian", "bone_monarch") and self.game:
             self._trigger_dungeon_architect_lead(self.game)
 
-    def _on_control_point_captured(self, point_id: str = "", **kwargs: Any) -> None:
-        if self.game:
-            self._trigger_outposts_lead(self.game)
-
-    def _on_control_point_stabilized(self, point_id: str = "", **kwargs: Any) -> None:
+    def _on_territory_control_changed(self, control_point: str = "", map_name: str = "", old_owner: str = "", new_owner: str = "", **kwargs: Any) -> None:
         if self.game:
             self._trigger_outposts_lead(self.game)
 
