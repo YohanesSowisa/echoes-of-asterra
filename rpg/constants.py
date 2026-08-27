@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 
 # Screen & Rendering
 GAME_TITLE = "Echoes of Asterra"
-GAME_VERSION = "v2.1.3"
+GAME_VERSION = "v2.2.0"
 
 # Color Palette (RGB)
 COLOR_TRANSPARENT = (0, 0, 0, 0)

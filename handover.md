@@ -187,56 +187,58 @@ echoes-of-asterra/
 
 ---
 
-## 🧪 4. Status Pengujian, Soak Test & Profiling Performa (v2.1.3)
+## 🧪 4. Status Pengujian, Soak Test & Profiling Performa (v2.2.0)
 
-Seluruh **385 test** (383 unit tests + 2 integration soak tests) di repositori telah diuji secara otomatis dan lulus 100%:
+Seluruh **402 test** (383 unit tests + 2 integration soak tests + 17 dynamic leads tests) di repositori telah diuji secara otomatis dan lulus 100%:
 
 ```bash
 ~/miniconda3/bin/python3 -m py_compile main.py rpg/*.py rpg/services/*.py tests/*.py
 # Output: ALL modules compiled 100% clean!
 
 ~/miniconda3/bin/python3 -m unittest discover -s tests
-# Output: Ran 385 tests in 2.021s - OK (100% Green)
+# Output: Ran 402 tests in 2.175s - OK (100% Green)
 ```
 
 ### 🔬 Hasil Headless Living-World 30-Day Soak Test (`tests/test_integration_full_simulation.py`):
-- **Durasi Simulasi**: 30 hari in-game penuh (4.320 iterasi clock step 10,0 detik virtual dt) selesai dalam **1,021 detik** wall-clock.
+- **Durasi Simulasi**: 30 hari in-game penuh (4.320 iterasi clock step 10,0 detik virtual dt) selesai dalam **1,172 detik** wall-clock.
 - **Trigger Cross-Pillar Terverifikasi**: Rekrut & ekspedisi companion (Hari 2), Void Soul Pact (Hari 5), Outpost militer (Hari 8), Nemesis Vendetta Siege & pertahanan (Hari 12–14), Kataklisme The Deluge Epoch (Hari 16), Netralisasi konspirasi Bran (Hari 20), Akta konsesi, Syndicate HQ & Gold Vault (Hari 24), Rollback ruang-waktu atomik Chrono-Weaver (Hari 27), End-of-month check (Hari 30).
 - **Invarian Multi-Pillar**: 100% invarian dunia (kemakmuran, bahaya, keamanan jalan, integritas slot inventaris, hari kudeta, pengaruh sindikat, emas brankas, kuota riwayat krono $\le 3$) terjaga tanpa anomali.
-- **Roundtrip Save/Load Schema v7**: Serialisasi dan deserialisasi slot 99 sukses tanpa kehilangan data.
+- **Roundtrip Save/Load Schema v7**: Serialisasi dan deserialisasi slot 99 sukses tanpa kehilangan data (termasuk persistensi flag `DiscoveryManager.triggered_leads`).
 
 ### ⏱️ Profiling Performa Subsystem (4.320 Frame Benchmark):
-- **Rata-rata Frame**: **0.2364 ms / frame** (**4.229 FPS efektif**, hanya ~1,4% dari frame budget 16,66 ms untuk 60 FPS).
-- **Peak Frame Maksimum**: **1.9080 ms**.
+- **Rata-rata Frame**: **0.2714 ms / frame** (**3.684 FPS efektif**, hanya ~1,6% dari frame budget 16,66 ms untuk 60 FPS).
+- **Peak Frame Maksimum**: **1.8726 ms**.
 - **Breakdown Beban Per-Frame**:
-  1. `weather_particles`: 0.1397 ms/frame (59.08% frame overhead) — sistem partikel cuaca.
-  2. `sprites_update_loop`: 0.0472 ms/frame (19.96% frame overhead) — animasi & pergerakan sprite.
-  3. `living_world_orchestrator`: 0.0389 ms/frame (16.44% frame overhead), mencakup `world_scheduler_tick` (0.0322 ms).
-  4. `trade_caravans`: 0.0017 ms/frame (0.70%).
-  5. `mire_tide_engine`: 0.0009 ms/frame (0.40%).
+  1. `weather_particles`: 0.1757 ms/frame (64.74% frame overhead) — sistem partikel cuaca.
+  2. `sprites_update_loop`: 0.0467 ms/frame (17.20% frame overhead) — animasi & pergerakan sprite.
+  3. `living_world_orchestrator`: 0.0385 ms/frame (14.17% frame overhead), mencakup `world_scheduler_tick` (0.0319 ms).
+  4. `trade_caravans`: 0.0016 ms/frame (0.59%).
+  5. `mire_tide_engine`: 0.0010 ms/frame (0.36%).
 - **Breakdown Beban Day-Tick Handler (Tiap 144 Frame)**:
-  1. `RumorBoard`: 0.01718 ms/call (handler harian terberat karena kalkulasi decay & seeding gosip dinamis).
-  2. `FactionWarManager`: 0.01260 ms/call.
-  3. `NemesisManager`: 0.00751 ms/call.
-  4. `ConspiracyManager`: 0.00493 ms/call.
-  5. `CaravanManager`: 0.00448 ms/call.
-  6. `CompanionManager`: 0.00368 ms/call.
-  7. `EcologyManager`: 0.00361 ms/call.
-  8. `MonopolyManager`: 0.00334 ms/call.
+  1. `RumorBoard`: 0.01847 ms/call.
+  2. `FactionWarManager`: 0.01111 ms/call.
+  3. `NemesisManager`: 0.00512 ms/call.
+  4. `DiscoveryManager`: 0.00458 ms/call (evaluasi berkala satu kali per hari tanpa overhead komputasi).
+  5. `ConspiracyManager`: 0.00401 ms/call.
+  6. `CaravanManager`: 0.00380 ms/call.
+  7. `EcologyManager`: 0.00339 ms/call.
+  8. `MonopolyManager`: 0.00302 ms/call.
 
-### 📜 Matriks Kesenjangan Narasi & Quest (Narrative Gap Mapping):
-- **Alur Quest Utama**: `main_quest` ("The Core of Asterra") berfungsi mandiri sebagai prolog (Eldrin $\rightarrow$ Serigala $\rightarrow$ Dennis $\rightarrow$ Shadow Knight).
-- **Rantai Quest Sekuensial**: `forest_patrol` (Faye) $\rightarrow$ `scholar_quest` (Mira) $\rightarrow$ `blacksmith_quest` (Dennis) $\rightarrow$ `lake_quest` (Kai) $\rightarrow$ `ruins_expedition` (Mira).
-- **Percabangan Aliansi**: `knight_path_quest` vs `shadow_path_quest`.
-- **Kesenjangan (Pillar yang Belum Terkoneksi ke Alur Dialog/Quest)**:
-  1. *Pillar 1 (Sunken Mire & Leylines)*: Belum ada quest yang memandu pemain melawan Morvath atau mengajarkan Overcharging Leylines.
-  2. *Pillar 3 (Outposts & Caravans)*: Belum ada quest pembangunan pos luar militer awal atau pengawalan karavan perdana.
-  3. *Pillar 4 (Cataclysm Epochs)*: Belum ada quest respons terhadap bencana kataklisme dunia (Deluge/Scorched/Glacial).
-  4. *Pillar 5 (Continental Monopoly)*: Belum ada quest pengenalan hak konsesi tambang atau pendirian Syndicate HQ.
-  5. *Pillar 6 (Ancestral Soul Pacts)*: Belum ada quest yang memandu hero ke Altar Primordial atau Ritual Pemurnian.
-  6. *Pillar 7 (Dungeon Architect)*: Belum ada quest pengklaiman Crypt Dungeon Core atau pembuatan jebakan.
-  7. *Pillar 8 (Chrono-Echoes)*: Belum ada quest penjelasan artifak Chrono-Weaver Hourglass atau anomali ruang-waktu.
-  8. *Side Quest Terisolasi*: `slime_quest`, `bridge_repair_quest`, `watchtower_quest`, `quest_conspiracy_envoy` belum memiliki lead-in dari dialog tokoh utama.
+### 📜 Matriks Konektivitas Narasi & Dynamic Lead System (v2.2.0 - RESOLVED):
+Seluruh 8 Master Expansion Pillars dan 4 isolated side quests kini telah terhubung ke dalam alur alami game via `rpg/discovery.py` (`DiscoveryManager`), `RumorBoard`, `NotificationManager`, dan dialog diegetik NPC utama:
+1. **Pillar 1: Sunken Mire & Ancient Leylines** $\rightarrow$ Kunjungan ke Lake/Mire memicu Toast Penemuan, Rumor `rumor_lead_sunken_mire` (Faye), dan opsi dialog `🌊 [RUMOR]` pada Ranger Faye.
+2. **Pillar 2: Doomsday Conspiracy** $\rightarrow$ Hari $\ge 2$ / penerimaan main quest memicu Toast Investigasi, Rumor `rumor_lead_conspiracy` (Eldrin), dan dialog `🕵️ [INQUIRY]` pada Elder Eldrin.
+3. **Pillar 3: Frontier Outposts & Sovereign Caravans** $\rightarrow$ Emas $\ge 100$ / perebutan titik kontrol memicu Toast Fortifikasi, Rumor `rumor_lead_outposts` (Kai), dan dialog `🏰 [FORTIFY]` pada Guard Kai.
+4. **Pillar 4: Cataclysm Epochs** $\rightarrow$ Pergeseran era dunia / Hari $\ge 15$ memicu Toast Era Bencana, Rumor `rumor_lead_epochs` (Eldrin), dan dialog lore `🌌 [LORE]` pada Elder Eldrin.
+5. **Pillar 5: Continental Monopoly** $\rightarrow$ Emas $\ge 100$ memicu Toast Perniagaan, Rumor `rumor_lead_monopoly` (Silas), dan dialog akta konsesi `📜 [CONCESSIONS]` pada Merchant Silas.
+6. **Pillar 6: Ancestral Soul Pacts** $\rightarrow$ Level $\ge 3$ / masuk Cave/Dungeon/Ruins memicu Toast Altar Primordial, Rumor `rumor_lead_soul_pacts` (Mira), dan dialog pakta `🔮 [PACTS]` pada Scholar Mira.
+7. **Pillar 7: Living Dungeon Architect** $\rightarrow$ Mengalahkan Crypt Boss (`boss_id="shadow_overlord"`) memicu Toast Penguasa Crypt, Rumor `rumor_lead_dungeon_architect` (Dennis), dan dialog klaim `🏛️ [DUNGEON CORE]` pada Blacksmith Dennis.
+8. **Pillar 8: Chrono-Echoes & Spacetime** $\rightarrow$ Memperoleh Chrono-Weaver Hourglass / Hari $\ge 5$ memicu Toast Anomali Waktu, Rumor `rumor_lead_chrono` (Mira), dan dialog artifak `⏳ [CHRONO]` pada Scholar Mira.
+9. **4 Isolated Side Quests**:
+   - `slime_quest`: Pilihan dialog referensi `🟢 [TASK: SLIMES]` pada Ranger Faye.
+   - `bridge_repair_quest`: Pilihan dialog referensi `🌉 [TASK: BRIDGE]` pada Elder Eldrin.
+   - `watchtower_quest`: Pilihan dialog referensi `🏹 [TASK: WATCHTOWER]` pada Blacksmith Dennis.
+   - `quest_conspiracy_envoy`: Pilihan dialog pengantar darurat `🧙‍♂️ [TASK: ENVOY]` pada Elder Eldrin.
 
 ---
 

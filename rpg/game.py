@@ -138,6 +138,8 @@ class Game:
         self.dungeon_architect = DungeonArchitectManager(self.event_bus)
         from rpg.chrono import ChronoManager
         self.chrono_manager = ChronoManager(self.event_bus)
+        from rpg.discovery import DiscoveryManager
+        self.discovery_manager = DiscoveryManager(self.event_bus, game_reference=self)
         self.outpost_sprites = pygame.sprite.Group()
         self.leyline_sprites = pygame.sprite.Group()
         self.mire_herb_sprites = pygame.sprite.Group()
@@ -1219,6 +1221,8 @@ class Game:
                 # Load Map
                 self.world_manager.load_map(target, self.player, portal_spawn=True, portal_coord=spawn_coords)
                 self.services.reset_services()
+                if hasattr(self, "discovery_manager") and self.discovery_manager:
+                    self.discovery_manager.evaluate_leads(self)
                 break
 
 

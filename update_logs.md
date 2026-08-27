@@ -8,6 +8,33 @@ Format: `[yyyy-mm-dd hh:mm:ss WIB] | [tipe_pekerjaan]: [pekerjaan]`
 
 ## Timeline Log
 
+- **2026-08-27 15:45:00 WIB** | **feature v2.2.0 & Dynamic Lead System (8 Pillars + 4 Side Quests Connected) & Bugfix Crypt Boss ID**: Implemented the Dynamic Lead & Discoverability System (`rpg/discovery.py`) bridging all 8 Master Expansion Pillars and 4 isolated side quests through contextual NotificationManager toasts, distinct true vs distorted RumorBoard gossip, and diegetic NPC dialogue nodes.
+  - **Pre-existing Bug Fix (Pillar #7 Dungeon Architect & Boss Defeat Event)**:
+    - *Investigation*: Discovered that `rpg/dungeon_architect.py` listened for `boss_defeated` with `boss_id in ["crypt_guardian", "bone_monarch"]`. However, the crypt boss in `MAP_DUNGEON` (`boss.py` / `world.py`) emits `boss_id="shadow_overlord"`. Consequently, defeating the crypt boss never triggered `dungeon_core_unlockable`, leaving the Dungeon Core Stone unreachable in normal gameplay.
+    - *Fix*: Updated `dungeon_architect.py` to listen for `"shadow_overlord"`, `"crypt_guardian"`, and `"bone_monarch"`, cleanly enabling Dungeon Core claiming upon defeating the Crypt Boss.
+  - **Dynamic Lead System (`rpg/discovery.py`)**:
+    - Central `DiscoveryManager` coordinates one-time diegetic leads with `triggered_leads: Set[str]` one-time-flag protection and SaveSchema v7 persistence.
+    - Evaluates world state, player level, gold, map entry, and combat events without adding new game mechanics or blocking `main_quest`.
+  - **8 Master Expansion Pillars Connected**:
+    1. *Pillar 1 (Sunken Mire & Leylines)*: Trigger on visiting Lake/Mire $\rightarrow$ Toast `🌊 DISCOVERY: The Sunken Mire...` + Rumor `rumor_lead_sunken_mire` (origin: Faye) + Faye dialogue choice `🌊 [RUMOR] Inquire about the southern marshland`.
+    2. *Pillar 2 (Doomsday Conspiracy)*: Trigger on Day 2+ / quest accept $\rightarrow$ Toast `🕵️ INVESTIGATION: Whispers speak of shadowy infiltrators...` + Rumor `rumor_lead_conspiracy` (origin: Eldrin) + Eldrin dialogue choice `🕵️ [INQUIRY] Ask about dark rumors in the village`.
+    3. *Pillar 3 (Frontier Outposts & Caravans)*: Trigger on Gold $\ge 100$ / CP captured $\rightarrow$ Toast `🏰 FORTIFICATION: Secured territory control points...` + Rumor `rumor_lead_outposts` (origin: Kai) + Kai dialogue choice `🏰 [FORTIFY] Inquire about establishing Outposts`.
+    4. *Pillar 4 (Cataclysm Epochs)*: Trigger on Epoch change / Day 15+ $\rightarrow$ Toast `🌌 CATACLYSM EPOCH: Ancient environmental cycles...` + Rumor `rumor_lead_epochs` (origin: Eldrin) + Eldrin dialogue choice `🌌 [LORE] Inquire about shifting weather and terrain`.
+    5. *Pillar 5 (Continental Monopoly)*: Trigger on Gold $\ge 100$ $\rightarrow$ Toast `💰 COMMERCE: Merchant Silas is offering...` + Rumor `rumor_lead_monopoly` (origin: Silas) + Silas dialogue choice `📜 [CONCESSIONS] Inquire about Crown Resource Deeds & Guild Warehouse`.
+    6. *Pillar 6 (Ancestral Soul Pacts)*: Trigger on Level $\ge 3$ / Cave/Dungeon/Ruins entered $\rightarrow$ Toast `🔮 PRIMORDIAL ALTARS: Ancient sanctuaries...` + Rumor `rumor_lead_soul_pacts` (origin: Mira) + Mira dialogue choice `🔮 [PACTS] Inquire about ancient crypt altars`.
+    7. *Pillar 7 (Living Dungeon Architect)*: Trigger on Crypt Boss defeated $\rightarrow$ Toast `🏛️ CRYPT SOVEREIGN: The Dungeon Core Stone...` + Rumor `rumor_lead_dungeon_architect` (origin: Dennis) + Dennis dialogue choice `🏛️ [DUNGEON CORE] Inquire about defending the Crypt`.
+    8. *Pillar 8 (Chrono-Echoes & Spacetime)*: Trigger on Hourglass in inventory / Day 5+ $\rightarrow$ Toast `⏳ TEMPORAL PHENOMENON: The Chrono-Weaver Hourglass...` + Rumor `rumor_lead_chrono` (origin: Mira) + Mira dialogue choice `⏳ [CHRONO] Inquire about temporal artifacts`.
+  - **4 Isolated Side Quests Connected**:
+    1. `slime_quest`: Injected dialogue choice `🟢 [TASK: SLIMES] Ask about slime bounties` on Ranger Faye.
+    2. `bridge_repair_quest`: Injected dialogue choice `🌉 [TASK: BRIDGE] Inquire about the collapsed northern bridge` on Elder Eldrin.
+    3. `watchtower_quest`: Injected dialogue choice `🏹 [TASK: WATCHTOWER] Inquire about the village watchtower` on Blacksmith Dennis.
+    4. `quest_conspiracy_envoy`: Injected dialogue choice `🧙‍♂️ [TASK: ENVOY] Inquire about Mage Guild Envoy Vaelin` on Elder Eldrin.
+  - **Distinct Dual Rumor Content**:
+    - All 8 pillar rumors feature fully authored, distinct `true_content` (accurate world lore) and `distorted_content` (flavorful exaggerated tavern gossip for RumorBoard distortion engine).
+  - **Testing & Verification**:
+    - Added `tests/test_dynamic_leads.py` with 17 dedicated tests covering all 8 pillar triggers, dual rumor validation, side quest dialogue injection, deduplication, and save/load persistence.
+    - All **402 / 402 tests passing (100% green)** across the repository.
+
 - **2026-08-27 15:22:00 WIB** | **release v2.1.3 & full living-world 30-day soak integration test & production engine fixes**: Implemented comprehensive headless 30-day living-world soak integration test (`tests/test_integration_full_simulation.py`) executing all 22 subsystems and 8 expansion pillars concurrently across 4,320 simulation frames.
   - **30-Day Virtual Time Compression Engine**: Employs Option A time compression (10.0s virtual dt per frame, 144 ticks/day) executing 30 in-game days in ~1.02 seconds wall-clock time without modifying production timing constants.
   - **Cross-Pillar Event Milestones**: Successfully executed scheduled living-world events across simulation days:

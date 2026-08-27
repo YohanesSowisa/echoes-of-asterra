@@ -1,7 +1,7 @@
-# Echoes of Asterra — Living World Action RPG (`v2.1.3`)
+# Echoes of Asterra — Living World Action RPG (`v2.2.0`)
 
-> 🏷️ **Version**: `v2.1.3` (30-Day Living-World Soak Integration Test, Engine Bugfixes, Multi-Pillar Invariants & Profiling)  
-> 🧪 **Automated Tests**: **385 / 385 Tests Passing (100% Green)** (383 Unit Tests + 2 Full Integration Soak Tests)  
+> 🏷️ **Version**: `v2.2.0` (Dynamic Lead System, 8 Pillars & 4 Side Quests Connected, Crypt Boss ID Fix & 402 Tests Passing)  
+> 🧪 **Automated Tests**: **402 / 402 Tests Passing (100% Green)** (385 Unit/Soak Tests + 17 Dynamic Lead Tests)  
 > 📘 **Dokumen Serah Terima AI / Developer**: Lihat [handover.md](handover.md) untuk panduan arsitektur & kelanjutan proyek di sesi chat baru.  
 > 📜 **Histori Log Pembaruan**: Lihat [update_logs.md](update_logs.md) untuk riwayat lengkap penambahan fitur & perbaikan bug.
 
@@ -39,7 +39,7 @@ The game features an explorable world across multiple procedural maps, real-time
 
 ---
 
-## 🌟 Living World Features (22 Integrated Subsystems)
+## 🌟 Living World Features (23 Integrated Subsystems)
 
 1. **Dynamic World (`world_state.py`)**: Persistent day/season simulation engine tracking prosperity (0-100), danger level (0-100), and 8 dynamic world events (Village Festival, Merchant Caravan, Bandit Outbreak, Harvest Season, etc.).
 2. **Faction Warfare & Reputation (`factions.py`, `faction_war.py`)**: 6 factions (Knights, Mages, Hunters, Merchants, Bandits, Void Cult). Territory control points (*Forest Crossroads, Cave Depths, Ruins Plaza, Lake Pier*) shift based on player reputation and combat activity (`zone_kills`).
@@ -75,7 +75,7 @@ The game features an explorable world across multiple procedural maps, real-time
     - **Living Economic Rumors**: Dynamically propagates market gossip (`rumor_iron_hoarding`, `rumor_bandit_herb_embargo`) reflecting citizen and merchant distress.
     - **Interactive Warehouse & Deeds UI Modal**: High-fidelity modal displaying real-time stockpile meters, liquidation actions, and deed acquisition cards.
 20. **The Living Dungeon Sovereign: Crypt Architect (`dungeon_architect.py`)**: Grid-based personal dungeon management and lair defense system. Features:
-    - **Dungeon Core Claiming**: Enables players to claim the primordial *Dungeon Core Stone* in the crypt, unlocking sovereign ownership and the title *"Crypt Sovereign"*.
+    - **Dungeon Core Claiming**: Enables players to claim the primordial *Dungeon Core Stone* in the crypt upon defeating the crypt boss, unlocking sovereign ownership and the title *"Crypt Sovereign"*.
     - **Architect Grid Trap Placement**: Construct lethal defense traps on dungeon grid tiles using gold and materials: *Spike Trap* (25g + 2 Granite Stone: 35 physical damage), *Iron Portcullis* (40g + 4 Iron Ore: 15 damage & movement obstruction), and *Bait Mimic Chest* (50g + 1 Luminescent Spore: 60 damage chomping strike).
     - **Beast Capture & Domestication**: Craft `Beast Capture Net` tools at the Blacksmith (2x Beast Leather, 1x Iron Ore, 20g) to ensnare weakened wild monsters (<20% HP). Captured beasts enter the dungeon reserve roster.
     - **Chamber Stationing & Guardian Synergy**: Domesticated beasts can be stationed at designated dungeon chambers, patrolling friendly to the player and boosting overall dungeon defense rating.
@@ -92,7 +92,8 @@ The game features an explorable world across multiple procedural maps, real-time
     - **Atmospheric Temporal Rifts & Time Dilation (`WEATHER_TEMPORAL_RIFT`)**: Chromatic inverted violet-cyan sky tint with drifting chrono sparkles and 0.75x time-slow dilation during active fractures.
     - **NPC Déjà-Vu Reactivity (`NPCMemory`, `get_deja_vu_dialogue`)**: Village figures (Eldrin, Silas, Dennis, Faye, Mira) experience psychic resonance of erased timelines, unlocking contextual dialogue branches.
     - **Primordial Climax Boss: Aeon Sentinel (`AeonSentinel`) & Mythos Chronicle**: Face the ancient guardian of the spacetime fabric to stabilize the continuum, earning the prestige title *"Chrono-Weaver Supreme"* and inscribing `TEMPORAL_FABRIC_MENDED` into generational `Mythos` records.
-22. **Quality of Life (QoL) Suite & 12-Topic Interactive Guide (`ui.py`, `dialogue.py`, `inventory.py`, `enemy.py`, `world_state.py`)**:
+22. **Dynamic Lead & Discoverability System (`rpg/discovery.py`)**: Seamless connective tissue orchestrating diegetic pointers for all 8 Master Expansion Pillars and 4 isolated side quests through contextual NotificationManager toasts, distinct true vs distorted RumorBoard gossip, and non-blocking NPC dialogue nodes across `Elder Eldrin`, `Merchant Silas`, `Blacksmith Dennis`, `Ranger Faye`, `Scholar Mira`, and `Guard Kai`.
+23. **Quality of Life (QoL) Suite & 12-Topic Interactive Guide (`ui.py`, `dialogue.py`, `inventory.py`, `enemy.py`, `world_state.py`)**:
     - **Proximity Auto-Loot Vacuum Magnet**: Dropped item suction within 28px without stopping hero movement.
     - **Notification History Drawer**: 40-entry ring buffer accessible via `[🔔 Alert History]` sub-tab in Quest Journal (`[N]`).
     - **Configurable Dialogue Speeds & Instant-Skip**: Normal (35 cps), Fast (80 cps), and Instant (9999 cps) in Settings, plus `Spacebar`/`F`/`Enter` typewriter skip.
@@ -111,6 +112,8 @@ The game features an explorable world across multiple procedural maps, real-time
     - **12-Topic Interactive Tutorial Grid**: True 2D row/column navigation (6x2 grid) accessible from Title Screen and in-game Pause Menu with seamless map music preservation.
 
 ---
+
+## 🚀 Installation & Play
 
 ## 🚀 Installation & Play
 

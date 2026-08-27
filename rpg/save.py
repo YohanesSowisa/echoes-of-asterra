@@ -415,6 +415,8 @@ class SaveSystem:
                     save_payload["dungeon_architect"] = player.game.dungeon_architect.to_dict()
                 if hasattr(player.game, "chrono_manager"):
                     save_payload["chrono"] = player.game.chrono_manager.to_dict()
+                if hasattr(player.game, "discovery_manager"):
+                    save_payload["discovery"] = player.game.discovery_manager.to_dict()
 
 
             with open(filename, 'w') as f:

@@ -63,13 +63,16 @@ class NPC(BaseSprite):
         pass
 
     def on_interact_start(self, npc_short_id: str) -> bool:
-        """Emits npc_talked event, checks friendship level. Returns False if NPC refuses interaction."""
+        """Emits npc_talked event, evaluates discovery leads, and checks friendship level."""
         if not self.game:
             return True
             
         current_day = getattr(self.game.world_state, "day", 1) if hasattr(self.game, "world_state") else 1
         if hasattr(self.game, "event_bus"):
             self.game.event_bus.emit("npc_talked", npc_id=npc_short_id, current_day=current_day)
+
+        if hasattr(self.game, "discovery_manager") and self.game.discovery_manager:
+            self.game.discovery_manager.evaluate_leads(self.game)
             
         if hasattr(self.game, "npc_memory"):
             mem = self.game.npc_memory.get_memory(npc_short_id)
@@ -86,6 +89,11 @@ class NPC(BaseSprite):
                 self.game.game_state = STATE_DIALOGUE
                 return False
         return True
+
+    def inject_discovery_leads(self, node: DialogueNode, npc_short_id: str) -> None:
+        """Injects contextual non-blocking discovery leads into dialogue node."""
+        if hasattr(self.game, "discovery_manager") and self.game.discovery_manager:
+            self.game.discovery_manager.inject_npc_dialogue_leads(self, node, npc_short_id)
 
     def inject_rumor_choice(self, node: DialogueNode, npc_short_id: str) -> None:
         """Injects 'Heard any rumors?' choice into a dialogue node."""

@@ -84,9 +84,19 @@ class DialogueManager:
 
             # Guarantee rumor choice and neutral "Leave / Back" choice for dialogue with options
             if node.choices:
-                # 1. Inject "Heard any rumors?" option if not present and game rumors system active
+                # 1. Inject contextual discovery leads if discovery manager active
+                if hasattr(self, "game") and self.game and hasattr(self.game, "discovery_manager") and self.game.discovery_manager:
+                    if not node.id.endswith("_rumor_response") and "_lead_" not in node.id and not node.id.endswith("_acc"):
+                        npc_key = node.speaker_name.split()[-1].lower()
+                        self.game.discovery_manager.inject_npc_dialogue_leads(
+                            type("NPCStub", (), {"name": node.speaker_name})(),
+                            node,
+                            npc_key
+                        )
+
+                # 2. Inject "Heard any rumors?" option if not present and game rumors system active
                 if hasattr(self, "game") and self.game and hasattr(self.game, "living_world") and hasattr(self.game.living_world, "rumors"):
-                    if not node.id.endswith("_rumor_response") and not any("rumor" in c.text.lower() for c in node.choices):
+                    if not node.id.endswith("_rumor_response") and "_lead_" not in node.id and not any("rumor" in c.text.lower() for c in node.choices):
                         npc_key = node.speaker_name.split()[-1].lower()
                         speaker_title = node.speaker_name
                         

@@ -187,7 +187,7 @@ class DungeonArchitectManager:
             self.event_bus.subscribe("day_changed", self._on_day_changed)
 
     def _on_boss_defeated(self, boss_id: str = "", **kwargs: Any) -> None:
-        if boss_id in ["crypt_guardian", "bone_monarch"]:
+        if boss_id in ["shadow_overlord", "crypt_guardian", "bone_monarch"]:
             if not self.core_claimed:
                 if self.event_bus:
                     self.event_bus.emit("dungeon_core_unlockable", floor=1)
