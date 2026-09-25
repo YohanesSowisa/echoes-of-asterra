@@ -5,4 +5,3 @@ PyTweening>=1.0.4
 pygame_gui>=0.6.9
 pydantic>=2.0.0
 pytmx>=3.32.0
-

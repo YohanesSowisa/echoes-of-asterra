@@ -78,8 +78,8 @@ class SocialMemory:
             details=data.get("details", {})
         )
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MEMORIES_SAVE_PATH = os.path.join(BASE_DIR, "saves", "memories.json")
+from rpg.paths import get_save_file_path
+MEMORIES_SAVE_PATH = get_save_file_path("memories.json")
 
 
 class MemoryManager:

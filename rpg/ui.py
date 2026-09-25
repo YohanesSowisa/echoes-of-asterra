@@ -3730,6 +3730,7 @@ class UIManager:
                 # Load the game
                 if SaveSystem.load_game(game.player, game.quest_manager, game.world_manager, slot=self.selected_slot_idx + 1):
                     game.game_state = STATE_PLAYING
+                    game._from_main_menu = False  # Reset flag so ESC key doesn't exit to title screen!
                 self.pause_menu_state = "main"
                 self.pause_select_idx = 2
             elif action == "Rename Profile":

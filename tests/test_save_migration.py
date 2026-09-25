@@ -12,6 +12,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,11 +29,11 @@ from rpg.game import Game
 class TestSaveMigration(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.original_saves_dir = sys.modules["rpg.save"].SAVES_DIR
-        sys.modules["rpg.save"].SAVES_DIR = self.test_dir
+        self.patcher = patch("rpg.save.get_save_file_path", side_effect=lambda x: os.path.join(self.test_dir, x))
+        self.patcher.start()
 
     def tearDown(self):
-        sys.modules["rpg.save"].SAVES_DIR = self.original_saves_dir
+        self.patcher.stop()
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_migrate_legacy_v1_save_missing_version(self):

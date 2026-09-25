@@ -10,8 +10,8 @@ from typing import Dict, Any, Optional
 
 from rpg.events import EventBus
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ACHIEVEMENTS_SAVE_PATH = os.path.join(BASE_DIR, "saves", "achievements.json")
+from rpg.paths import get_save_file_path
+ACHIEVEMENTS_SAVE_PATH = get_save_file_path("achievements.json")
 
 
 @dataclass

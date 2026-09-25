@@ -73,10 +73,12 @@ def initialize_font_asset() -> Optional[str]:
                 
     # Fallback to download a pixel font if online
     try:
-        import urllib.request
+        # Hide from Pygbag AST parser
+        u_name = "urllib." + "request"
+        urllib_request = __import__(u_name, fromlist=['urlopen'])
         url = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/pressstart2p/PressStart2P-Regular.ttf"
         print("Font: Downloading retro font from Google Fonts CDN...")
-        with urllib.request.urlopen(url, timeout=4.0) as response:
+        with urllib_request.urlopen(url, timeout=4.0) as response:
             with open(font_path, 'wb') as f:
                 f.write(response.read())
         print(f"Font: Downloaded and saved to {font_path}")
@@ -86,9 +88,10 @@ def initialize_font_asset() -> Optional[str]:
         
     return None
 
+import asyncio
 from typing import Optional
 
-def init_assets() -> None:
+async def init_assets() -> None:
     """Initializes, loads, or pre-renders all graphical assets, saving them to disk if missing."""
     os.makedirs(os.path.join(ASSETS_DIR, "tiles"), exist_ok=True)
     os.makedirs(os.path.join(ASSETS_DIR, "ui"), exist_ok=True)
@@ -107,13 +110,15 @@ def init_assets() -> None:
     all_tiles_exist = all(os.path.exists(os.path.join(ASSETS_DIR, "tiles", f"{k}.png")) for k in tile_keys)
     
     if all_tiles_exist:
-        for k in tile_keys:
+        for i, k in enumerate(tile_keys):
             path = os.path.join(ASSETS_DIR, "tiles", f"{k}.png")
             has_a = k in [
                 "water", "tree", "wood_bridge", "raft", "burnt_tree", "snow_tree",
                 "ice", "magma", "magma_tile", "chest_closed", "chest_open"
             ]
             tile_assets[k] = pygame.image.load(path).convert_alpha() if has_a else pygame.image.load(path).convert()
+            if i % 5 == 0:
+                await asyncio.sleep(0)
     else:
         _generate_tiles()
         for k in tile_keys:
@@ -136,9 +141,11 @@ def init_assets() -> None:
     all_items_exist = all(os.path.exists(os.path.join(ASSETS_DIR, "ui", f"item_{k}.png")) for k in item_keys)
     
     if all_items_exist:
-        for k in item_keys:
+        for i, k in enumerate(item_keys):
             path = os.path.join(ASSETS_DIR, "ui", f"item_{k}.png")
             item_assets[k] = pygame.image.load(path).convert_alpha()
+            if i % 5 == 0:
+                await asyncio.sleep(0)
     else:
         _generate_items()
         for k in item_keys:
@@ -181,7 +188,7 @@ def init_assets() -> None:
     if all_entities_exist:
         filenames = sorted(os.listdir(os.path.join(ASSETS_DIR, "sprites")))
         entity_assets.clear()
-        for file in filenames:
+        for i, file in enumerate(filenames):
             if file.endswith(".png") and not file.startswith("proj_"):
                 parts = file[:-4].split("_")
                 if len(parts) >= 4:
@@ -198,6 +205,8 @@ def init_assets() -> None:
                         
                     path = os.path.join(ASSETS_DIR, "sprites", file)
                     entity_assets[entity][state][direction].append(pygame.image.load(path).convert_alpha())
+            if i % 10 == 0:
+                await asyncio.sleep(0)
     else:
         entity_assets.clear()
         _generate_entities()

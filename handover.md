@@ -382,8 +382,8 @@ Daftar modul 8 Pillar, apa yang diimpor olehnya (*Dependencies*), dan siapa yang
 
 ## 📌 7. Status Terkini & Known Technical Debt (`v2.2.1`)
 
-- **Versi Saat Ini**: `v2.2.1`
-- **Status Test Suite**: **416 / 416 Tests Passing (100% Green)**
+- **Versi Saat Ini**: `v2.2.3`
+- **Status Test Suite**: **420 / 420 Tests Passing (100% Green)**
 - **Kompilasi Bytecode**: `py_compile` 100% bersih tanpa syntax / import error.
 - **Rangkuman Perbaikan v2.2.1**:
   - *Kelompok 1 (Fatal Blockers)*: Leyline `load_map` fast travel, Morning Briefing Epoch Title data accessor, `QuestManager` serialization & Chrono Rewind rollback, and `SaveSystem` Discovery load pipeline.

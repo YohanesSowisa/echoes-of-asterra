@@ -9,7 +9,6 @@ Requires zero external audio assets or dependencies.
 import io
 import math
 import struct
-import wave
 import os
 import logging
 from typing import Dict, Union, Callable, Tuple, List
@@ -182,9 +181,9 @@ class SoundManager:
         self.music_volume = 1.0
         self.sfx_volume = 1.0
 
-        # Initialize mixer in 2-channel 44.1 kHz stereo
+        # Initialize mixer in 2-channel 44.1 kHz stereo with larger buffer for WebAssembly
         try:
-            pygame.mixer.init(frequency=self.samplerate, size=-16, channels=2, buffer=1024)
+            pygame.mixer.init(frequency=self.samplerate, size=-16, channels=2, buffer=2048)
             self.enabled = True
         except pygame.error as e:
             logger.warning("Sound: Failed to initialize stereo pygame mixer: %s. Audio disabled.", e)
@@ -231,21 +230,31 @@ class SoundManager:
         if "music" in filename:
             raw_samples = apply_equal_power_crossfade(raw_samples, self.samplerate, crossfade_sec=0.05)
 
-        # Write WAV binary stream
+        # Write WAV binary stream manually (No 'wave' module dependency for WASM compatibility)
         buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as wav_file:
-            wav_file.setnchannels(2)  # Stereo
-            wav_file.setsampwidth(2)   # 16-bit
-            wav_file.setframerate(self.samplerate)
+        
+        num_channels = 2
+        bits_per_sample = 16
+        byte_rate = self.samplerate * num_channels * (bits_per_sample // 8)
+        block_align = num_channels * (bits_per_sample // 8)
+        data_size = len(raw_samples) * block_align
+        chunk_size = 36 + data_size
+        
+        # Write 44-byte WAV Header
+        header = struct.pack('<4sI4s4sIHHIIHH4sI',
+            b'RIFF', chunk_size, b'WAVE', b'fmt ', 16,
+            1, num_channels, self.samplerate, byte_rate, block_align, bits_per_sample,
+            b'data', data_size)
+        buffer.write(header)
 
-            for left_v, right_v in raw_samples:
-                # Apply 0.75x headroom scale pre-limiter to avoid compression pumping
-                l_lim = soft_limit(left_v * 0.75, gain=1.0)
-                r_lim = soft_limit(right_v * 0.75, gain=1.0)
+        for left_v, right_v in raw_samples:
+            # Apply 0.75x headroom scale pre-limiter to avoid compression pumping
+            l_lim = soft_limit(left_v * 0.75, gain=1.0)
+            r_lim = soft_limit(right_v * 0.75, gain=1.0)
 
-                val_l = int(max(-1.0, min(1.0, l_lim)) * 32767 * volume)
-                val_r = int(max(-1.0, min(1.0, r_lim)) * 32767 * volume)
-                wav_file.writeframesraw(struct.pack('<hh', val_l, val_r))
+            val_l = int(max(-1.0, min(1.0, l_lim)) * 32767 * volume)
+            val_r = int(max(-1.0, min(1.0, r_lim)) * 32767 * volume)
+            buffer.write(struct.pack('<hh', val_l, val_r))
 
         # Cache versioned WAV to disk
         try:

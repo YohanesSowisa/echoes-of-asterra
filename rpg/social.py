@@ -69,8 +69,8 @@ class TitleEngine:
 
         return titles
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOCIAL_SAVE_PATH = os.path.join(BASE_DIR, "saves", "social_reputation.json")
+from rpg.paths import get_save_file_path
+SOCIAL_SAVE_PATH = get_save_file_path("social_reputation.json")
 
 
 class ReputationManager:

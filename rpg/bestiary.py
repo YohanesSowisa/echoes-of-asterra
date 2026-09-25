@@ -10,8 +10,8 @@ from typing import Dict, Any, Optional, List
 
 from rpg.events import EventBus
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BESTIARY_SAVE_PATH = os.path.join(BASE_DIR, "saves", "bestiary.json")
+from rpg.paths import get_save_file_path
+BESTIARY_SAVE_PATH = get_save_file_path("bestiary.json")
 
 
 @dataclass

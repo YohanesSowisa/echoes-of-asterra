@@ -20,8 +20,8 @@ CATEGORY_ARTIFACT = "ARTIFACT"
 CATEGORY_WORLD_CHANGE = "WORLD_CHANGE"
 
 MYTHOS_SCHEMA_VERSION = 1
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MYTHOS_FILE_PATH = os.path.join(BASE_DIR, "saves", "mythos_history.json")
+from rpg.paths import get_save_file_path
+MYTHOS_FILE_PATH = get_save_file_path("mythos_history.json")
 
 
 class MythosEventDict(TypedDict, total=False):

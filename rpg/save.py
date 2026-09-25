@@ -11,15 +11,13 @@ from rpg.items import create_item
 
 logger = logging.getLogger("SaveSystem")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SAVES_DIR = os.path.join(BASE_DIR, "saves")
+from rpg.paths import get_saves_dir, get_save_file_path
 
 SAVE_SCHEMA_VERSION = 8
 
 
 def get_save_path(slot: int) -> str:
-    os.makedirs(SAVES_DIR, exist_ok=True)
-    return os.path.join(SAVES_DIR, f"savegame_{slot}.json")
+    return get_save_file_path(f"savegame_{slot}.json")
 
 
 def migrate_save(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -235,14 +233,62 @@ class SaveSystem:
     migrate_save = staticmethod(migrate_save)
 
     @staticmethod
+    def _read_save_json(slot: int, filename: str) -> Optional[Dict[str, Any]]:
+        import sys
+        if sys.platform == "emscripten":
+            try:
+                import platform
+                raw = platform.window.localStorage.getItem(f"savegame_{slot}")
+                if raw:
+                    return json.loads(raw)
+            except Exception as e:
+                logger.warning("WASM: Failed to read from localStorage: %s", e)
+            return None
+            
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                return json.load(f)
+        return None
+
+    @staticmethod
+    def _write_save_json(slot: int, filename: str, data: Dict[str, Any]) -> None:
+        import sys
+        if sys.platform == "emscripten":
+            try:
+                import platform
+                platform.window.localStorage.setItem(f"savegame_{slot}", json.dumps(data))
+            except Exception as e:
+                logger.warning("WASM: Failed to write to localStorage: %s", e)
+            return
+            
+        with open(filename, 'w') as f:
+            json.dump(data, f, indent=4)
+
+    @staticmethod
+    def _delete_save(slot: int, filename: str) -> bool:
+        import sys
+        if sys.platform == "emscripten":
+            try:
+                import platform
+                platform.window.localStorage.removeItem(f"savegame_{slot}")
+                return True
+            except Exception as e:
+                logger.warning("WASM: Failed to delete from localStorage: %s", e)
+                return False
+                
+        if os.path.exists(filename):
+            os.remove(filename)
+            return True
+        return False
+
+    @staticmethod
     def get_slot_meta(slot: int) -> Dict[str, Any]:
         """Reads basic slot metadata from savegame JSON without loading full state."""
         filename = get_save_path(slot)
-        if not os.path.exists(filename):
+        raw_data = SaveSystem._read_save_json(slot, filename)
+        if not raw_data:
             return {"exists": False}
         try:
-            with open(filename, 'r') as f:
-                raw_data = json.load(f)
             data = migrate_save(raw_data)
             player_data = data["player"]
             return {
@@ -263,15 +309,13 @@ class SaveSystem:
         """Modifies the slot name in an existing save file."""
         import json
         filename = get_save_path(slot)
-        if not os.path.exists(filename):
+        raw_data = SaveSystem._read_save_json(slot, filename)
+        if not raw_data:
             return False
         try:
-            with open(filename, 'r') as f:
-                raw_data = json.load(f)
             data = migrate_save(raw_data)
             data["player"]["slot_name"] = new_name
-            with open(filename, 'w') as f:
-                json.dump(data, f, indent=4)
+            SaveSystem._write_save_json(slot, filename, data)
             return True
         except Exception as e:
             logger.warning("Failed renaming save slot %s: %s", slot, e, exc_info=True)
@@ -281,11 +325,9 @@ class SaveSystem:
     def delete_slot(slot: int) -> bool:
         """Deletes the save file associated with a slot."""
         filename = get_save_path(slot)
-        if os.path.exists(filename):
-            try:
-                os.remove(filename)
-                return True
-            except Exception as e:
+        try:
+            return SaveSystem._delete_save(slot, filename)
+        except Exception as e:
                 logger.warning("Failed deleting save slot %s: %s", slot, e, exc_info=True)
                 return False
         return False
@@ -302,10 +344,9 @@ class SaveSystem:
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         
         existing_name = f"Hero {slot}"
-        if os.path.exists(filename):
+        old_data = SaveSystem._read_save_json(slot, filename)
+        if old_data:
             try:
-                with open(filename, 'r') as f:
-                    old_data = json.load(f)
                 existing_name = old_data.get("player", {}).get("slot_name", existing_name)
             except Exception as e:
                 logger.warning("Failed reading existing slot name from %s: %s", filename, e, exc_info=True)
@@ -431,8 +472,7 @@ class SaveSystem:
                     save_payload["discovery"] = player.game.discovery_manager.to_dict()
 
 
-            with open(filename, 'w') as f:
-                json.dump(save_payload, f, indent=4)
+            SaveSystem._write_save_json(slot, filename, save_payload)
                 
             print(f"Save: Successfully saved game state to {filename}.")
             return True
@@ -450,13 +490,13 @@ class SaveSystem:
         Returns True if successful.
         """
         filename = get_save_path(slot)
-        if not os.path.exists(filename):
+        raw_payload = SaveSystem._read_save_json(slot, filename)
+        
+        if not raw_payload:
             print(f"Save: No save game file found for slot {slot}.")
             return False
 
         try:
-            with open(filename, 'r') as f:
-                raw_payload = json.load(f)
 
             save_payload = migrate_save(raw_payload)
 
