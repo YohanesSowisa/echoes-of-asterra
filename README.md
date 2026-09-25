@@ -1,6 +1,6 @@
-# Echoes of Asterra — Living World Action RPG (`v2.2.3`)
+# Echoes of Asterra — Living World Action RPG (`v2.2.4`)
 
-> 🏷️ **Version**: `v2.2.3` (WebAssembly Browser Distribution & Pygbag Support)  
+> 🏷️ **Version**: `v2.2.4` (WebAssembly Browser Distribution & Pygbag Support)  
 > 🧪 **Automated Tests**: **420 / 420 Tests Passing (100% Green)** (389 Unit/Soak Tests + 17 Dynamic Lead Tests + 14 Cross-Module Audit Tests)  
 > 📘 **Dokumen Serah Terima AI / Developer**: Lihat [handover.md](handover.md) untuk panduan arsitektur & kelanjutan proyek di sesi chat baru.  
 > 📜 **Histori Log Pembaruan**: Lihat [update_logs.md](update_logs.md) untuk riwayat lengkap penambahan fitur & perbaikan bug.
@@ -115,8 +115,10 @@ The game features an explorable world across multiple procedural maps, real-time
 
 ## 🚀 Installation & Play
 
-## 🚀 Installation & Play
+Echoes of Asterra supports 3 distinct execution environments. All player save data is safely isolated and persistently stored in its respective environment.
 
+### 1. Jalur A: Desktop/Terminal (Python Native)
+The standard developer and desktop approach running locally on your OS.
 1. **Ensure Python 3.12+ is installed.**
 2. **Install dependencies:**
    ```bash
@@ -126,6 +128,29 @@ The game features an explorable world across multiple procedural maps, real-time
    ```bash
    python main.py
    ```
+   *(Saves are stored in your OS AppData/Home directory.)*
+
+### 2. Jalur B: WebAssembly (Browser via Pygbag)
+Play directly in any modern HTML5 web browser without installing Python.
+1. **Install WebAssembly dependencies:**
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+2. **Build and serve the WebAssembly package:**
+   ```bash
+   python -m pygbag --disable-sound-format-error .
+   ```
+3. **Play:** Open `http://localhost:8000/` in your browser.
+   *(Saves are persistently stored in your browser's `localStorage`.)*
+
+### 3. Jalur C: Standalone Executable (.exe / macOS App)
+A portable compiled binary (requires PyInstaller).
+1. **Build the binary:**
+   ```bash
+   pyinstaller EchoesOfAsterra.spec
+   ```
+2. **Play:** Run the compiled binary found inside the `dist/` folder.
+   *(Saves are safely routed to standard OS persistent paths, avoiding PyInstaller temp-folder wipes.)*
 
 ---
 

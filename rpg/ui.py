@@ -287,8 +287,10 @@ class UIManager:
 
 
     def close_all_panels(self) -> None:
-        """Closes all active RPG panels."""
+        """Closes all active RPG panels and resets internal UI cursors."""
         self.open_panels.clear()
+        self.selected_inventory_slot = 0
+        self.active_char_tab = "factions"
 
     def draw(self, surface: pygame.Surface, game: Any) -> None:
         """

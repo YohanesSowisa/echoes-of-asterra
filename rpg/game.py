@@ -46,10 +46,10 @@ class Game:
         self.is_fullscreen = False
         self.target_fps = TARGET_FPS
 
-        # Ensure entity assets are initialized
-        from rpg.animation import entity_assets, init_assets
+        # Ensure entity assets are initialized asynchronously before booting the engine
+        from rpg.animation import entity_assets
         if not entity_assets:
-            init_assets()
+            raise RuntimeError("Assets not initialized! You must 'await init_assets()' before instantiating Game().")
 
         # State machine
         self.game_state = STATE_MENU
@@ -350,6 +350,13 @@ class Game:
 
         return True, "Safe to save"
 
+    def clear_transition_flags(self) -> None:
+        """Purges any lingering state transition flags and forcefully closes all UI panels to ensure a clean state."""
+        self._from_main_menu = False
+        self._from_pause_menu = False
+        if hasattr(self, "ui_manager") and self.ui_manager:
+            self.ui_manager.close_all_panels()
+
     def start_new_game(self) -> None:
         """Resets variables and loads the starting Village map."""
         self.world_manager.boss_defeated = False
@@ -524,7 +531,7 @@ class Game:
         # 4. ALWAYS respawn player at MAP_VILLAGE (Village safe town)
         self.world_manager.load_map(MAP_VILLAGE, player, portal_spawn=False)
 
-
+        self.clear_transition_flags()
         self.game_state = STATE_PLAYING
         self.sound_manager.play_sound("levelup")
         from rpg.combat import DamageNumber
@@ -979,8 +986,9 @@ class Game:
                         from rpg.save import SaveSystem
                         if not SaveSystem.load_game(self.player, self.quest_manager, self.world_manager):
                             self.start_new_game()
-                        else:
-                            self.game_state = STATE_PLAYING
+                        
+                        self.clear_transition_flags()
+                        self.game_state = STATE_PLAYING
 
                         # Ensure player state is alive and responsive
                         self.player.state = "idle"
